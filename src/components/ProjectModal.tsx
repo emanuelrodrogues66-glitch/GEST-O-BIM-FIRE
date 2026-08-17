@@ -8,6 +8,7 @@ import { daysInMonth, monthLabel, monthRange } from '../lib/month'
 import TaskSchedule from './TaskSchedule'
 import ActivityHistory from './ActivityHistory'
 import ClientDataForm from './ClientDataForm'
+import FileUpload from './FileUpload'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -221,11 +222,14 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
 
         <div className="p-6 space-y-4">
           {activeTab === 'dados' && !isNew && project ? (
-            <ClientDataForm
-              value={clientData}
-              onChange={(patch) => setClientData((c) => ({ ...c, ...patch }))}
-              showMissing={showMissingClientData}
-            />
+            <>
+              <ClientDataForm
+                value={clientData}
+                onChange={(patch) => setClientData((c) => ({ ...c, ...patch }))}
+                showMissing={showMissingClientData}
+              />
+              <FileUpload projectId={project.id} folderName={clientData.nome_pasta} />
+            </>
           ) : (
             <>
               <div>

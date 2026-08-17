@@ -1,0 +1,172 @@
+import crypto from 'node:crypto'
+
+/**
+ * Emite uma URL de upload "resumable" do Google Drive.
+ *
+ * O navegador NÃO envia o arquivo para cá — ele pede só a autorização e depois
+ * envia os bytes direto para o Google. Isso evita o limite de ~4,5 MB por
+ * requisição das funções serverless do Vercel e permite arquivos grandes
+ * (plantas, DWG, PDFs pesados).
+ */
+
+const DRIVE_API = 'https://www.googleapis.com/drive/v3'
+const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3'
+
+type ServiceAccount = {
+  client_email: string
+  private_key: string
+}
+
+function getServiceAccount(): ServiceAccount {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurada no Vercel.')
+  const parsed = JSON.parse(raw)
+  if (!parsed.client_email || !parsed.private_key) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON inválida: faltam client_email/private_key.')
+  }
+  return { client_email: parsed.client_email, private_key: parsed.private_key.replace(/\\n/g, '\n') }
+}
+
+function base64url(input: Buffer | string): string {
+  return Buffer.from(input).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+/** Gera um access token do Google via JWT assinado com a chave da conta de serviço. */
+async function getAccessToken(): Promise<string> {
+  const sa = getServiceAccount()
+  const now = Math.floor(Date.now() / 1000)
+
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
+  const claim = base64url(
+    JSON.stringify({
+      iss: sa.client_email,
+      scope: 'https://www.googleapis.com/auth/drive',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: now + 3600,
+      iat: now,
+    })
+  )
+
+  const signer = crypto.createSign('RSA-SHA256')
+  signer.update(`${header}.${claim}`)
+  const signature = base64url(signer.sign(sa.private_key))
+  const jwt = `${header}.${claim}.${signature}`
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+  })
+
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(`Falha ao autenticar no Google: ${data.error_description || data.error || res.status}`)
+  }
+  return data.access_token as string
+}
+
+/** Escapa aspas simples para a sintaxe de busca do Drive. */
+function escapeQuery(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
+/** Procura a subpasta do projeto dentro da pasta raiz; cria se não existir. */
+async function findOrCreateFolder(token: string, parentId: string, name: string): Promise<string> {
+  const q = [
+    `name = '${escapeQuery(name)}'`,
+    `'${parentId}' in parents`,
+    "mimeType = 'application/vnd.google-apps.folder'",
+    'trashed = false',
+  ].join(' and ')
+
+  const searchUrl =
+    `${DRIVE_API}/files?q=${encodeURIComponent(q)}` +
+    '&fields=files(id,name)&pageSize=1' +
+    '&supportsAllDrives=true&includeItemsFromAllDrives=true'
+
+  const found = await fetch(searchUrl, { headers: { Authorization: `Bearer ${token}` } })
+  const foundData = await found.json()
+  if (!found.ok) {
+    throw new Error(`Erro ao procurar a pasta no Drive: ${foundData.error?.message || found.status}`)
+  }
+  if (foundData.files?.length) return foundData.files[0].id as string
+
+  const created = await fetch(`${DRIVE_API}/files?fields=id&supportsAllDrives=true`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId],
+    }),
+  })
+  const createdData = await created.json()
+  if (!created.ok) {
+    throw new Error(`Erro ao criar a pasta no Drive: ${createdData.error?.message || created.status}`)
+  }
+  return createdData.id as string
+}
+
+export default async function handler(req: any, res: any) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Método não permitido' })
+    return
+  }
+
+  try {
+    const rootId = process.env.GOOGLE_DRIVE_FOLDER_ID
+    if (!rootId) throw new Error('GOOGLE_DRIVE_FOLDER_ID não configurada no Vercel.')
+
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {}
+    const { fileName, mimeType, folderName } = body as {
+      fileName?: string
+      mimeType?: string
+      folderName?: string
+    }
+
+    if (!fileName) {
+      res.status(400).json({ error: 'fileName é obrigatório.' })
+      return
+    }
+
+    const token = await getAccessToken()
+
+    // Cada projeto ganha sua própria subpasta, usando o "Nome da pasta" dos dados do cliente.
+    const parentId = folderName?.trim()
+      ? await findOrCreateFolder(token, rootId, folderName.trim())
+      : rootId
+
+    // Abre uma sessão de upload resumable: o navegador envia os bytes direto ao Google.
+    const initRes = await fetch(
+      `${DRIVE_UPLOAD}/files?uploadType=resumable&supportsAllDrives=true&fields=id,name,webViewLink,size,mimeType`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify({
+          name: fileName,
+          parents: [parentId],
+          ...(mimeType ? { mimeType } : {}),
+        }),
+      }
+    )
+
+    if (!initRes.ok) {
+      const errText = await initRes.text()
+      throw new Error(`Erro ao iniciar o upload no Drive: ${errText}`)
+    }
+
+    const uploadUrl = initRes.headers.get('location')
+    if (!uploadUrl) throw new Error('O Google não devolveu a URL de upload.')
+
+    res.status(200).json({ uploadUrl, folderId: parentId })
+  } catch (err: any) {
+    console.error('[drive-upload]', err)
+    res.status(500).json({ error: err.message || 'Erro inesperado ao preparar o upload.' })
+  }
+}

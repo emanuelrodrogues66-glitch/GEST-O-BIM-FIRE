@@ -125,6 +125,18 @@ export type ProjectClient = {
   updated_at: string
 }
 
+export type ProjectFile = {
+  id: string
+  project_id: string
+  nome: string
+  drive_file_id: string
+  drive_link: string | null
+  mime_type: string | null
+  tamanho: number | null
+  enviado_por: string | null
+  created_at: string
+}
+
 export type ClientFieldKey = Exclude<keyof ProjectClient, 'id' | 'project_id' | 'created_at' | 'updated_at'>
 
 export const CLIENT_FIELDS: { key: ClientFieldKey; label: string; placeholder?: string }[] = [
