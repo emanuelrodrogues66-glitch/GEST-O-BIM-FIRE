@@ -76,7 +76,13 @@ function montarSegmentos(dias: DailyProgress[]): GanttSegment[] {
   return segmentos
 }
 
-export default function GanttGlobal({ projects }: { projects: Project[] }) {
+export default function GanttGlobal({
+  projects,
+  onProjectClick,
+}: {
+  projects: Project[]
+  onProjectClick?: (p: Project) => void
+}) {
   const [statusSel, setStatusSel] = useState<string[]>([...STATUS_COLUNAS])
   const [categoriaSel, setCategoriaSel] = useState<string>('')
   const [responsavelSel, setResponsavelSel] = useState<string>('')
@@ -406,7 +412,21 @@ export default function GanttGlobal({ projects }: { projects: Project[] }) {
           Nenhum projeto encontrado com os filtros atuais.
         </p>
       ) : (
-        <GanttChart items={items} labelWidth={220} rowHeight={30} />
+        <GanttChart
+          items={items}
+          labelWidth={220}
+          rowHeight={30}
+          onItemClick={
+            onProjectClick
+              ? (id) => {
+                  // A linha "planejado" usa o id do projeto com sufixo; abre o mesmo projeto.
+                  const projetoId = id.replace(/__plano$/, '')
+                  const p = projects.find((x) => x.id === projetoId)
+                  if (p) onProjectClick(p)
+                }
+              : undefined
+          }
+        />
       )}
     </div>
   )

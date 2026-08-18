@@ -328,7 +328,7 @@ export default function App() {
         ) : viewMode === 'dashboard' ? (
           <Dashboard projects={filtered} month={month} />
         ) : viewMode === 'gantt' ? (
-          <GanttGlobal projects={projects} />
+          <GanttGlobal projects={projects} onProjectClick={openEdit} />
         ) : viewMode === 'tarefas' ? (
           <TasksBoard />
         ) : viewMode === 'atividades' ? (

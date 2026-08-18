@@ -61,11 +61,14 @@ export default function GanttChart({
   labelWidth = 180,
   rowHeight = 32,
   dayWidth = 28,
+  onItemClick,
 }: {
   items: GanttItem[]
   labelWidth?: number
   rowHeight?: number
   dayWidth?: number
+  /** Se informado, o nome e a barra viram clicáveis. */
+  onItemClick?: (id: string) => void
 }) {
   const [hover, setHover] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -228,7 +231,11 @@ export default function GanttChart({
                 >
                   <div
                     style={{ width: labelWidth }}
-                    className="shrink-0 sticky left-0 z-10 bg-white px-2 text-xs text-slate-700 border-r border-slate-200 truncate"
+                    onClick={onItemClick ? () => onItemClick(it.id) : undefined}
+                    className={`shrink-0 sticky left-0 z-10 bg-white px-2 text-xs text-slate-700 border-r border-slate-200 truncate ${
+                      onItemClick ? 'cursor-pointer hover:bg-indigo-50 hover:text-indigo-700' : ''
+                    }`}
+                    title={onItemClick ? 'Abrir o projeto' : undefined}
                   >
                     {it.attached ? (
                       <div className="truncate text-[10px] text-slate-400 pl-2">{it.sublabel || 'Planejado'}</div>
@@ -245,9 +252,9 @@ export default function GanttChart({
                   >
                     {/* Trilho da barra: define a área total e captura o hover */}
                     <div
-                      className={`absolute rounded-md flex items-center px-1.5 text-[10px] font-medium cursor-default ${
-                        it.muted ? 'border border-dashed border-slate-400' : 'shadow-sm'
-                      }`}
+                      className={`absolute rounded-md flex items-center px-1.5 text-[10px] font-medium ${
+                        onItemClick ? 'cursor-pointer hover:brightness-95' : 'cursor-default'
+                      } ${it.muted ? 'border border-dashed border-slate-400' : 'shadow-sm'}`}
                       style={{
                         left,
                         width,
@@ -258,6 +265,7 @@ export default function GanttChart({
                         color: it.textColor || '#fff',
                         overflow: 'hidden',
                       }}
+                      onClick={onItemClick ? () => onItemClick(it.id) : undefined}
                       onMouseEnter={() => setHover(it.id)}
                       onMouseLeave={() => setHover(null)}
                     >
