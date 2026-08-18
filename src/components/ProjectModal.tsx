@@ -175,6 +175,45 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
     }
   }
 
+  /**
+   * Compara o formulário com o projeto original para saber se há edição pendente.
+   * As demais abas (planejamento, correções, arquivos) salvam sozinhas,
+   * então só a aba Geral e os dados do cliente precisam desse aviso.
+   */
+  function temAlteracaoNaoSalva(): boolean {
+    if (isNew) {
+      return !!(form.nome?.trim() || form.responsavel?.trim() || form.observacoes?.trim())
+    }
+    if (!project) return false
+    const campos: (keyof Project)[] = [
+      'nome',
+      'responsavel',
+      'status',
+      'tipo',
+      'pts',
+      'm2',
+      'categoria',
+      'prazo_categoria',
+      'data_prazo',
+      'data_inicio',
+      'observacoes',
+    ]
+    return campos.some((c) => {
+      const atual = (form as any)[c]
+      const original = (project as any)[c]
+      const a = atual === null || atual === undefined ? '' : String(atual)
+      const b = original === null || original === undefined ? '' : String(original)
+      return a !== b
+    })
+  }
+
+  function handleClose() {
+    if (temAlteracaoNaoSalva()) {
+      if (!confirm('Você tem alterações não salvas nesta tela. Fechar mesmo assim?')) return
+    }
+    onClose()
+  }
+
   async function handleDelete() {
     if (!project) return
     if (!confirm(`Excluir "${project.nome}"? Essa ação não pode ser desfeita.`)) return
@@ -185,16 +224,15 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    // Sem fechar ao clicar fora: só pelo X ou Cancelar, para não perder
+    // o que já foi preenchido por um clique acidental.
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <h2 className="text-lg font-semibold text-slate-800">
             {isNew ? 'Novo projeto' : 'Editar projeto'}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">
+          <button onClick={handleClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">
             ×
           </button>
         </div>
@@ -437,7 +475,7 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
           )}
           <div className="flex gap-2">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
             >
               Cancelar

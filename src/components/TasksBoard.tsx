@@ -17,6 +17,7 @@ const STATUS_BAR_COLORS: Record<string, string> = {
   Pendente: '#94a3b8',
   'Em andamento': '#6366f1',
   Atrasada: '#ef4444',
+  'Concluído': '#22c55e',
 }
 
 export default function TasksBoard() {
@@ -24,6 +25,7 @@ export default function TasksBoard() {
   const [loading, setLoading] = useState(true)
   const [groupBy, setGroupBy] = useState<GroupBy>('colaborador')
   const [busca, setBusca] = useState('')
+  const [mostrarConcluidas, setMostrarConcluidas] = useState(false)
 
   useEffect(() => {
     load()
@@ -40,15 +42,20 @@ export default function TasksBoard() {
     setLoading(false)
   }
 
-  const pendentes = useMemo(() => rows.filter((r) => r.status !== 'Concluído'), [rows])
+  const visiveis = useMemo(
+    () => (mostrarConcluidas ? rows : rows.filter((r) => r.status !== 'Concluído')),
+    [rows, mostrarConcluidas]
+  )
 
   const filtradas = useMemo(() => {
-    if (!busca) return pendentes
-    return pendentes.filter((r) => {
+    if (!busca) return visiveis
+    return visiveis.filter((r) => {
       const alvo = `${r.projects?.nome || ''} ${r.nome} ${r.responsavel || ''}`.toLowerCase()
       return alvo.includes(busca.toLowerCase())
     })
-  }, [pendentes, busca])
+  }, [visiveis, busca])
+
+  const totalConcluidas = useMemo(() => rows.filter((r) => r.status === 'Concluído').length, [rows])
 
   // Dashboard: contagem por colaborador, separando Pendente / Em andamento / Atrasada
   const dashboardData = useMemo(() => {
@@ -109,7 +116,13 @@ export default function TasksBoard() {
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="Pendente" stackId="s" fill={STATUS_BAR_COLORS.Pendente} />
               <Bar dataKey="Em andamento" stackId="s" fill={STATUS_BAR_COLORS['Em andamento']} />
-              <Bar dataKey="Atrasada" stackId="s" fill={STATUS_BAR_COLORS.Atrasada} radius={[0, 3, 3, 0]} />
+              <Bar dataKey="Atrasada" stackId="s" fill={STATUS_BAR_COLORS.Atrasada} />
+              <Bar
+                dataKey="Concluído"
+                stackId="s"
+                fill={STATUS_BAR_COLORS['Concluído']}
+                radius={[0, 3, 3, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -140,12 +153,26 @@ export default function TasksBoard() {
           onChange={(e) => setBusca(e.target.value)}
           className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white flex-1 min-w-[200px] max-w-sm"
         />
-        <span className="text-xs text-slate-400 ml-auto">{filtradas.length} tarefa(s) pendente(s)</span>
+        <label className="flex items-center gap-1.5 text-xs text-slate-600">
+          <input
+            type="checkbox"
+            checked={mostrarConcluidas}
+            onChange={(e) => setMostrarConcluidas(e.target.checked)}
+          />
+          Mostrar concluídas
+          {totalConcluidas > 0 && <span className="text-slate-400">({totalConcluidas})</span>}
+        </label>
+
+        <span className="text-xs text-slate-400 ml-auto">
+          {filtradas.length} tarefa(s) {mostrarConcluidas ? 'no total' : 'pendente(s)'}
+        </span>
       </div>
 
       {grouped.length === 0 && (
         <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl">
-          Nenhuma tarefa pendente encontrada. 🎉
+          {mostrarConcluidas
+            ? 'Nenhuma tarefa encontrada com os filtros atuais.'
+            : 'Nenhuma tarefa pendente encontrada. 🎉'}
         </p>
       )}
 

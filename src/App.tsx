@@ -35,6 +35,7 @@ export default function App() {
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
   const [pdfAllModalOpen, setPdfAllModalOpen] = useState(false)
   const [month, setMonth] = useState<MonthRef>({ year: 2026, month: 8 })
+  const [dragOverCategoria, setDragOverCategoria] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -112,6 +113,26 @@ export default function App() {
   function handleSaved() {
     closeModal()
     fetchProjects()
+  }
+
+  /**
+   * Move o projeto para outra categoria arrastando o cartão sobre a aba.
+   * "PROJETOS FINALIZADOS" fica de fora: o projeto vai para lá sozinho
+   * quando o status muda para Concluído.
+   */
+  async function handleDropCategoria(projectId: string, novaCategoria: string) {
+    const projeto = projects.find((p) => p.id === projectId)
+    if (!projeto || projeto.categoria === novaCategoria) return
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ categoria: novaCategoria })
+        .eq('id', projectId)
+      if (error) throw error
+      fetchProjects()
+    } catch (err: any) {
+      alert(err.message || 'Erro ao mover o projeto de categoria.')
+    }
   }
 
   async function handleDropCard(projectId: string, status: string) {
@@ -199,17 +220,41 @@ export default function App() {
           </div>
 
           <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1">
-            {CATEGORIAS.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCategoria(c)}
-                className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${
-                  categoria === c ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100'
-                }`}
-              >
-                {c}
-              </button>
-            ))}
+            {CATEGORIAS.map((c) => {
+              // Só as duas primeiras aceitam cartão arrastado; a de finalizados
+              // é preenchida automaticamente ao concluir o projeto.
+              const aceitaSolta = viewMode === 'kanban' && c !== 'PROJETOS FINALIZADOS'
+              const arrastandoSobre = dragOverCategoria === c
+              return (
+                <button
+                  key={c}
+                  onClick={() => setCategoria(c)}
+                  onDragOver={(e) => {
+                    if (!aceitaSolta) return
+                    e.preventDefault()
+                    setDragOverCategoria(c)
+                  }}
+                  onDragLeave={() => setDragOverCategoria((v) => (v === c ? null : v))}
+                  onDrop={(e) => {
+                    if (!aceitaSolta) return
+                    e.preventDefault()
+                    setDragOverCategoria(null)
+                    const projectId = e.dataTransfer.getData('text/plain')
+                    if (projectId) handleDropCategoria(projectId, c)
+                  }}
+                  className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${
+                    arrastandoSobre
+                      ? 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-400'
+                      : categoria === c
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-500 hover:bg-slate-100'
+                  }`}
+                  title={aceitaSolta ? 'Arraste um cartão até aqui para mover de categoria' : undefined}
+                >
+                  {c}
+                </button>
+              )
+            })}
           </div>
 
           <select
