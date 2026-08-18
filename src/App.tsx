@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { changeProjectStatus } from './lib/statusSync'
 import { nomeDoUsuario, type DadosPendencia } from './lib/pendencias'
-import { comemorarConclusao } from './lib/celebracao'
+import { alertarCorrecao, comemorarConclusao } from './lib/celebracao'
 import type { Project } from './types'
 import { CATEGORIAS } from './types'
 import Login from './components/Login'
@@ -172,6 +172,7 @@ export default function App() {
       }
       setPedirPendencia(null)
       if (status === 'Concluído') comemorarConclusao()
+      else if (status === 'CORREÇÃO') alertarCorrecao(projeto.nome)
       fetchProjects()
     } catch (err: any) {
       alert(err.message || 'Erro ao mover o projeto.')

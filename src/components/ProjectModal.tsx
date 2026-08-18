@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { syncDailyProgressForStatus } from '../lib/statusSync'
 import { abrirPendencia, fecharPendencia, nomeDoUsuario, pendenciaAberta } from '../lib/pendencias'
-import { comemorarConclusao } from '../lib/celebracao'
+import { alertarCorrecao, comemorarConclusao } from '../lib/celebracao'
 import type { DailyProgress, Project, ProjectClient } from '../types'
 import {
   MOTIVOS_PENDENCIA,
@@ -246,9 +246,10 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
         }
       }
 
-      // Projeto acabou de ser concluído: comemora.
-      if (form.status === 'Concluído' && project?.status !== 'Concluído') {
-        comemorarConclusao()
+      // Avisos de mudança de status: comemoração ao concluir, alerta ao entrar em correção.
+      if (form.status !== project?.status) {
+        if (form.status === 'Concluído') comemorarConclusao()
+        else if (form.status === 'CORREÇÃO') alertarCorrecao(form.nome || project?.nome)
       }
 
       onSaved()

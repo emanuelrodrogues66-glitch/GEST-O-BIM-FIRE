@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { changeProjectStatus } from '../lib/statusSync'
 import { nomeDoUsuario, type DadosPendencia } from '../lib/pendencias'
-import { comemorarConclusao } from '../lib/celebracao'
+import { alertarCorrecao, comemorarConclusao } from '../lib/celebracao'
 import PendencyDialog from './PendencyDialog'
 import type { Project } from '../types'
 import { prazoColor, STATUS_COLUNAS, statusColor, tipoColor } from '../types'
@@ -36,6 +36,8 @@ export default function ListView({
     justificativas: Record<string, DadosPendencia>
     bloqueados: string[]
     concluidos: number
+    correcoes: number
+    primeiraCorrecao: string | null
     responsavel: string | null
   } | null>(null)
 
@@ -99,6 +101,8 @@ export default function ListView({
       justificativas: {},
       bloqueados: [],
       concluidos: 0,
+      correcoes: 0,
+      primeiraCorrecao: null,
       responsavel: bulkStatus === 'Pendente' ? await nomeDoUsuario() : null,
     }
     await processarLote()
@@ -133,6 +137,10 @@ export default function ListView({
 
         if (!result.ok) lote.bloqueados.push(projeto?.nome || id)
         else if (bulkStatus === 'Concluído' && projeto?.status !== 'Concluído') lote.concluidos += 1
+        else if (bulkStatus === 'CORREÇÃO' && projeto?.status !== 'CORREÇÃO') {
+          lote.correcoes += 1
+          if (!lote.primeiraCorrecao) lote.primeiraCorrecao = projeto?.nome || null
+        }
         lote.restantes.shift()
       }
 
@@ -146,9 +154,12 @@ export default function ListView({
   function finalizarLote() {
     const bloqueados = loteRef.current?.bloqueados || []
     const concluidos = loteRef.current?.concluidos || 0
+    const correcoes = loteRef.current?.correcoes || 0
+    const primeiraCorrecao = loteRef.current?.primeiraCorrecao || undefined
     encerrarLote()
 
     if (concluidos > 0) comemorarConclusao(concluidos)
+    if (correcoes > 0) alertarCorrecao(primeiraCorrecao, correcoes)
     setSelected(new Set())
     onBulkUpdated?.()
 
