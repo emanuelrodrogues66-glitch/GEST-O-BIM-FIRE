@@ -1,5 +1,10 @@
 import { supabase } from './supabase'
-import { STATUS_TO_LETRA, isClientDataComplete, type ProjectClient } from '../types'
+import {
+  STATUS_TO_LETRA,
+  anexosObrigatoriosFaltando,
+  isClientDataComplete,
+  type ProjectClient,
+} from '../types'
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10)
@@ -19,13 +24,21 @@ export async function syncDailyProgressForStatus(projectId: string, status: stri
 
 // Busca os dados do cliente de um projeto e informa se estão completos
 // (todos os campos da aba "Dados do cliente" preenchidos).
+/**
+ * Um projeto só pode ser concluído com os dados do cliente completos
+ * E com os anexos obrigatórios enviados.
+ */
 export async function checkClientDataComplete(projectId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('project_clients')
-    .select('*')
-    .eq('project_id', projectId)
-    .maybeSingle()
-  return isClientDataComplete(data as Partial<ProjectClient> | null)
+  const [{ data: client }, { data: arquivos }] = await Promise.all([
+    supabase.from('project_clients').select('*').eq('project_id', projectId).maybeSingle(),
+    supabase.from('project_files').select('categoria').eq('project_id', projectId),
+  ])
+
+  const cliente = client as Partial<ProjectClient> | null
+  if (!isClientDataComplete(cliente)) return false
+
+  const faltando = anexosObrigatoriosFaltando(cliente, (arquivos as { categoria: string | null }[]) || [])
+  return faltando.length === 0
 }
 
 // Troca o status de um projeto, sincronizando o progresso diário do dia.

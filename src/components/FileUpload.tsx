@@ -38,9 +38,12 @@ type Uploading = { nome: string; progresso: number; erro?: string; categoria: st
 export default function FileUpload({
   projectId,
   folderName,
+  dispensaUpload,
 }: {
   projectId: string
   folderName?: string | null
+  /** Memorial simplificado / TAC: some a exigência dos anexos. */
+  dispensaUpload?: boolean | null
 }) {
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [loading, setLoading] = useState(true)
@@ -219,7 +222,23 @@ export default function FileUpload({
             <div key={cat.key} className="border border-slate-200 rounded-lg p-2.5">
               <div className="flex items-baseline justify-between gap-2 mb-1.5">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold text-slate-700">{cat.label}</p>
+                  <p className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5 flex-wrap">
+                    {cat.label}
+                    {cat.obrigatorio &&
+                      (dispensaUpload ? (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-300">
+                          dispensado
+                        </span>
+                      ) : doTipo.length > 0 ? (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-300">
+                          obrigatório ✓
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">
+                          obrigatório
+                        </span>
+                      ))}
+                  </p>
                   <p className="text-[10px] text-slate-400">{cat.hint}</p>
                 </div>
                 <span className="text-[10px] text-slate-400 shrink-0">

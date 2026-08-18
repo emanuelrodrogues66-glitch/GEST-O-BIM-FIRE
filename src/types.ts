@@ -199,35 +199,58 @@ export type ProjectClient = {
   destino_projeto: string | null
   entregue_dono_imovel: string | null
   dificuldades: string | null
+  /** Memorial simplificado ou TAC: dispensa os anexos obrigatórios. */
+  dispensa_upload: boolean | null
   created_at: string
   updated_at: string
 }
 
-/** Categorias de anexo, espelhando os campos de upload do formulário. */
+/**
+ * Categorias de anexo, espelhando os campos de upload do formulário.
+ * `obrigatorio` define se a falta do arquivo impede concluir o projeto.
+ */
 export const FILE_CATEGORIES = [
   {
     key: 'comprovante',
     label: 'Comprovante de entrega do projeto',
     hint: 'Se o processo foi digital, envie o print do e-mail com os arquivos',
+    obrigatorio: true,
   },
   {
     key: 'analises',
     label: 'Relatórios de análise',
     hint: 'Compilado e em ordem cronológica',
+    obrigatorio: false,
   },
   {
     key: 'oficios',
     label: 'Ofícios resposta ao Corpo de Bombeiros',
     hint: 'Documentos enviados em resposta às exigências',
+    obrigatorio: false,
   },
   {
     key: 'outros',
     label: 'Outros arquivos',
     hint: 'Plantas, memoriais, protocolos e demais documentos',
+    obrigatorio: false,
   },
 ] as const
 
 export type FileCategoryKey = (typeof FILE_CATEGORIES)[number]['key']
+
+/**
+ * Quais anexos obrigatórios ainda faltam.
+ * A dispensa (memorial simplificado / TAC) zera a exigência.
+ */
+export function anexosObrigatoriosFaltando(
+  client: Partial<ProjectClient> | null | undefined,
+  arquivos: { categoria: string | null }[]
+): string[] {
+  if (client?.dispensa_upload) return []
+  return FILE_CATEGORIES.filter(
+    (c) => c.obrigatorio && !arquivos.some((a) => (a.categoria || 'outros') === c.key)
+  ).map((c) => c.label)
+}
 
 export type ProjectCorrection = {
   id: string
@@ -243,6 +266,10 @@ export type ProjectCorrection = {
   created_at: string
   updated_at: string
 }
+
+/** Assinatura fixa do ofício resposta. */
+export const OFICIO_RESPONSAVEL_TECNICO = 'Emanuel Da Natividade Rodrigues'
+export const OFICIO_RESPONSAVEL_CREA = 'CREA 190806/D'
 
 /** Usados quando a correção ainda não tem cidade/destinatário próprios. */
 export const OFICIO_CIDADE_PADRAO = 'Manaus'

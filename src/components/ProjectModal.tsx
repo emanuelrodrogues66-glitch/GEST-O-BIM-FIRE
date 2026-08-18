@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { syncDailyProgressForStatus } from '../lib/statusSync'
 import type { DailyProgress, Project, ProjectClient } from '../types'
-import { STATUS_COLUNAS, isClientDataComplete, suggestedPoints } from '../types'
+import { STATUS_COLUNAS, anexosObrigatoriosFaltando, isClientDataComplete, suggestedPoints } from '../types'
 import type { MonthRef } from '../lib/month'
 import { daysInMonth, monthLabel, monthRange } from '../lib/month'
 import TaskSchedule from './TaskSchedule'
@@ -117,12 +117,35 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
   }
 
   async function handleSave() {
-    // Bloqueia a conclusão do projeto se os dados do cliente não estiverem completos.
-    if (form.status === 'Concluído' && !isClientDataComplete(clientData)) {
-      setError('Preencha todos os campos da aba "Dados do cliente" antes de concluir o projeto.')
-      setShowMissingClientData(true)
-      setActiveTab('dados')
-      return
+    // Bloqueia a conclusão do projeto se os dados do cliente ou os anexos
+    // obrigatórios não estiverem completos.
+    if (form.status === 'Concluído') {
+      if (!isClientDataComplete(clientData)) {
+        setError('Preencha todos os campos da aba "Dados do cliente" antes de concluir o projeto.')
+        setShowMissingClientData(true)
+        setActiveTab('dados')
+        return
+      }
+
+      if (project) {
+        const { data: arquivos } = await supabase
+          .from('project_files')
+          .select('categoria')
+          .eq('project_id', project.id)
+
+        const faltando = anexosObrigatoriosFaltando(
+          clientData,
+          (arquivos as { categoria: string | null }[]) || []
+        )
+        if (faltando.length > 0) {
+          setError(
+            `Faltam anexos obrigatórios para concluir: ${faltando.join(', ')}. ` +
+              'Se for memorial simplificado ou TAC, marque a caixa de dispensa na aba "Dados do cliente".'
+          )
+          setActiveTab('dados')
+          return
+        }
+      }
     }
 
     setSaving(true)
@@ -274,7 +297,11 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                 onChange={(patch) => setClientData((c) => ({ ...c, ...patch }))}
                 showMissing={showMissingClientData}
               />
-              <FileUpload projectId={project.id} folderName={clientData.nome_pasta} />
+              <FileUpload
+                projectId={project.id}
+                folderName={clientData.nome_pasta}
+                dispensaUpload={clientData.dispensa_upload}
+              />
             </>
           ) : (
             <>

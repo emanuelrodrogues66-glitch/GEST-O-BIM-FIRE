@@ -1,6 +1,11 @@
 import { forwardRef } from 'react'
 import type { Project, ProjectClient, ProjectCorrection, ProjectCorrectionItem } from '../types'
-import { OFICIO_CIDADE_PADRAO, OFICIO_DESTINATARIO_PADRAO } from '../types'
+import {
+  OFICIO_CIDADE_PADRAO,
+  OFICIO_DESTINATARIO_PADRAO,
+  OFICIO_RESPONSAVEL_CREA,
+  OFICIO_RESPONSAVEL_TECNICO,
+} from '../types'
 
 function formatDateBR(d: string | null | undefined): string {
   if (!d) return '—'
@@ -163,18 +168,12 @@ const OficioView = forwardRef<HTMLDivElement, Props>(
         <p className="text-[11px] mb-10">Sendo o que se apresenta para o momento, subscrevemo-nos.</p>
         <p className="text-[11px] mb-12">Atenciosamente,</p>
 
-        {/* Assinatura */}
+        {/* Assinatura: responsável técnico fixo da BIM Fire */}
         <div className="text-center text-[11px] mt-4">
           <div className="border-t border-slate-800 w-72 mx-auto pt-1">
-            <p className="font-semibold">{client.nome_responsavel?.trim() || project.responsavel || ''}</p>
+            <p className="font-semibold">{OFICIO_RESPONSAVEL_TECNICO}</p>
             <p className="text-slate-600">Responsável Técnico</p>
-            {client.nome_parceiro?.trim() && <p className="text-slate-600">{client.nome_parceiro}</p>}
-            {client.contato_responsavel?.trim() && (
-              <p className="text-slate-500 text-[10px] mt-0.5">{client.contato_responsavel}</p>
-            )}
-            {client.email_cliente?.trim() && (
-              <p className="text-slate-500 text-[10px]">{client.email_cliente}</p>
-            )}
+            <p className="text-slate-600">{OFICIO_RESPONSAVEL_CREA}</p>
           </div>
         </div>
       </div>

@@ -93,6 +93,20 @@ export default function ClientDataForm({
         </span>
       </div>
 
+      {/* Dispensa de anexos para memorial simplificado / TAC */}
+      <label className="flex items-start gap-2 mb-4 border border-slate-200 rounded-lg px-3 py-2 bg-slate-50/60 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={!!value.dispensa_upload}
+          onChange={(e) => onChange({ dispensa_upload: e.target.checked })}
+        />
+        <span className="text-[11px] text-slate-600">
+          <b className="text-slate-700">Memorial simplificado ou TAC</b> — dispensa o envio dos arquivos
+          obrigatórios para concluir o projeto.
+        </span>
+      </label>
+
       <div className="space-y-5">
         {CLIENT_SECOES.map((secao) => {
           const campos = CLIENT_FIELDS.filter((f) => f.secao === secao)

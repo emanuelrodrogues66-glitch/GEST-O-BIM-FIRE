@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportElementToPdf } from '../lib/pdfExport'
+import { baixarBlob, gerarOficioDocx } from '../lib/oficioDocx'
 import type { Project, ProjectClient, ProjectCorrection, ProjectCorrectionItem } from '../types'
 import { OFICIO_CIDADE_PADRAO, OFICIO_DESTINATARIO_PADRAO } from '../types'
 import OficioView from './OficioView'
@@ -156,6 +157,24 @@ export default function CorrectionsTab({
     await supabase.from('project_correction_items').delete().eq('id', id)
   }
 
+  /** Gera o ofício em .docx, para poder ajustar a formatação no Word depois. */
+  async function gerarOficioWord(c: ProjectCorrection) {
+    setErro(null)
+    setGerando(c.id + '-word')
+    try {
+      const blob = await gerarOficioDocx(project, client, c, itens[c.id] || [])
+      const nome = project.nome.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      baixarBlob(blob, `oficio-resposta-${nome}-${c.numero}a-correcao.docx`)
+      if (!c.respondida) {
+        await updateCorrecao(c.id, { respondida: true, data_resposta: todayStr() })
+      }
+    } catch (err: any) {
+      setErro(err.message || 'Erro ao gerar o ofício em Word.')
+    } finally {
+      setGerando(null)
+    }
+  }
+
   async function gerarOficio(c: ProjectCorrection) {
     setErro(null)
     setOficioId(c.id)
@@ -250,12 +269,24 @@ export default function CorrectionsTab({
 
                   <div className="ml-auto flex items-center gap-2">
                     <button
+                      onClick={() => gerarOficioWord(c)}
+                      disabled={!!gerando || lista.length === 0}
+                      className="text-[11px] bg-blue-700 hover:bg-blue-800 disabled:opacity-40 text-white font-medium px-2.5 py-1 rounded-md"
+                      title={
+                        lista.length === 0
+                          ? 'Adicione ao menos um item'
+                          : 'Gerar em Word, para ajustar a formatação depois'
+                      }
+                    >
+                      {gerando === c.id + '-word' ? 'Gerando...' : 'Ofício (Word)'}
+                    </button>
+                    <button
                       onClick={() => gerarOficio(c)}
-                      disabled={gerando === c.id || lista.length === 0}
+                      disabled={!!gerando || lista.length === 0}
                       className="text-[11px] bg-slate-800 hover:bg-slate-900 disabled:opacity-40 text-white font-medium px-2.5 py-1 rounded-md"
                       title={lista.length === 0 ? 'Adicione ao menos um item' : 'Gerar ofício resposta em PDF'}
                     >
-                      {gerando === c.id ? 'Gerando...' : 'Gerar ofício (PDF)'}
+                      {gerando === c.id ? 'Gerando...' : 'Ofício (PDF)'}
                     </button>
                     <button
                       onClick={() => removeCorrecao(c)}
