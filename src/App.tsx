@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { changeProjectStatus } from './lib/statusSync'
 import { nomeDoUsuario, type DadosPendencia } from './lib/pendencias'
+import { comemorarConclusao } from './lib/celebracao'
 import type { Project } from './types'
 import { CATEGORIAS } from './types'
 import Login from './components/Login'
@@ -17,6 +18,7 @@ import ReportsView from './components/ReportsView'
 import TasksBoard from './components/TasksBoard'
 import ActivitiesReport from './components/ActivitiesReport'
 import PendencyDialog from './components/PendencyDialog'
+import CelebrationSettings from './components/CelebrationSettings'
 import type { MonthRef } from './lib/month'
 import { addMonths, dateInMonth, monthLabel } from './lib/month'
 
@@ -169,6 +171,7 @@ export default function App() {
         return
       }
       setPedirPendencia(null)
+      if (status === 'Concluído') comemorarConclusao()
       fetchProjects()
     } catch (err: any) {
       alert(err.message || 'Erro ao mover o projeto.')
@@ -210,6 +213,7 @@ export default function App() {
             >
               + Novo projeto
             </button>
+            <CelebrationSettings />
             <button
               onClick={() => supabase.auth.signOut()}
               className="text-sm text-slate-500 hover:text-slate-800 px-2 py-1.5"

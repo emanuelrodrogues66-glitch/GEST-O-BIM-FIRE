@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { changeProjectStatus } from '../lib/statusSync'
 import { nomeDoUsuario, type DadosPendencia } from '../lib/pendencias'
+import { comemorarConclusao } from '../lib/celebracao'
 import PendencyDialog from './PendencyDialog'
 import type { Project } from '../types'
 import { prazoColor, STATUS_COLUNAS, statusColor, tipoColor } from '../types'
@@ -34,6 +35,7 @@ export default function ListView({
     restantes: string[]
     justificativas: Record<string, DadosPendencia>
     bloqueados: string[]
+    concluidos: number
     responsavel: string | null
   } | null>(null)
 
@@ -96,6 +98,7 @@ export default function ListView({
       restantes: Array.from(selected),
       justificativas: {},
       bloqueados: [],
+      concluidos: 0,
       responsavel: bulkStatus === 'Pendente' ? await nomeDoUsuario() : null,
     }
     await processarLote()
@@ -129,6 +132,7 @@ export default function ListView({
         }
 
         if (!result.ok) lote.bloqueados.push(projeto?.nome || id)
+        else if (bulkStatus === 'Concluído' && projeto?.status !== 'Concluído') lote.concluidos += 1
         lote.restantes.shift()
       }
 
@@ -141,7 +145,10 @@ export default function ListView({
 
   function finalizarLote() {
     const bloqueados = loteRef.current?.bloqueados || []
+    const concluidos = loteRef.current?.concluidos || 0
     encerrarLote()
+
+    if (concluidos > 0) comemorarConclusao(concluidos)
     setSelected(new Set())
     onBulkUpdated?.()
 
