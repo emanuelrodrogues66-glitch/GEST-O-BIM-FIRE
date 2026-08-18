@@ -1,7 +1,16 @@
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
-export async function exportElementToPdf(element: HTMLElement, filename: string) {
+export type PdfPageOptions = {
+  orientation?: 'landscape' | 'portrait'
+  format?: string
+}
+
+export async function exportElementToPdf(
+  element: HTMLElement,
+  filename: string,
+  options: PdfPageOptions = {}
+) {
   const canvas = await html2canvas(element, {
     scale: 2,
     useCORS: true,
@@ -11,9 +20,9 @@ export async function exportElementToPdf(element: HTMLElement, filename: string)
   })
 
   const pdf = new jsPDF({
-    orientation: 'landscape',
+    orientation: options.orientation || 'landscape',
     unit: 'pt',
-    format: 'a3',
+    format: options.format || 'a3',
   })
 
   const pageWidth = pdf.internal.pageSize.getWidth()

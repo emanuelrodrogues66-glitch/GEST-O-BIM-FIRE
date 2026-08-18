@@ -190,6 +190,29 @@ export type ProjectClient = {
   updated_at: string
 }
 
+export type ProjectCorrection = {
+  id: string
+  project_id: string
+  numero: number
+  data: string
+  analista: string | null
+  observacoes: string | null
+  data_resposta: string | null
+  respondida: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type ProjectCorrectionItem = {
+  id: string
+  correction_id: string
+  numero: number
+  exigencia: string
+  resposta: string | null
+  ordem: number
+  created_at: string
+}
+
 export type ProjectPlan = {
   id: string
   project_id: string
@@ -226,7 +249,7 @@ export type ClientFieldKey = Exclude<keyof ProjectClient, 'id' | 'project_id' | 
 
 export const CLIENT_FIELDS: { key: ClientFieldKey; label: string; placeholder?: string }[] = [
   { key: 'nome_parceiro', label: 'Nome do parceiro (Eng., Arq. e etc.)' },
-  { key: 'cnpj', label: 'CNPJ' },
+  { key: 'cnpj', label: 'CNPJ ou CPF' },
   { key: 'nome_responsavel', label: 'Nome do responsável' },
   { key: 'contato_responsavel', label: 'Contato do responsável' },
   { key: 'email_cliente', label: 'E-mail do cliente' },
