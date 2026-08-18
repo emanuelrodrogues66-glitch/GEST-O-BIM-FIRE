@@ -115,9 +115,16 @@ function escapeQuery(v: string): string {
   return v.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
-/** Procura a subpasta do projeto dentro da pasta raiz; cria se não existir. */
-export async function encontrarOuCriarPasta(token: string, nome: string): Promise<string> {
-  const parentId = ROOT_FOLDER_ID as string
+/**
+ * Procura uma subpasta pelo nome dentro de `parent`; cria se não existir.
+ * Sem `parent`, usa a pasta raiz configurada.
+ */
+export async function encontrarOuCriarPasta(
+  token: string,
+  nome: string,
+  parent?: string
+): Promise<string> {
+  const parentId = parent || (ROOT_FOLDER_ID as string)
   if (!nome.trim()) return parentId
 
   const q = [

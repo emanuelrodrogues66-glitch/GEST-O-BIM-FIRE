@@ -186,9 +186,48 @@ export type ProjectClient = {
   protocolo: string | null
   ocupacao: string | null
   nome_pasta: string | null
+  // Campos vindos do formulário "Cadastro de Projetos Aprovados"
+  data_aprovacao: string | null
+  link_localizacao: string | null
+  cidade: string | null
+  estado: string | null
+  contato_parceiro: string | null
+  endereco_parceiro: string | null
+  entregue_cliente: string | null
+  responsavel_entrega: string | null
+  enviado_por_email: string | null
+  destino_projeto: string | null
+  entregue_dono_imovel: string | null
+  dificuldades: string | null
   created_at: string
   updated_at: string
 }
+
+/** Categorias de anexo, espelhando os campos de upload do formulário. */
+export const FILE_CATEGORIES = [
+  {
+    key: 'comprovante',
+    label: 'Comprovante de entrega do projeto',
+    hint: 'Se o processo foi digital, envie o print do e-mail com os arquivos',
+  },
+  {
+    key: 'analises',
+    label: 'Relatórios de análise',
+    hint: 'Compilado e em ordem cronológica',
+  },
+  {
+    key: 'oficios',
+    label: 'Ofícios resposta ao Corpo de Bombeiros',
+    hint: 'Documentos enviados em resposta às exigências',
+  },
+  {
+    key: 'outros',
+    label: 'Outros arquivos',
+    hint: 'Plantas, memoriais, protocolos e demais documentos',
+  },
+] as const
+
+export type FileCategoryKey = (typeof FILE_CATEGORIES)[number]['key']
 
 export type ProjectCorrection = {
   id: string
@@ -249,33 +288,68 @@ export type ProjectFile = {
   mime_type: string | null
   tamanho: number | null
   enviado_por: string | null
+  categoria: string | null
   created_at: string
 }
 
 export type ClientFieldKey = Exclude<keyof ProjectClient, 'id' | 'project_id' | 'created_at' | 'updated_at'>
 
-export const CLIENT_FIELDS: { key: ClientFieldKey; label: string; placeholder?: string }[] = [
-  { key: 'nome_parceiro', label: 'Nome do parceiro (Eng., Arq. e etc.)' },
-  { key: 'cnpj', label: 'CNPJ ou CPF' },
-  { key: 'nome_responsavel', label: 'Nome do responsável' },
-  { key: 'contato_responsavel', label: 'Contato do responsável' },
-  { key: 'email_cliente', label: 'E-mail do cliente' },
-  { key: 'nome_dono_imovel', label: 'Nome do dono do imóvel' },
-  { key: 'contato_dono', label: 'Contato do dono' },
-  { key: 'memorial_ou_projeto', label: 'Memorial ou projeto' },
-  { key: 'endereco_completo', label: 'Endereço completo' },
-  { key: 'numero_processo', label: 'Número do processo', placeholder: 'Se for memorial, colocar S/N' },
-  { key: 'numero_re', label: 'Número do NIB / RE', placeholder: 'Se for memorial, colocar S/N' },
-  { key: 'protocolo', label: 'Protocolo' },
-  { key: 'ocupacao', label: 'Ocupação' },
-  { key: 'nome_pasta', label: 'Nome da pasta' },
+export type ClientField = {
+  key: ClientFieldKey
+  label: string
+  placeholder?: string
+  secao: string
+  tipo?: 'texto' | 'data' | 'url' | 'simNao' | 'longo'
+  opcional?: boolean
+  largura?: 'meia' | 'inteira'
+}
+
+export const CLIENT_SECOES = ['Projeto', 'Cliente', 'Parceiro', 'Entrega', 'Aprovação'] as const
+
+export const CLIENT_FIELDS: ClientField[] = [
+  // --- Projeto ---
+  { key: 'endereco_completo', label: 'Endereço completo do projeto', secao: 'Projeto', largura: 'inteira' },
+  { key: 'link_localizacao', label: 'Link de localização', placeholder: 'Cole o link do Google Maps', secao: 'Projeto', tipo: 'url', largura: 'inteira' },
+  { key: 'cidade', label: 'Cidade do projeto', secao: 'Projeto' },
+  { key: 'estado', label: 'Estado do projeto', placeholder: 'Ex.: SC', secao: 'Projeto' },
+  { key: 'ocupacao', label: 'Ocupação', placeholder: 'Ex.: C-2', secao: 'Projeto' },
+  { key: 'memorial_ou_projeto', label: 'Memorial ou projeto', secao: 'Projeto' },
+  { key: 'numero_processo', label: 'Nº do processo', placeholder: 'Se for memorial, colocar S/N', secao: 'Projeto' },
+  { key: 'numero_re', label: 'Nº do NIB / RE', placeholder: 'Se for memorial, colocar S/N', secao: 'Projeto' },
+  { key: 'protocolo', label: 'Protocolo', secao: 'Projeto' },
+  { key: 'nome_pasta', label: 'Nome da pasta', placeholder: 'Define a pasta no Drive', secao: 'Projeto' },
+
+  // --- Cliente ---
+  { key: 'nome_responsavel', label: 'Nome do cliente', placeholder: 'Responsável legal pela edificação', secao: 'Cliente' },
+  { key: 'contato_responsavel', label: 'Contato do cliente', secao: 'Cliente' },
+  { key: 'email_cliente', label: 'E-mail do cliente', secao: 'Cliente' },
+  { key: 'cnpj', label: 'CNPJ ou CPF', secao: 'Cliente' },
+  { key: 'nome_dono_imovel', label: 'Nome do dono do imóvel', secao: 'Cliente' },
+  { key: 'contato_dono', label: 'Contato do dono do imóvel', secao: 'Cliente' },
+
+  // --- Parceiro ---
+  { key: 'nome_parceiro', label: 'Nome do parceiro (Eng., Arq. e outros)', secao: 'Parceiro' },
+  { key: 'contato_parceiro', label: 'Contato do parceiro', secao: 'Parceiro' },
+  { key: 'endereco_parceiro', label: 'Endereço completo do parceiro', secao: 'Parceiro', largura: 'inteira' },
+
+  // --- Entrega ---
+  { key: 'entregue_cliente', label: 'O projeto foi entregue para o cliente?', secao: 'Entrega', tipo: 'simNao' },
+  { key: 'entregue_dono_imovel', label: 'O projeto foi entregue ao dono do imóvel?', secao: 'Entrega', tipo: 'simNao' },
+  { key: 'enviado_por_email', label: 'Foi enviado projeto por e-mail?', secao: 'Entrega', tipo: 'simNao' },
+  { key: 'responsavel_entrega', label: 'Responsável pela entrega do projeto', secao: 'Entrega' },
+  { key: 'destino_projeto', label: 'Destino do projeto', placeholder: 'Ex.: Processo digital, enviado por e-mail', secao: 'Entrega', largura: 'inteira' },
+
+  // --- Aprovação ---
+  { key: 'data_aprovacao', label: 'Data de aprovação do projeto', secao: 'Aprovação', tipo: 'data' },
+  { key: 'dificuldades', label: 'Principais dificuldades para aprovar o projeto', placeholder: 'As correções eram evitáveis? O que as causou?', secao: 'Aprovação', tipo: 'longo', largura: 'inteira' },
 ]
 
-// Todos os campos da aba "Dados do cliente" precisam estar preenchidos para
-// que o projeto possa ser marcado como Concluído.
+/** Campos que precisam estar preenchidos para o projeto poder ser concluído. */
+export const CLIENT_FIELDS_OBRIGATORIOS = CLIENT_FIELDS.filter((f) => !f.opcional)
+
 export function isClientDataComplete(client: Partial<ProjectClient> | null | undefined): boolean {
   if (!client) return false
-  return CLIENT_FIELDS.every((f) => !!(client[f.key] || '').toString().trim())
+  return CLIENT_FIELDS_OBRIGATORIOS.every((f) => !!(client[f.key] || '').toString().trim())
 }
 
 export function normalizeStatus(status: string): string {
