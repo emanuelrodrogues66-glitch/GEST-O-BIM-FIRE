@@ -1,5 +1,6 @@
 import { forwardRef } from 'react'
 import type { Project, ProjectClient, ProjectCorrection, ProjectCorrectionItem } from '../types'
+import { OFICIO_CIDADE_PADRAO, OFICIO_DESTINATARIO_PADRAO } from '../types'
 
 function formatDateBR(d: string | null | undefined): string {
   if (!d) return '—'
@@ -21,14 +22,18 @@ type Props = {
   client: Partial<ProjectClient>
   correction: ProjectCorrection
   items: ProjectCorrectionItem[]
-  cidade?: string
 }
 
 const OficioView = forwardRef<HTMLDivElement, Props>(
-  ({ project, client, correction, items, cidade = 'Manaus' }, ref) => {
+  ({ project, client, correction, items }, ref) => {
     const processo = client.numero_processo?.trim() || '—'
     const re = client.numero_re?.trim()
     const docCliente = client.cnpj?.trim() || '—'
+    const cidade = correction.cidade?.trim() || OFICIO_CIDADE_PADRAO
+    const linhasDestinatario = (correction.destinatario?.trim() || OFICIO_DESTINATARIO_PADRAO)
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
 
     return (
       <div
@@ -53,8 +58,11 @@ const OficioView = forwardRef<HTMLDivElement, Props>(
         {/* Destinatário */}
         <div className="text-[11px] mb-5 leading-relaxed">
           <p className="font-semibold">Ao</p>
-          <p className="font-semibold">Corpo de Bombeiros Militar</p>
-          <p>Seção de Análise de Projetos e Segurança contra Incêndio</p>
+          {linhasDestinatario.map((linha, i) => (
+            <p key={i} className={i === 0 ? 'font-semibold' : ''}>
+              {linha}
+            </p>
+          ))}
         </div>
 
         {/* Referência do processo */}

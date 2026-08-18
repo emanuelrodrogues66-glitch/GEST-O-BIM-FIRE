@@ -199,9 +199,16 @@ export type ProjectCorrection = {
   observacoes: string | null
   data_resposta: string | null
   respondida: boolean
+  cidade: string | null
+  destinatario: string | null
   created_at: string
   updated_at: string
 }
+
+/** Usados quando a correção ainda não tem cidade/destinatário próprios. */
+export const OFICIO_CIDADE_PADRAO = 'Manaus'
+export const OFICIO_DESTINATARIO_PADRAO =
+  'Corpo de Bombeiros Militar\nSeção de Análise de Projetos e Segurança contra Incêndio'
 
 export type ProjectCorrectionItem = {
   id: string

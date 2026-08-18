@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { exportElementToPdf } from '../lib/pdfExport'
 import type { Project, ProjectClient, ProjectCorrection, ProjectCorrectionItem } from '../types'
+import { OFICIO_CIDADE_PADRAO, OFICIO_DESTINATARIO_PADRAO } from '../types'
 import OficioView from './OficioView'
 
 function todayStr() {
@@ -81,9 +82,20 @@ export default function CorrectionsTab({
   async function addCorrecao() {
     setErro(null)
     const proximoNumero = corrections.length > 0 ? Math.max(...corrections.map((c) => c.numero)) + 1 : 1
+
+    // Herda cidade e destinatário da correção anterior: você configura uma vez
+    // e as próximas já vêm preenchidas.
+    const anterior = corrections[corrections.length - 1]
+
     const { data, error } = await supabase
       .from('project_corrections')
-      .insert({ project_id: project.id, numero: proximoNumero, data: todayStr() })
+      .insert({
+        project_id: project.id,
+        numero: proximoNumero,
+        data: todayStr(),
+        cidade: anterior?.cidade || OFICIO_CIDADE_PADRAO,
+        destinatario: anterior?.destinatario || OFICIO_DESTINATARIO_PADRAO,
+      })
       .select()
       .single()
     if (error) {
@@ -357,6 +369,45 @@ export default function CorrectionsTab({
                   >
                     + Adicionar item {String((lista.length || 0) + 1).padStart(2, '0')}
                   </button>
+
+                  {/* Cabeçalho do ofício: editável, herdado da correção anterior */}
+                  <div className="border border-slate-200 rounded-lg p-2.5 bg-slate-50/60 space-y-2">
+                    <p className="text-[10px] font-medium text-slate-500">Cabeçalho do ofício</p>
+                    <div className="flex flex-wrap items-start gap-3">
+                      <label className="flex flex-col gap-0.5 text-[10px] text-slate-500">
+                        Cidade
+                        <input
+                          className="border border-slate-300 rounded px-1.5 py-1 text-[11px] w-40"
+                          placeholder={OFICIO_CIDADE_PADRAO}
+                          value={c.cidade ?? ''}
+                          onChange={(e) =>
+                            setCorrections((prev) =>
+                              prev.map((x) => (x.id === c.id ? { ...x, cidade: e.target.value } : x))
+                            )
+                          }
+                          onBlur={(e) => updateCorrecao(c.id, { cidade: e.target.value || null })}
+                        />
+                      </label>
+                      <label className="flex flex-col gap-0.5 text-[10px] text-slate-500 flex-1 min-w-[220px]">
+                        Destinatário <span className="text-slate-400">(uma linha por linha do endereçamento)</span>
+                        <textarea
+                          className="border border-slate-300 rounded px-1.5 py-1 text-[11px]"
+                          rows={2}
+                          placeholder={OFICIO_DESTINATARIO_PADRAO}
+                          value={c.destinatario ?? ''}
+                          onChange={(e) =>
+                            setCorrections((prev) =>
+                              prev.map((x) => (x.id === c.id ? { ...x, destinatario: e.target.value } : x))
+                            )
+                          }
+                          onBlur={(e) => updateCorrecao(c.id, { destinatario: e.target.value || null })}
+                        />
+                      </label>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      A próxima correção deste projeto já vem com esses mesmos dados.
+                    </p>
+                  </div>
 
                   <div>
                     <label className="block text-[10px] font-medium text-slate-500 mb-0.5">
