@@ -17,9 +17,37 @@ type ServiceAccount = {
   private_key: string
 }
 
+/** Confere se a chave privada veio inteira (colagens truncadas são o erro mais comum). */
+function validarChave(private_key: string): string {
+  const key = private_key.replace(/\\n/g, '\n').trim()
+  if (!key.includes('-----BEGIN PRIVATE KEY-----') || !key.includes('-----END PRIVATE KEY-----')) {
+    throw new Error(
+      'A chave privada está incompleta: faltam as marcações -----BEGIN PRIVATE KEY----- e/ou ' +
+        '-----END PRIVATE KEY-----. Recole o valor inteiro no Vercel.'
+    )
+  }
+  return key
+}
+
 function getServiceAccount(): ServiceAccount {
+  // Caminho preferido: duas variáveis simples, sem JSON para dar errado na colagem.
+  const emailSeparado = process.env.GOOGLE_CLIENT_EMAIL
+  const chaveSeparada = process.env.GOOGLE_PRIVATE_KEY
+  if (emailSeparado && chaveSeparada) {
+    return {
+      client_email: emailSeparado.trim(),
+      private_key: validarChave(chaveSeparada),
+    }
+  }
+
+  // Alternativa: o arquivo .json inteiro numa variável só.
   let raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
-  if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurada no Vercel.')
+  if (!raw) {
+    throw new Error(
+      'Credenciais do Google não configuradas. Defina no Vercel as variáveis GOOGLE_CLIENT_EMAIL e ' +
+        'GOOGLE_PRIVATE_KEY (recomendado), ou GOOGLE_SERVICE_ACCOUNT_JSON com o arquivo .json completo.'
+    )
+  }
 
   // Tolera colagens comuns: BOM, aspas envolvendo tudo, espaços nas pontas.
   raw = raw.trim().replace(/^﻿/, '')
@@ -61,20 +89,10 @@ function getServiceAccount(): ServiceAccount {
     )
   }
 
-  const private_key = String(parsed.private_key).replace(/\\n/g, '\n')
-
-  // Garante que a chave não foi cortada no meio durante a colagem.
-  if (
-    !private_key.includes('-----BEGIN PRIVATE KEY-----') ||
-    !private_key.includes('-----END PRIVATE KEY-----')
-  ) {
-    throw new Error(
-      'A private_key da conta de serviço parece estar incompleta (faltam as marcações BEGIN/END). ' +
-        'Recole o conteúdo integral do arquivo .json no Vercel.'
-    )
+  return {
+    client_email: parsed.client_email,
+    private_key: validarChave(String(parsed.private_key)),
   }
-
-  return { client_email: parsed.client_email, private_key }
 }
 
 function base64url(input: Buffer | string): string {
