@@ -18,12 +18,39 @@ type ServiceAccount = {
 }
 
 function getServiceAccount(): ServiceAccount {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+  let raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
   if (!raw) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON não configurada no Vercel.')
-  const parsed = JSON.parse(raw)
-  if (!parsed.client_email || !parsed.private_key) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON inválida: faltam client_email/private_key.')
+
+  // Tolera colagens comuns: BOM, aspas envolvendo tudo, espaços nas pontas.
+  raw = raw.trim().replace(/^﻿/, '')
+  if (
+    (raw.startsWith("'") && raw.endsWith("'")) ||
+    (raw.startsWith('"') && raw.endsWith('"') && !raw.startsWith('{'))
+  ) {
+    raw = raw.slice(1, -1).trim()
   }
+
+  let parsed: any
+  try {
+    parsed = JSON.parse(raw)
+  } catch (e: any) {
+    // Diagnóstico sem vazar a chave privada: só tamanho e o começo do arquivo,
+    // que em toda conta de serviço é sempre {"type": "service_account"...
+    const inicio = raw.slice(0, 24)
+    throw new Error(
+      `GOOGLE_SERVICE_ACCOUNT_JSON não é um JSON válido (${e.message}). ` +
+        `Tamanho recebido: ${raw.length} caracteres. Começa com: ${JSON.stringify(inicio)}. ` +
+        'Cole o conteúdo completo do arquivo .json baixado do Google Cloud, do "{" até o "}" final.'
+    )
+  }
+
+  if (!parsed.client_email || !parsed.private_key) {
+    throw new Error(
+      'GOOGLE_SERVICE_ACCOUNT_JSON incompleta: faltam client_email e/ou private_key. ' +
+        'Confirme que colou o arquivo de CHAVE da conta de serviço, e não outro JSON do projeto.'
+    )
+  }
+
   return { client_email: parsed.client_email, private_key: parsed.private_key.replace(/\\n/g, '\n') }
 }
 
