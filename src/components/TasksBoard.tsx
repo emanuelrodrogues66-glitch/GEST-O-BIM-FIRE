@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase } from '../lib/supabase'
 import type { ProjectTask } from '../types'
-import { TASK_STATUS_COLORS, isTaskLate } from '../types'
+import { TASK_STATUS, TASK_STATUS_COLORS, isTaskLate } from '../types'
 
 type TaskRow = ProjectTask & { projects: { nome: string; numero: number | null } | null }
 
@@ -40,6 +40,34 @@ export default function TasksBoard() {
     if (error) alert(error.message)
     setRows((data as TaskRow[]) || [])
     setLoading(false)
+  }
+
+  /** Troca o status da tarefa direto na lista, sem abrir o projeto. */
+  async function mudarStatus(task: TaskRow, status: string) {
+    const patch: Partial<ProjectTask> = { status }
+    // Concluir carimba a data de hoje; reabrir limpa a conclusão.
+    if (status === 'Concluído') {
+      patch.data_conclusao = task.data_conclusao || new Date().toISOString().slice(0, 10)
+    } else {
+      patch.data_conclusao = null
+    }
+
+    setRows((prev) => prev.map((r) => (r.id === task.id ? { ...r, ...patch } : r)))
+    const { error } = await supabase.from('project_tasks').update(patch).eq('id', task.id)
+    if (error) {
+      alert(error.message)
+      load()
+    }
+  }
+
+  /** Ajusta a justificativa de uma tarefa atrasada sem sair da tela. */
+  async function salvarJustificativa(task: TaskRow, texto: string) {
+    setRows((prev) => prev.map((r) => (r.id === task.id ? { ...r, justificativa: texto } : r)))
+    const { error } = await supabase
+      .from('project_tasks')
+      .update({ justificativa: texto || null })
+      .eq('id', task.id)
+    if (error) alert(error.message)
   }
 
   const visiveis = useMemo(
@@ -187,26 +215,58 @@ export default function TasksBoard() {
               return (
                 <div
                   key={t.id}
-                  className={`flex flex-wrap items-center gap-2 text-xs border rounded-lg px-2.5 py-1.5 ${
+                  className={`border rounded-lg px-2.5 py-1.5 ${
                     late ? 'border-red-200 bg-red-50/40' : 'border-slate-200'
                   }`}
                 >
-                  <span className="font-medium text-slate-800">{t.nome}</span>
-                  {groupBy === 'projeto' ? (
-                    t.responsavel && <span className="text-slate-500">· {t.responsavel}</span>
-                  ) : (
-                    <span className="text-slate-500">
-                      · {t.projects?.numero ? `${t.projects.numero} · ` : ''}
-                      {t.projects?.nome}
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span
+                      className={`font-medium text-slate-800 ${
+                        t.status === 'Concluído' ? 'line-through text-slate-400' : ''
+                      }`}
+                    >
+                      {t.nome}
                     </span>
+                    {groupBy === 'projeto' ? (
+                      t.responsavel && <span className="text-slate-500">· {t.responsavel}</span>
+                    ) : (
+                      <span className="text-slate-500">
+                        · {t.projects?.numero ? `${t.projects.numero} · ` : ''}
+                        {t.projects?.nome}
+                      </span>
+                    )}
+                    <span className="text-slate-400">· prazo {formatDate(t.data_prazo)}</span>
+                    {late && <span className="text-red-600 font-semibold text-[10px]">⚠ Atrasada</span>}
+
+                    {/* Mudar o status sem precisar abrir o projeto */}
+                    <select
+                      value={t.status}
+                      onChange={(e) => mudarStatus(t, e.target.value)}
+                      className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded border cursor-pointer ${
+                        TASK_STATUS_COLORS[t.status] || ''
+                      }`}
+                      title="Alterar o status da tarefa"
+                    >
+                      {TASK_STATUS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Atrasada exige justificativa; deixa editar aqui mesmo */}
+                  {late && (
+                    <textarea
+                      className={`w-full mt-1.5 border rounded-md px-2 py-1 text-[11px] ${
+                        t.justificativa ? 'border-slate-300' : 'border-red-400'
+                      }`}
+                      rows={2}
+                      placeholder="Justificativa: por que a tarefa não foi concluída no prazo?"
+                      defaultValue={t.justificativa || ''}
+                      onBlur={(e) => salvarJustificativa(t, e.target.value)}
+                    />
                   )}
-                  <span className="text-slate-400">· prazo {formatDate(t.data_prazo)}</span>
-                  <span
-                    className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded border ${TASK_STATUS_COLORS[t.status] || ''}`}
-                  >
-                    {t.status}
-                  </span>
-                  {late && <span className="text-red-600 font-semibold text-[10px]">⚠ Atrasada</span>}
                 </div>
               )
             })}
