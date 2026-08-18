@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { abrirPendencia, fecharPendencia, pendenciaAberta, type DadosPendencia } from './pendencias'
 import {
   STATUS_TO_LETRA,
   anexosObrigatoriosFaltando,
@@ -43,18 +44,50 @@ export async function checkClientDataComplete(projectId: string): Promise<boolea
 
 // Troca o status de um projeto, sincronizando o progresso diário do dia.
 // Bloqueia a troca para "Concluído" se os dados do cliente não estiverem completos.
+export type ResultadoStatus =
+  | { ok: true }
+  | { ok: false; reason: 'dados_incompletos' }
+  | { ok: false; reason: 'justificativa_pendencia' }
+
+/**
+ * Troca o status do projeto aplicando as duas regras do negócio:
+ * — Concluído exige dados do cliente completos e anexos obrigatórios.
+ * — Pendente exige uma justificativa, que abre o registro de pendência.
+ * Sair de Pendente encerra a pendência aberta automaticamente.
+ */
 export async function changeProjectStatus(
   projectId: string,
-  status: string
-): Promise<{ ok: true } | { ok: false; reason: 'dados_incompletos' }> {
+  status: string,
+  opcoes?: { statusAnterior?: string | null; pendencia?: DadosPendencia }
+): Promise<ResultadoStatus> {
   if (status === 'Concluído') {
     const completo = await checkClientDataComplete(projectId)
     if (!completo) {
       return { ok: false, reason: 'dados_incompletos' }
     }
   }
+
+  const anterior = opcoes?.statusAnterior ?? null
+  const entrandoEmPendente = status === 'Pendente' && anterior !== 'Pendente'
+
+  if (entrandoEmPendente) {
+    const jaAberta = await pendenciaAberta(projectId)
+    if (!jaAberta && !opcoes?.pendencia?.justificativa?.trim()) {
+      return { ok: false, reason: 'justificativa_pendencia' }
+    }
+  }
+
   const { error } = await supabase.from('projects').update({ status }).eq('id', projectId)
   if (error) throw error
+
+  if (entrandoEmPendente && opcoes?.pendencia) {
+    await abrirPendencia(projectId, anterior, opcoes.pendencia)
+  }
+  // Saiu de Pendente: fecha o período e registra a duração.
+  if (status !== 'Pendente') {
+    await fecharPendencia(projectId)
+  }
+
   await syncDailyProgressForStatus(projectId, status)
   return { ok: true }
 }

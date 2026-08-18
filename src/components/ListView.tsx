@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { changeProjectStatus } from '../lib/statusSync'
+import { nomeDoUsuario, type DadosPendencia } from '../lib/pendencias'
+import PendencyDialog from './PendencyDialog'
 import type { Project } from '../types'
 import { prazoColor, STATUS_COLUNAS, statusColor, tipoColor } from '../types'
 
@@ -25,6 +27,9 @@ export default function ListView({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkStatus, setBulkStatus] = useState<string>(STATUS_COLUNAS[0])
   const [applying, setApplying] = useState(false)
+  // Justificativa unica aplicada a todos os projetos do lote que forem para Pendente.
+  const [pendenciaLote, setPendenciaLote] = useState<DadosPendencia | null>(null)
+  const [pedirPendenciaLote, setPedirPendenciaLote] = useState(false)
 
   const sorted = useMemo(() => {
     const arr = [...projects]
@@ -51,6 +56,12 @@ export default function ListView({
       return next
     })
   }, [projects])
+
+  // Assim que a justificativa do lote é confirmada, refaz a aplicação.
+  useEffect(() => {
+    if (pendenciaLote) applyBulkStatus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendenciaLote])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -84,20 +95,39 @@ export default function ListView({
     try {
       const ids = Array.from(selected)
       const bloqueados: string[] = []
+      const semJustificativa: string[] = []
+
+      // Para o lote inteiro, uma justificativa só — o motivo costuma ser o mesmo.
+      const responsavel = bulkStatus === 'Pendente' ? await nomeDoUsuario() : null
+
       for (const id of ids) {
         const projeto = projects.find((p) => p.id === id)
-        const result = await changeProjectStatus(id, bulkStatus)
+        const result = await changeProjectStatus(id, bulkStatus, {
+          statusAnterior: projeto?.status ?? null,
+          pendencia: pendenciaLote ? { ...pendenciaLote, responsavel } : undefined,
+        })
         if (!result.ok) {
-          bloqueados.push(projeto?.nome || id)
+          if (result.reason === 'justificativa_pendencia') semJustificativa.push(projeto?.nome || id)
+          else bloqueados.push(projeto?.nome || id)
         }
       }
+
+      // Nenhum passou por falta de justificativa: pede uma vez e repete o lote.
+      if (semJustificativa.length > 0 && !pendenciaLote) {
+        setPedirPendenciaLote(true)
+        return
+      }
+
       setSelected(new Set())
+      setPendenciaLote(null)
+      setPedirPendenciaLote(false)
       onBulkUpdated?.()
+
       if (bloqueados.length > 0) {
         alert(
-          `${bloqueados.length} projeto(s) não foram concluídos porque faltam dados do cliente: ${bloqueados.join(
+          `${bloqueados.length} projeto(s) não foram concluídos porque faltam dados do cliente ou anexos obrigatórios: ${bloqueados.join(
             ', '
-          )}. Abra cada um e preencha a aba "Dados do cliente".`
+          )}. Abra cada um e verifique a aba "Dados do cliente".`
         )
       }
     } catch (err: any) {
@@ -121,6 +151,20 @@ export default function ListView({
 
   return (
     <div className="space-y-2">
+      {pedirPendenciaLote && (
+        <PendencyDialog
+          titulo={`${selected.size} projeto${selected.size !== 1 ? 's' : ''} selecionado${selected.size !== 1 ? 's' : ''}`}
+          onCancelar={() => {
+            setPedirPendenciaLote(false)
+            setApplying(false)
+          }}
+          onConfirmar={(dados) => {
+            setPendenciaLote(dados)
+            setPedirPendenciaLote(false)
+          }}
+        />
+      )}
+
       {selected.size > 0 && (
         <div className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 text-sm">
           <span className="text-indigo-700 font-medium">

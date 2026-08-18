@@ -252,6 +252,48 @@ export function anexosObrigatoriosFaltando(
   ).map((c) => c.label)
 }
 
+export type ProjectPendency = {
+  id: string
+  project_id: string
+  data_inicio: string
+  data_fim: string | null
+  motivo: string | null
+  justificativa: string
+  status_anterior: string | null
+  previsao_retorno: string | null
+  responsavel: string | null
+  observacao_encerramento: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Motivos mais comuns de um projeto ficar parado, para padronizar o registro. */
+export const MOTIVOS_PENDENCIA = [
+  'Aguardando documento do cliente',
+  'Aguardando assinatura',
+  'Aguardando pagamento',
+  'Aguardando definição de projeto',
+  'Aguardando vistoria',
+  'Aguardando retorno do Corpo de Bombeiros',
+  'Outro motivo',
+] as const
+
+/** Há quantos dias a pendência está aberta (ou quanto durou, se já encerrada). */
+export function diasDePendencia(p: Pick<ProjectPendency, 'data_inicio' | 'data_fim'>): number {
+  const inicio = new Date(`${p.data_inicio}T00:00:00Z`).getTime()
+  const fim = p.data_fim
+    ? new Date(`${p.data_fim}T00:00:00Z`).getTime()
+    : new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime()
+  return Math.max(0, Math.round((fim - inicio) / 86400000))
+}
+
+/** Pendência longa merece destaque na tela. */
+export function gravidadePendencia(dias: number): { rotulo: string; badge: string; hex: string } {
+  if (dias >= 30) return { rotulo: 'crítica', badge: 'bg-red-100 text-red-700 border-red-300', hex: '#ef4444' }
+  if (dias >= 15) return { rotulo: 'atenção', badge: 'bg-amber-100 text-amber-700 border-amber-300', hex: '#f59e0b' }
+  return { rotulo: 'recente', badge: 'bg-slate-100 text-slate-600 border-slate-300', hex: '#94a3b8' }
+}
+
 export type ProjectCorrection = {
   id: string
   project_id: string

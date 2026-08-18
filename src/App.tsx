@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { changeProjectStatus } from './lib/statusSync'
+import { nomeDoUsuario, type DadosPendencia } from './lib/pendencias'
 import type { Project } from './types'
 import { CATEGORIAS } from './types'
 import Login from './components/Login'
@@ -12,9 +13,10 @@ import ProjectModal from './components/ProjectModal'
 import PdfExportModal from './components/PdfExportModal'
 import PdfExportAllModal from './components/PdfExportAllModal'
 import GanttGlobal from './components/GanttGlobal'
-import TasksReport from './components/TasksReport'
+import ReportsView from './components/ReportsView'
 import TasksBoard from './components/TasksBoard'
 import ActivitiesReport from './components/ActivitiesReport'
+import PendencyDialog from './components/PendencyDialog'
 import type { MonthRef } from './lib/month'
 import { addMonths, dateInMonth, monthLabel } from './lib/month'
 
@@ -36,6 +38,8 @@ export default function App() {
   const [pdfAllModalOpen, setPdfAllModalOpen] = useState(false)
   const [month, setMonth] = useState<MonthRef>({ year: 2026, month: 8 })
   const [dragOverCategoria, setDragOverCategoria] = useState<string | null>(null)
+  // Projeto que está indo para Pendente e precisa de justificativa.
+  const [pedirPendencia, setPedirPendencia] = useState<{ projeto: Project; status: string } | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -141,17 +145,30 @@ export default function App() {
     }
   }
 
-  async function handleDropCard(projectId: string, status: string) {
+  async function handleDropCard(projectId: string, status: string, pendencia?: DadosPendencia) {
     const projeto = projects.find((p) => p.id === projectId)
     if (!projeto || projeto.status === status) return
     try {
-      const result = await changeProjectStatus(projectId, status)
+      const result = await changeProjectStatus(projectId, status, {
+        statusAnterior: projeto.status,
+        pendencia: pendencia
+          ? { ...pendencia, responsavel: await nomeDoUsuario() }
+          : undefined,
+      })
+
       if (!result.ok) {
+        if (result.reason === 'justificativa_pendencia') {
+          // Abre o diálogo e refaz a mudança com a justificativa preenchida.
+          setPedirPendencia({ projeto, status })
+          return
+        }
         alert(
-          `Não é possível concluir "${projeto.nome}" ainda: preencha todos os campos da aba "Dados do cliente" primeiro (abra o cartão do projeto).`
+          `Não é possível concluir "${projeto.nome}" ainda: faltam dados ou anexos obrigatórios. ` +
+            'Abra o cartão do projeto para ver o que está pendente.'
         )
         return
       }
+      setPedirPendencia(null)
       fetchProjects()
     } catch (err: any) {
       alert(err.message || 'Erro ao mover o projeto.')
@@ -341,7 +358,7 @@ export default function App() {
         ) : viewMode === 'atividades' ? (
           <ActivitiesReport />
         ) : (
-          <TasksReport onProjectClick={openEditById} />
+          <ReportsView onProjectClick={openEditById} />
         )}
       </div>
 
@@ -351,6 +368,16 @@ export default function App() {
 
       {pdfAllModalOpen && (
         <PdfExportAllModal projects={projectsDoMes} month={month} onClose={() => setPdfAllModalOpen(false)} />
+      )}
+
+      {pedirPendencia && (
+        <PendencyDialog
+          titulo={pedirPendencia.projeto.nome}
+          onCancelar={() => setPedirPendencia(null)}
+          onConfirmar={(dados) =>
+            handleDropCard(pedirPendencia.projeto.id, pedirPendencia.status, dados)
+          }
+        />
       )}
 
       {modalOpen && (

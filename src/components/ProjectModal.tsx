@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { syncDailyProgressForStatus } from '../lib/statusSync'
+import { abrirPendencia, fecharPendencia, nomeDoUsuario, pendenciaAberta } from '../lib/pendencias'
 import type { DailyProgress, Project, ProjectClient } from '../types'
-import { STATUS_COLUNAS, anexosObrigatoriosFaltando, isClientDataComplete, suggestedPoints } from '../types'
+import {
+  MOTIVOS_PENDENCIA,
+  STATUS_COLUNAS,
+  anexosObrigatoriosFaltando,
+  isClientDataComplete,
+  suggestedPoints,
+} from '../types'
 import type { MonthRef } from '../lib/month'
 import { daysInMonth, monthLabel, monthRange } from '../lib/month'
 import TaskSchedule from './TaskSchedule'
@@ -11,6 +18,7 @@ import ClientDataForm from './ClientDataForm'
 import FileUpload from './FileUpload'
 import PlanningForm from './PlanningForm'
 import CorrectionsTab from './CorrectionsTab'
+import PendenciesTab from './PendenciesTab'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -63,20 +71,37 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
   const [saving, setSaving] = useState(false)
   const [progress, setProgress] = useState<Record<number, string>>({})
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'geral' | 'dados' | 'plano' | 'correcoes'>('geral')
+  const [activeTab, setActiveTab] = useState<'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias'>('geral')
   const [clientData, setClientData] = useState<Partial<ProjectClient>>({})
   const [showMissingClientData, setShowMissingClientData] = useState(false)
+
+  // Justificativa exigida ao passar o projeto para Pendente.
+  const [motivoPendencia, setMotivoPendencia] = useState<string>(MOTIVOS_PENDENCIA[0])
+  const [justificativaPendencia, setJustificativaPendencia] = useState('')
+  const [previsaoPendencia, setPrevisaoPendencia] = useState('')
+  const [exigirPendencia, setExigirPendencia] = useState(false)
+  const [pendenciaJaAberta, setPendenciaJaAberta] = useState(false)
+
+  // Mostra o formulário só quando o projeto está de fato entrando em Pendente.
+  const entrandoEmPendente =
+    !isNew && !!project && form.status === 'Pendente' && project.status !== 'Pendente' && !pendenciaJaAberta
 
   useEffect(() => {
     setForm(project ?? emptyProject)
     setActiveTab('geral')
     setShowMissingClientData(false)
+    setJustificativaPendencia('')
+    setPrevisaoPendencia('')
+    setExigirPendencia(false)
+    setMotivoPendencia(MOTIVOS_PENDENCIA[0])
     if (project && !isNew) {
       loadProgress(project.id)
       loadClientData(project.id)
+      pendenciaAberta(project.id).then((p) => setPendenciaJaAberta(!!p))
     } else {
       setProgress({})
       setClientData({})
+      setPendenciaJaAberta(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, isNew, month])
@@ -117,6 +142,22 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
   }
 
   async function handleSave() {
+    // Passar para Pendente exige justificativa — é o que alimenta o histórico
+    // de pendências e permite medir quanto tempo o projeto ficou parado.
+    if (
+      !isNew &&
+      project &&
+      form.status === 'Pendente' &&
+      project.status !== 'Pendente' &&
+      !pendenciaJaAberta &&
+      !justificativaPendencia.trim()
+    ) {
+      setError('Informe a justificativa da pendência antes de salvar.')
+      setExigirPendencia(true)
+      setActiveTab('geral')
+      return
+    }
+
     // Bloqueia a conclusão do projeto se os dados do cliente ou os anexos
     // obrigatórios não estiverem completos.
     if (form.status === 'Concluído') {
@@ -174,8 +215,22 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
       } else if (project) {
         const { error } = await supabase.from('projects').update(payload).eq('id', project.id)
         if (error) throw error
+
         if (form.status && form.status !== project.status) {
           await syncDailyProgressForStatus(project.id, form.status)
+
+          // Entrou em Pendente: abre o registro com a justificativa informada.
+          if (form.status === 'Pendente') {
+            await abrirPendencia(project.id, project.status, {
+              motivo: motivoPendencia,
+              justificativa: justificativaPendencia,
+              previsao_retorno: previsaoPendencia || null,
+              responsavel: await nomeDoUsuario(),
+            })
+          } else {
+            // Saiu de Pendente: encerra o período e registra a duração.
+            await fecharPendencia(project.id)
+          }
         }
       }
 
@@ -268,7 +323,8 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                 ['dados', 'Dados do cliente'],
                 ['plano', 'Planejamento'],
                 ['correcoes', 'Correções'],
-              ] as ['geral' | 'dados' | 'plano' | 'correcoes', string][]
+                ['pendencias', 'Pendências'],
+              ] as ['geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias', string][]
             ).map(([tab, label]) => (
               <button
                 key={tab}
@@ -286,7 +342,9 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
         )}
 
         <div className="p-6 space-y-4">
-          {activeTab === 'correcoes' && !isNew && project ? (
+          {activeTab === 'pendencias' && !isNew && project ? (
+            <PendenciesTab projectId={project.id} />
+          ) : activeTab === 'correcoes' && !isNew && project ? (
             <CorrectionsTab project={project} client={clientData} />
           ) : activeTab === 'plano' && !isNew && project ? (
             <PlanningForm projectId={project.id} />
@@ -344,6 +402,75 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                   </select>
                 </div>
               </div>
+
+              {/* Justificativa obrigatória ao deixar o projeto pendente */}
+              {entrandoEmPendente && (
+                <div
+                  className={`border rounded-lg p-3 space-y-2.5 ${
+                    exigirPendencia && !justificativaPendencia.trim()
+                      ? 'border-red-400 bg-red-50/40'
+                      : 'border-sky-300 bg-sky-50/50'
+                  }`}
+                >
+                  <p className="text-xs font-semibold text-slate-700">
+                    Por que o projeto está ficando pendente?
+                  </p>
+                  <p className="text-[11px] text-slate-500 -mt-1">
+                    Fica registrado na aba Pendências, com a contagem de dias parado.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-medium text-slate-500 mb-1">Motivo</label>
+                      <select
+                        className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs bg-white"
+                        value={motivoPendencia}
+                        onChange={(e) => setMotivoPendencia(e.target.value)}
+                      >
+                        {MOTIVOS_PENDENCIA.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-medium text-slate-500 mb-1">
+                        Previsão de retorno <span className="text-slate-400 font-normal">(opcional)</span>
+                      </label>
+                      <input
+                        type="date"
+                        className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs bg-white"
+                        value={previsaoPendencia}
+                        onChange={(e) => setPrevisaoPendencia(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-500 mb-1">
+                      Justificativa <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      className={`w-full border rounded-md px-2 py-1.5 text-xs bg-white ${
+                        exigirPendencia && !justificativaPendencia.trim()
+                          ? 'border-red-400'
+                          : 'border-slate-300'
+                      }`}
+                      rows={2}
+                      placeholder="Ex.: cliente ficou de enviar a planta assinada até sexta."
+                      value={justificativaPendencia}
+                      onChange={(e) => setJustificativaPendencia(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {pendenciaJaAberta && form.status === 'Pendente' && (
+                <p className="text-[11px] bg-sky-50 border border-sky-200 text-sky-800 rounded-lg px-3 py-2">
+                  Este projeto já tem uma pendência em aberto. Veja e edite na aba <b>Pendências</b>.
+                </p>
+              )}
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
