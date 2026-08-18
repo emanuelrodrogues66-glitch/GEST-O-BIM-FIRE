@@ -234,6 +234,16 @@ export default async function handler(req: any, res: any) {
       : rootId
 
     // Abre uma sessão de upload resumable: o navegador envia os bytes direto ao Google.
+    //
+    // O cabeçalho Origin é obrigatório aqui: como a sessão nasce no servidor mas o
+    // envio parte do navegador, o Google só devolve os cabeçalhos de CORS na URL de
+    // upload se souber de qual origem ela será usada. Sem isso, o PUT do navegador
+    // falha com "Failed to fetch".
+    const origem =
+      (req.headers?.origin as string) ||
+      (req.headers?.referer ? new URL(req.headers.referer as string).origin : '') ||
+      (req.headers?.host ? `https://${req.headers.host}` : '')
+
     const initRes = await fetch(
       `${DRIVE_UPLOAD}/files?uploadType=resumable&supportsAllDrives=true&fields=id,name,webViewLink,size,mimeType`,
       {
@@ -241,6 +251,7 @@ export default async function handler(req: any, res: any) {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json; charset=UTF-8',
+          ...(origem ? { Origin: origem } : {}),
         },
         body: JSON.stringify({
           name: fileName,
