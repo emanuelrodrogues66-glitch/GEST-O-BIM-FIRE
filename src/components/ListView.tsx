@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { changeProjectStatus } from '../lib/statusSync'
 import { nomeDoUsuario, type DadosPendencia } from '../lib/pendencias'
 import PendencyDialog from './PendencyDialog'
@@ -27,9 +27,15 @@ export default function ListView({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkStatus, setBulkStatus] = useState<string>(STATUS_COLUNAS[0])
   const [applying, setApplying] = useState(false)
-  // Justificativa unica aplicada a todos os projetos do lote que forem para Pendente.
-  const [pendenciaLote, setPendenciaLote] = useState<DadosPendencia | null>(null)
-  const [pedirPendenciaLote, setPedirPendenciaLote] = useState(false)
+  // Cada projeto que for para Pendente precisa da sua propria justificativa,
+  // entao a aplicacao em massa pausa e pergunta um de cada vez.
+  const [perguntandoPara, setPerguntandoPara] = useState<Project | null>(null)
+  const loteRef = useRef<{
+    restantes: string[]
+    justificativas: Record<string, DadosPendencia>
+    bloqueados: string[]
+    responsavel: string | null
+  } | null>(null)
 
   const sorted = useMemo(() => {
     const arr = [...projects]
@@ -56,12 +62,6 @@ export default function ListView({
       return next
     })
   }, [projects])
-
-  // Assim que a justificativa do lote é confirmada, refaz a aplicação.
-  useEffect(() => {
-    if (pendenciaLote) applyBulkStatus()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendenciaLote])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -92,49 +92,72 @@ export default function ListView({
   async function applyBulkStatus() {
     if (selected.size === 0) return
     setApplying(true)
+    loteRef.current = {
+      restantes: Array.from(selected),
+      justificativas: {},
+      bloqueados: [],
+      responsavel: bulkStatus === 'Pendente' ? await nomeDoUsuario() : null,
+    }
+    await processarLote()
+  }
+
+  /**
+   * Percorre os projetos selecionados. Ao encontrar um que exige justificativa
+   * de pendência, para e abre o diálogo para aquele projeto específico —
+   * cada um recebe o seu próprio motivo.
+   */
+  async function processarLote() {
+    const lote = loteRef.current
+    if (!lote) return
+
     try {
-      const ids = Array.from(selected)
-      const bloqueados: string[] = []
-      const semJustificativa: string[] = []
-
-      // Para o lote inteiro, uma justificativa só — o motivo costuma ser o mesmo.
-      const responsavel = bulkStatus === 'Pendente' ? await nomeDoUsuario() : null
-
-      for (const id of ids) {
+      while (lote.restantes.length > 0) {
+        const id = lote.restantes[0]
         const projeto = projects.find((p) => p.id === id)
+
         const result = await changeProjectStatus(id, bulkStatus, {
           statusAnterior: projeto?.status ?? null,
-          pendencia: pendenciaLote ? { ...pendenciaLote, responsavel } : undefined,
+          pendencia: lote.justificativas[id]
+            ? { ...lote.justificativas[id], responsavel: lote.responsavel }
+            : undefined,
         })
-        if (!result.ok) {
-          if (result.reason === 'justificativa_pendencia') semJustificativa.push(projeto?.nome || id)
-          else bloqueados.push(projeto?.nome || id)
+
+        if (!result.ok && result.reason === 'justificativa_pendencia') {
+          // Mantém este projeto na fila e pergunta o motivo dele.
+          setPerguntandoPara(projeto || null)
+          return
         }
+
+        if (!result.ok) lote.bloqueados.push(projeto?.nome || id)
+        lote.restantes.shift()
       }
 
-      // Nenhum passou por falta de justificativa: pede uma vez e repete o lote.
-      if (semJustificativa.length > 0 && !pendenciaLote) {
-        setPedirPendenciaLote(true)
-        return
-      }
-
-      setSelected(new Set())
-      setPendenciaLote(null)
-      setPedirPendenciaLote(false)
-      onBulkUpdated?.()
-
-      if (bloqueados.length > 0) {
-        alert(
-          `${bloqueados.length} projeto(s) não foram concluídos porque faltam dados do cliente ou anexos obrigatórios: ${bloqueados.join(
-            ', '
-          )}. Abra cada um e verifique a aba "Dados do cliente".`
-        )
-      }
+      finalizarLote()
     } catch (err: any) {
       alert(err.message || 'Erro ao atualizar os projetos selecionados.')
-    } finally {
-      setApplying(false)
+      encerrarLote()
     }
+  }
+
+  function finalizarLote() {
+    const bloqueados = loteRef.current?.bloqueados || []
+    encerrarLote()
+    setSelected(new Set())
+    onBulkUpdated?.()
+
+    if (bloqueados.length > 0) {
+      alert(
+        `${bloqueados.length} projeto(s) não foram concluídos porque faltam dados do cliente ou anexos obrigatórios: ${bloqueados.join(
+          ', '
+        )}. Abra cada um e verifique a aba "Dados do cliente".`
+      )
+    }
+  }
+
+  function encerrarLote() {
+    loteRef.current = null
+    setPerguntandoPara(null)
+    setApplying(false)
   }
 
   const columns: { key: SortKey; label: string; align?: string }[] = [
@@ -151,16 +174,18 @@ export default function ListView({
 
   return (
     <div className="space-y-2">
-      {pedirPendenciaLote && (
+      {perguntandoPara && (
         <PendencyDialog
-          titulo={`${selected.size} projeto${selected.size !== 1 ? 's' : ''} selecionado${selected.size !== 1 ? 's' : ''}`}
-          onCancelar={() => {
-            setPedirPendenciaLote(false)
-            setApplying(false)
-          }}
+          titulo={`${perguntandoPara.nome}${
+            loteRef.current ? `  ·  ${loteRef.current.restantes.length} de ${selected.size} restante(s)` : ''
+          }`}
+          onCancelar={encerrarLote}
           onConfirmar={(dados) => {
-            setPendenciaLote(dados)
-            setPedirPendenciaLote(false)
+            const lote = loteRef.current
+            if (!lote) return
+            lote.justificativas[perguntandoPara.id] = dados
+            setPerguntandoPara(null)
+            processarLote()
           }}
         />
       )}
