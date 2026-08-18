@@ -86,15 +86,6 @@ export default function App() {
 
   // Para o Gantt global não faz sentido restringir ao mês selecionado (é uma
   // visão de linha do tempo), então aplica os outros filtros sobre todos os projetos.
-  const filteredSemMes = useMemo(() => {
-    return projects.filter((p) => {
-      if (categoria && p.categoria !== categoria) return false
-      if (responsavelFiltro && p.responsavel !== responsavelFiltro) return false
-      if (busca && !p.nome.toLowerCase().includes(busca.toLowerCase())) return false
-      return true
-    })
-  }, [projects, categoria, responsavelFiltro, busca])
-
   const stats = useMemo(() => {
     const atrasados = filtered.filter((p) => p.prazo_categoria === 'ATRASADO').length
     const essaSemana = filtered.filter((p) => p.prazo_categoria === 'ESSA SEMANA').length
@@ -281,13 +272,18 @@ export default function App() {
         {loading ? (
           <p className="text-sm text-slate-400 text-center py-10">Carregando projetos...</p>
         ) : viewMode === 'kanban' ? (
-          <Board projects={filtered} onCardClick={openEdit} onDropCard={handleDropCard} />
+          <Board
+            projects={filtered}
+            onCardClick={openEdit}
+            onDropCard={handleDropCard}
+            colunas={categoria === 'PROJETOS FINALIZADOS' ? ['Concluído'] : undefined}
+          />
         ) : viewMode === 'lista' ? (
           <ListView projects={filtered} onRowClick={openEdit} onBulkUpdated={fetchProjects} />
         ) : viewMode === 'dashboard' ? (
           <Dashboard projects={filtered} month={month} />
         ) : viewMode === 'gantt' ? (
-          <GanttGlobal projects={filteredSemMes} />
+          <GanttGlobal projects={projects} />
         ) : viewMode === 'tarefas' ? (
           <TasksBoard />
         ) : viewMode === 'atividades' ? (

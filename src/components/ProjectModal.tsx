@@ -24,7 +24,7 @@ const LETRA_OPTIONS = [
 const LETRA_COLORS: Record<string, string> = {
   S: 'bg-emerald-700 text-white',
   P: 'bg-sky-200 text-sky-800',
-  E: 'bg-indigo-200 text-indigo-800',
+  E: 'bg-yellow-300 text-yellow-900',
   T: 'bg-pink-200 text-pink-800',
   C: 'bg-red-400 text-white',
   D: 'bg-emerald-300 text-emerald-900',

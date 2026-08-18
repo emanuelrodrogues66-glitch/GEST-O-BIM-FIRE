@@ -1,5 +1,5 @@
 import type { Project } from '../types'
-import { normalizeStatus, STATUS_COLUNAS } from '../types'
+import { normalizeStatus, STATUS_COLORS, STATUS_COLUNAS } from '../types'
 
 export type RankingRow = {
   responsavel: string
@@ -50,14 +50,11 @@ export function statusDistribution(projects: Project[]): StatusRow[] {
   return rows.filter((r) => r.count > 0)
 }
 
-export const STATUS_CHART_COLORS: Record<string, string> = {
-  Pendente: '#94a3b8',
-  Tramitando: '#f59e0b',
-  'CORREÇÃO': '#f97316',
-  Executando: '#6366f1',
-  Zstandby: '#a855f7',
-  'Concluído': '#10b981',
-}
+// Deriva do padrão único de cores definido em types.ts,
+// para o Dashboard e o Gantt nunca divergirem do Kanban.
+export const STATUS_CHART_COLORS: Record<string, string> = Object.fromEntries(
+  Object.entries(STATUS_COLORS).map(([status, cor]) => [status, cor.hex])
+)
 
 export const RANKING_COLORS = ['#f59e0b', '#94a3b8', '#b45309', '#6366f1', '#10b981', '#ec4899', '#0ea5e9', '#a855f7']
 

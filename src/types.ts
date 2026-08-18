@@ -104,6 +104,71 @@ export const STATUS_TO_LETRA: Record<string, string> = {
   'Concluído': 'D',
 }
 
+/**
+ * Fonte única das cores por status.
+ * Tudo no app (Kanban, Lista, Dashboard, Gantt, PDF e progresso diário)
+ * lê daqui, para que as cores nunca fiquem divergentes entre telas.
+ *
+ * Pendente  · azul claro
+ * Tramitando · rosa
+ * CORREÇÃO  · vermelho
+ * Executando · amarelo
+ * Zstandby  · cinza
+ * Concluído · verde
+ */
+export const STATUS_COLORS: Record<
+  string,
+  { hex: string; borderTop: string; badge: string; dot: string }
+> = {
+  Pendente: {
+    hex: '#38bdf8',
+    borderTop: 'border-t-sky-400',
+    badge: 'bg-sky-100 text-sky-700 border-sky-300',
+    dot: 'bg-sky-400',
+  },
+  Tramitando: {
+    hex: '#f472b6',
+    borderTop: 'border-t-pink-400',
+    badge: 'bg-pink-100 text-pink-700 border-pink-300',
+    dot: 'bg-pink-400',
+  },
+  'CORREÇÃO': {
+    hex: '#ef4444',
+    borderTop: 'border-t-red-500',
+    badge: 'bg-red-100 text-red-700 border-red-300',
+    dot: 'bg-red-500',
+  },
+  Executando: {
+    hex: '#facc15',
+    borderTop: 'border-t-yellow-400',
+    badge: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    dot: 'bg-yellow-400',
+  },
+  Zstandby: {
+    hex: '#9ca3af',
+    borderTop: 'border-t-gray-400',
+    badge: 'bg-gray-100 text-gray-600 border-gray-300',
+    dot: 'bg-gray-400',
+  },
+  'Concluído': {
+    hex: '#22c55e',
+    borderTop: 'border-t-green-500',
+    badge: 'bg-green-100 text-green-700 border-green-300',
+    dot: 'bg-green-500',
+  },
+}
+
+export function statusColor(status: string) {
+  return (
+    STATUS_COLORS[normalizeStatus(status)] || {
+      hex: '#94a3b8',
+      borderTop: 'border-t-slate-400',
+      badge: 'bg-slate-100 text-slate-600 border-slate-300',
+      dot: 'bg-slate-400',
+    }
+  )
+}
+
 export type ProjectClient = {
   id: string
   project_id: string

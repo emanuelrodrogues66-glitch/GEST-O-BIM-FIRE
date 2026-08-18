@@ -1,6 +1,6 @@
 export const LETRA_PDF_COLORS: Record<string, string> = {
   p: '#7dd3fc', // Pendente - azul claro
-  e: '#67e8f9', // Executando - ciano
+  e: '#facc15', // Executando - amarelo
   t: '#f472b6', // Tramitando - rosa
   c: '#ef4444', // Correção - vermelho
   s: '#15803d', // Início - verde escuro

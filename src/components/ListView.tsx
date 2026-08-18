@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { changeProjectStatus } from '../lib/statusSync'
 import type { Project } from '../types'
-import { prazoColor, STATUS_COLUNAS, tipoColor } from '../types'
+import { prazoColor, STATUS_COLUNAS, statusColor, tipoColor } from '../types'
 
 type SortKey = 'numero' | 'nome' | 'responsavel' | 'status' | 'pts' | 'm2' | 'data_prazo'
 
@@ -199,7 +199,9 @@ export default function ListView({
                   <td className="px-3 py-2 font-medium text-slate-800">{p.nome}</td>
                   <td className="px-3 py-2 text-slate-600">{p.responsavel || '—'}</td>
                   <td className="px-3 py-2">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded border ${statusColor(p.status).badge}`}
+                    >
                       {p.status}
                     </span>
                   </td>

@@ -1,32 +1,40 @@
 import { useState } from 'react'
 import type { Project } from '../types'
-import { STATUS_COLUNAS, normalizeStatus } from '../types'
+import { STATUS_COLUNAS, normalizeStatus, statusColor } from '../types'
 import ProjectCard from './ProjectCard'
-
-const COLUNA_COLOR: Record<string, string> = {
-  Pendente: 'border-t-slate-400',
-  Tramitando: 'border-t-amber-400',
-  'CORREÇÃO': 'border-t-orange-500',
-  Executando: 'border-t-indigo-500',
-  Zstandby: 'border-t-purple-400',
-  'Concluído': 'border-t-emerald-500',
-}
 
 export default function Board({
   projects,
   onCardClick,
   onDropCard,
+  colunas,
 }: {
   projects: Project[]
   onCardClick: (p: Project) => void
   onDropCard?: (projectId: string, status: string) => void
+  colunas?: readonly string[]
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
+  const colunasVisiveis = colunas && colunas.length > 0 ? colunas : STATUS_COLUNAS
+
+  // Quando o quadro mostra só algumas colunas, avisa se sobrou projeto de fora
+  // para que nada desapareça sem o usuário perceber.
+  const foraDasColunas = projects.filter((p) => !colunasVisiveis.includes(normalizeStatus(p.status)))
+
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
-      {STATUS_COLUNAS.map((col) => {
+    <>
+      {foraDasColunas.length > 0 && (
+        <div className="mb-3 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
+          {foraDasColunas.length} projeto{foraDasColunas.length !== 1 ? 's' : ''} desta categoria ainda não
+          {foraDasColunas.length !== 1 ? ' estão' : ' está'} com status "Concluído" e por isso não aparece
+          {foraDasColunas.length !== 1 ? 'm' : ''} aqui. Use a visão <b>Lista</b> para vê-
+          {foraDasColunas.length !== 1 ? 'los' : 'lo'}: {foraDasColunas.map((p) => p.nome).join(', ')}
+        </div>
+      )}
+      <div className="flex gap-4 overflow-x-auto pb-4">
+      {colunasVisiveis.map((col) => {
         const items = projects.filter((p) => normalizeStatus(p.status) === col)
         return (
           <div key={col} className="flex-shrink-0 w-72">
@@ -45,7 +53,7 @@ export default function Board({
                 setDraggingId(null)
                 if (projectId) onDropCard(projectId, col)
               }}
-              className={`bg-slate-100 rounded-xl border-t-4 ${COLUNA_COLOR[col]} p-3 transition ${
+              className={`bg-slate-100 rounded-xl border-t-4 ${statusColor(col).borderTop} p-3 transition ${
                 dragOverCol === col ? 'ring-2 ring-indigo-400 bg-indigo-50' : ''
               }`}
             >
@@ -86,6 +94,7 @@ export default function Board({
           </div>
         )
       })}
-    </div>
+      </div>
+    </>
   )
 }
