@@ -9,6 +9,7 @@ import TaskSchedule from './TaskSchedule'
 import ActivityHistory from './ActivityHistory'
 import ClientDataForm from './ClientDataForm'
 import FileUpload from './FileUpload'
+import PlanningForm from './PlanningForm'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -61,7 +62,7 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
   const [saving, setSaving] = useState(false)
   const [progress, setProgress] = useState<Record<number, string>>({})
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'geral' | 'dados'>('geral')
+  const [activeTab, setActiveTab] = useState<'geral' | 'dados' | 'plano'>('geral')
   const [clientData, setClientData] = useState<Partial<ProjectClient>>({})
   const [showMissingClientData, setShowMissingClientData] = useState(false)
 
@@ -203,7 +204,8 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
               [
                 ['geral', 'Geral'],
                 ['dados', 'Dados do cliente'],
-              ] as ['geral' | 'dados', string][]
+                ['plano', 'Planejamento'],
+              ] as ['geral' | 'dados' | 'plano', string][]
             ).map(([tab, label]) => (
               <button
                 key={tab}
@@ -221,7 +223,9 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
         )}
 
         <div className="p-6 space-y-4">
-          {activeTab === 'dados' && !isNew && project ? (
+          {activeTab === 'plano' && !isNew && project ? (
+            <PlanningForm projectId={project.id} />
+          ) : activeTab === 'dados' && !isNew && project ? (
             <>
               <ClientDataForm
                 value={clientData}

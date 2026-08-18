@@ -190,6 +190,26 @@ export type ProjectClient = {
   updated_at: string
 }
 
+export type ProjectPlan = {
+  id: string
+  project_id: string
+  data_inicio_prevista: string | null
+  data_fim_prevista: string | null
+  observacoes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ProjectPlanPhase = {
+  id: string
+  project_id: string
+  status: string
+  data_inicio: string
+  data_fim: string
+  ordem: number
+  created_at: string
+}
+
 export type ProjectFile = {
   id: string
   project_id: string

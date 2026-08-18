@@ -1,5 +1,13 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 
+/** Um trecho colorido dentro da barra (ex.: o período em que o projeto ficou "Tramitando"). */
+export type GanttSegment = {
+  start: string // yyyy-mm-dd
+  end: string // yyyy-mm-dd
+  color: string
+  label?: string
+}
+
 export type GanttItem = {
   id: string
   label: string
@@ -9,6 +17,14 @@ export type GanttItem = {
   color: string
   textColor?: string
   tooltip?: string
+  /** Se preenchido, a barra é desenhada em trechos coloridos em vez de cor única. */
+  segments?: GanttSegment[]
+  /** Meio-tom: usado na barra "planejado" para diferenciar da real. */
+  muted?: boolean
+  /** Oculta o nome dentro da barra (usado na linha planejada, que fica logo abaixo da real). */
+  hideLabel?: boolean
+  /** Aproxima esta linha da anterior, agrupando real + planejado do mesmo projeto. */
+  attached?: boolean
 }
 
 const MS_DIA = 86400000
@@ -199,40 +215,80 @@ export default function GanttChart({
               const e = parseDate(it.end || it.start)
               const left = diffDias(min, s) * dayWidth
               const width = Math.max(dayWidth * 0.6, (diffDias(s, e) + 1) * dayWidth)
+              const opacity = it.muted ? 0.45 : 1
+              const alturaBarra = it.muted ? 7 : 5 // planejada um pouco mais fina
+
               return (
                 <div
                   key={it.id}
-                  className="flex items-center border-b border-slate-100 last:border-b-0"
-                  style={{ height: rowHeight }}
+                  className={`flex items-center ${
+                    it.attached ? '' : 'border-b border-slate-100'
+                  } last:border-b-0`}
+                  style={{ height: it.attached ? rowHeight * 0.7 : rowHeight }}
                 >
                   <div
                     style={{ width: labelWidth }}
                     className="shrink-0 sticky left-0 z-10 bg-white px-2 text-xs text-slate-700 border-r border-slate-200 truncate"
                   >
-                    <div className="truncate font-medium">{it.label}</div>
-                    {it.sublabel && <div className="truncate text-[10px] text-slate-400">{it.sublabel}</div>}
+                    {it.attached ? (
+                      <div className="truncate text-[10px] text-slate-400 pl-2">{it.sublabel || 'Planejado'}</div>
+                    ) : (
+                      <>
+                        <div className="truncate font-medium">{it.label}</div>
+                        {it.sublabel && <div className="truncate text-[10px] text-slate-400">{it.sublabel}</div>}
+                      </>
+                    )}
                   </div>
-                  <div className="relative" style={{ width: timelineWidth, height: rowHeight }}>
+                  <div
+                    className="relative"
+                    style={{ width: timelineWidth, height: it.attached ? rowHeight * 0.7 : rowHeight }}
+                  >
+                    {/* Trilho da barra: define a área total e captura o hover */}
                     <div
-                      className="absolute rounded-md flex items-center px-1.5 text-[10px] font-medium cursor-default shadow-sm"
+                      className={`absolute rounded-md flex items-center px-1.5 text-[10px] font-medium cursor-default ${
+                        it.muted ? 'border border-dashed border-slate-400' : 'shadow-sm'
+                      }`}
                       style={{
                         left,
                         width,
-                        top: 5,
-                        bottom: 5,
-                        background: it.color,
+                        top: alturaBarra,
+                        bottom: alturaBarra,
+                        background: it.segments?.length ? 'transparent' : it.color,
+                        opacity,
                         color: it.textColor || '#fff',
+                        overflow: 'hidden',
                       }}
                       onMouseEnter={() => setHover(it.id)}
                       onMouseLeave={() => setHover(null)}
                     >
-                      <span className="truncate">{it.label}</span>
-                      {hover === it.id && (
-                        <div className="absolute -top-9 left-0 bg-slate-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap z-20 shadow-lg">
-                          {it.tooltip || `${fmt(it.start)} → ${fmt(it.end)}`}
-                        </div>
+                      {/* Trechos coloridos: mostram por quais status o projeto passou */}
+                      {it.segments?.map((seg, i) => {
+                        const segStart = parseDate(seg.start)
+                        const segEnd = parseDate(seg.end || seg.start)
+                        const segLeft = diffDias(s, segStart) * dayWidth
+                        const segWidth = Math.max(2, (diffDias(segStart, segEnd) + 1) * dayWidth)
+                        return (
+                          <div
+                            key={i}
+                            className="absolute top-0 bottom-0"
+                            style={{ left: segLeft, width: segWidth, background: seg.color }}
+                            title={seg.label}
+                          />
+                        )
+                      })}
+                      {!it.hideLabel && (
+                        <span className="truncate relative z-10 drop-shadow-sm">{it.label}</span>
                       )}
                     </div>
+
+                    {hover === it.id && (
+                      <div
+                        className="absolute bg-slate-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap z-30 shadow-lg pointer-events-none"
+                        style={{ left, top: -4 }}
+                      >
+                        {it.tooltip || `${fmt(it.start)} → ${fmt(it.end)}`}
+                      </div>
+                    )}
                   </div>
                 </div>
               )
