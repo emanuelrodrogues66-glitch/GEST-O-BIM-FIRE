@@ -33,15 +33,25 @@ function getServiceAccount(): ServiceAccount {
   let parsed: any
   try {
     parsed = JSON.parse(raw)
-  } catch (e: any) {
-    // Diagnóstico sem vazar a chave privada: só tamanho e o começo do arquivo,
-    // que em toda conta de serviço é sempre {"type": "service_account"...
-    const inicio = raw.slice(0, 24)
-    throw new Error(
-      `GOOGLE_SERVICE_ACCOUNT_JSON não é um JSON válido (${e.message}). ` +
-        `Tamanho recebido: ${raw.length} caracteres. Começa com: ${JSON.stringify(inicio)}. ` +
-        'Cole o conteúdo completo do arquivo .json baixado do Google Cloud, do "{" até o "}" final.'
-    )
+  } catch {
+    // Caso comum: ao copiar do editor, perdem-se as chaves externas { }.
+    // Tentamos reconstruir — e logo abaixo validamos que a chave privada
+    // veio inteira, para não aceitar silenciosamente algo truncado.
+    let tentativa = raw
+    if (!tentativa.startsWith('{')) tentativa = (tentativa.startsWith('"') ? '{' : '{"') + tentativa
+    if (!tentativa.endsWith('}')) tentativa = tentativa + '}'
+
+    try {
+      parsed = JSON.parse(tentativa)
+    } catch (e2: any) {
+      // Diagnóstico sem vazar a chave privada: só tamanho e o começo do arquivo,
+      // que em toda conta de serviço é sempre {"type": "service_account"...
+      throw new Error(
+        `GOOGLE_SERVICE_ACCOUNT_JSON não é um JSON válido (${e2.message}). ` +
+          `Tamanho recebido: ${raw.length} caracteres. Começa com: ${JSON.stringify(raw.slice(0, 24))}. ` +
+          'Cole o conteúdo completo do arquivo .json baixado do Google Cloud, do "{" até o "}" final.'
+      )
+    }
   }
 
   if (!parsed.client_email || !parsed.private_key) {
@@ -51,7 +61,20 @@ function getServiceAccount(): ServiceAccount {
     )
   }
 
-  return { client_email: parsed.client_email, private_key: parsed.private_key.replace(/\\n/g, '\n') }
+  const private_key = String(parsed.private_key).replace(/\\n/g, '\n')
+
+  // Garante que a chave não foi cortada no meio durante a colagem.
+  if (
+    !private_key.includes('-----BEGIN PRIVATE KEY-----') ||
+    !private_key.includes('-----END PRIVATE KEY-----')
+  ) {
+    throw new Error(
+      'A private_key da conta de serviço parece estar incompleta (faltam as marcações BEGIN/END). ' +
+        'Recole o conteúdo integral do arquivo .json no Vercel.'
+    )
+  }
+
+  return { client_email: parsed.client_email, private_key }
 }
 
 function base64url(input: Buffer | string): string {
