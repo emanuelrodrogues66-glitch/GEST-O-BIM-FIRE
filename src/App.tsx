@@ -332,7 +332,8 @@ export default function App() {
         ) : viewMode === 'lista' ? (
           <ListView projects={filtered} onRowClick={openEdit} onBulkUpdated={fetchProjects} />
         ) : viewMode === 'dashboard' ? (
-          <Dashboard projects={filtered} month={month} />
+          // O Dashboard recebe tudo e aplica os próprios filtros de status e mês.
+          <Dashboard projects={projects} month={month} />
         ) : viewMode === 'gantt' ? (
           <GanttGlobal projects={projects} onProjectClick={openEdit} />
         ) : viewMode === 'tarefas' ? (

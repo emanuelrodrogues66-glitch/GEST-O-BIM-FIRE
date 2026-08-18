@@ -11,7 +11,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { Project } from '../types'
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import type { Project, ProjectPlan } from '../types'
+import { STATUS_COLUNAS, normalizeStatus, statusColor } from '../types'
 import {
   RANKING_COLORS,
   STATUS_CHART_COLORS,
@@ -21,11 +24,107 @@ import {
   statusDistribution,
 } from '../lib/stats'
 import type { MonthRef } from '../lib/month'
-import { monthLabel } from '../lib/month'
+import { addMonths, dateInMonth, monthKey, monthLabel } from '../lib/month'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-export default function Dashboard({ projects, month }: { projects: Project[]; month: MonthRef }) {
+/** Quantos meses à frente a projeção olha. */
+const MESES_PROJECAO = 6
+
+export default function Dashboard({
+  projects: todosProjetos,
+  month,
+}: {
+  projects: Project[]
+  month: MonthRef
+}) {
+  // Filtros locais: valem só nesta tela, sem mexer nos filtros do topo do app.
+  const [statusSel, setStatusSel] = useState<string[]>([...STATUS_COLUNAS])
+  const [mesSel, setMesSel] = useState<MonthRef | null>(month)
+  const [planos, setPlanos] = useState<Record<string, ProjectPlan>>({})
+
+  useEffect(() => {
+    setMesSel(month)
+  }, [month])
+
+  useEffect(() => {
+    carregarPlanos()
+  }, [])
+
+  async function carregarPlanos() {
+    const { data } = await supabase.from('project_plans').select('*')
+    const mapa: Record<string, ProjectPlan> = {}
+    ;(data as ProjectPlan[] | null)?.forEach((p) => {
+      mapa[p.project_id] = p
+    })
+    setPlanos(mapa)
+  }
+
+  function toggleStatus(s: string) {
+    setStatusSel((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))
+  }
+
+  const projects = useMemo(() => {
+    return todosProjetos.filter((p) => {
+      if (statusSel.length > 0 && !statusSel.includes(normalizeStatus(p.status))) return false
+      if (mesSel && !dateInMonth(p.data_inicio, mesSel)) return false
+      return true
+    })
+  }, [todosProjetos, statusSel, mesSel])
+
+  /**
+   * Projeção: distribui os pontos pelos meses.
+   * - Realizado: projetos já concluídos, no mês do prazo (quando o projeto de fato fechou).
+   * - Previsto: projetos em aberto, no mês do fim previsto do planejamento
+   *   (caindo para o prazo do projeto quando não há planejamento).
+   */
+  const projecao = useMemo(() => {
+    const meses: MonthRef[] = []
+    for (let i = -2; i < MESES_PROJECAO; i++) meses.push(addMonths(month, i))
+
+    const linhas = meses.map((m) => ({
+      mes: m,
+      name: monthLabel(m).replace(' de ', '/').slice(0, 3) + '/' + String(m.year).slice(2),
+      realizado: 0,
+      previsto: 0,
+    }))
+
+    const indicePorChave = new Map(linhas.map((l, i) => [monthKey(l.mes), i]))
+
+    for (const p of todosProjetos) {
+      // Respeita o filtro de status, mas não o de mês: a projeção é justamente sobre o tempo.
+      if (statusSel.length > 0 && !statusSel.includes(normalizeStatus(p.status))) continue
+
+      const pts = p.pts || 0
+      if (!pts) continue
+
+      const concluido = normalizeStatus(p.status) === 'Concluído'
+      const plano = planos[p.id]
+
+      const dataRef = concluido
+        ? p.data_prazo || p.data_inicio
+        : plano?.data_fim_prevista || p.data_prazo || null
+
+      if (!dataRef) continue
+
+      const idx = indicePorChave.get(dataRef.slice(0, 7))
+      if (idx === undefined) continue
+
+      if (concluido) linhas[idx].realizado += pts
+      else linhas[idx].previsto += pts
+    }
+
+    return linhas
+  }, [todosProjetos, planos, statusSel, month])
+
+  const semPlanejamento = useMemo(
+    () =>
+      todosProjetos.filter(
+        (p) => normalizeStatus(p.status) !== 'Concluído' && !planos[p.id]?.data_fim_prevista
+      ).length,
+    [todosProjetos, planos]
+  )
+
   const ranking = rankingPorResponsavel(projects)
   const statusRows = statusDistribution(projects)
 
@@ -45,13 +144,93 @@ export default function Dashboard({ projects, month }: { projects: Project[]; mo
   }))
   const proximaMeta = METAS_PONTOS.find((m) => m.meta > pontosAtuais)
 
+  const todosStatus = statusSel.length === STATUS_COLUNAS.length
+  const temFiltro = !todosStatus || !mesSel || monthKey(mesSel) !== monthKey(month)
+
   return (
     <div className="space-y-4">
+      {/* Filtros exclusivos do Dashboard */}
+      <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] font-medium text-slate-500">Filtrar só neste painel:</span>
+
+          <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1 py-0.5">
+            <button
+              onClick={() => setMesSel((m) => (m ? addMonths(m, -1) : month))}
+              className="w-6 h-6 text-slate-500 hover:bg-slate-100 rounded"
+              disabled={!mesSel}
+            >
+              ‹
+            </button>
+            <span className="text-[11px] font-medium text-slate-700 px-1 min-w-[95px] text-center">
+              {mesSel ? monthLabel(mesSel) : 'Todos os meses'}
+            </span>
+            <button
+              onClick={() => setMesSel((m) => (m ? addMonths(m, 1) : month))}
+              className="w-6 h-6 text-slate-500 hover:bg-slate-100 rounded"
+              disabled={!mesSel}
+            >
+              ›
+            </button>
+          </div>
+
+          <button
+            onClick={() => setMesSel((m) => (m ? null : month))}
+            className={`text-[11px] font-medium px-2 py-1 rounded-full border transition ${
+              mesSel
+                ? 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                : 'bg-indigo-100 text-indigo-700 border-indigo-300'
+            }`}
+          >
+            Todos os meses
+          </button>
+
+          {temFiltro && (
+            <button
+              onClick={() => {
+                setStatusSel([...STATUS_COLUNAS])
+                setMesSel(month)
+              }}
+              className="text-[11px] text-slate-500 hover:text-slate-800 underline ml-auto"
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] font-medium text-slate-500 mr-1">Status:</span>
+          {STATUS_COLUNAS.map((s) => {
+            const ativo = statusSel.includes(s)
+            return (
+              <button
+                key={s}
+                onClick={() => toggleStatus(s)}
+                className={`text-[11px] font-medium px-2 py-1 rounded-full border transition flex items-center gap-1.5 ${
+                  ativo ? statusColor(s).badge : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full inline-block ${ativo ? statusColor(s).dot : 'bg-slate-300'}`}
+                />
+                {s}
+              </button>
+            )
+          })}
+          <button
+            onClick={() => setStatusSel(todosStatus ? [] : [...STATUS_COLUNAS])}
+            className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium ml-1"
+          >
+            {todosStatus ? 'Limpar' : 'Todos'}
+          </button>
+        </div>
+      </div>
+
       {/* Meta de pontos do mês */}
       <div className="bg-white border border-slate-200 rounded-xl p-4">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Meta Pontos</h3>
-          <span className="text-xs text-slate-400">{monthLabel(month)}</span>
+          <span className="text-xs text-slate-400">{mesSel ? monthLabel(mesSel) : 'Todos os meses'}</span>
         </div>
         <p className="text-xs text-slate-500 mb-3">
           Soma dos pontos de todos os funcionários nos projetos aprovados (Concluído) neste mês:{' '}
@@ -81,6 +260,59 @@ export default function Dashboard({ projects, month }: { projects: Project[]; mo
       </div>
 
       {/* Cards de resumo */}
+      {/* Projeção dos próximos meses com base no planejamento */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+            Projeção dos próximos meses
+          </h3>
+          <span className="text-xs text-slate-400">{MESES_PROJECAO} meses à frente</span>
+        </div>
+        <p className="text-xs text-slate-500 mb-3">
+          Pontos já <b className="text-slate-700">realizados</b> (projetos concluídos, no mês do prazo) e{' '}
+          <b className="text-slate-700">previstos</b> (projetos em aberto, no mês do fim previsto definido na aba
+          Planejamento). Ignora o filtro de mês acima, mas respeita o de status.
+        </p>
+
+        {semPlanejamento > 0 && (
+          <p className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 mb-3">
+            {semPlanejamento} projeto{semPlanejamento !== 1 ? 's' : ''} em aberto ainda sem fim previsto no
+            planejamento. Para esses, a projeção usa a data de prazo do projeto — preencha a aba{' '}
+            <b>Planejamento</b> para uma previsão mais fiel.
+          </p>
+        )}
+
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={projecao} margin={{ left: -20 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v: any) => `${v} pts`} />
+            <Legend
+              formatter={(value) => (value === 'realizado' ? 'Realizado' : 'Previsto')}
+              wrapperStyle={{ fontSize: 12 }}
+            />
+            <Bar dataKey="realizado" name="realizado" stackId="p" fill="#22c55e" />
+            <Bar dataKey="previsto" name="previsto" stackId="p" fill="#a5b4fc" radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+
+        <div className="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-[11px] text-slate-500">
+          <span>
+            Total previsto no período:{' '}
+            <b className="text-slate-700">
+              {projecao.reduce((s, l) => s + l.previsto, 0).toLocaleString('pt-BR')} pts
+            </b>
+          </span>
+          <span>
+            Total realizado no período:{' '}
+            <b className="text-slate-700">
+              {projecao.reduce((s, l) => s + l.realizado, 0).toLocaleString('pt-BR')} pts
+            </b>
+          </span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Total de projetos" value={projects.length} />
         <StatCard label="Total de pontos" value={totalPontos.toLocaleString('pt-BR')} />
