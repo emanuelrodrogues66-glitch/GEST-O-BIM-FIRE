@@ -99,6 +99,12 @@ export default function App() {
     setModalOpen(true)
   }
 
+  /** Abre o cartão a partir de telas que só conhecem o id (tarefas, relatórios). */
+  function openEditById(projectId: string) {
+    const p = projects.find((x) => x.id === projectId)
+    if (p) openEdit(p)
+  }
+
   function openEdit(p: Project) {
     setModalProject(p)
     setIsNew(false)
@@ -330,11 +336,11 @@ export default function App() {
         ) : viewMode === 'gantt' ? (
           <GanttGlobal projects={projects} onProjectClick={openEdit} />
         ) : viewMode === 'tarefas' ? (
-          <TasksBoard />
+          <TasksBoard onProjectClick={openEditById} />
         ) : viewMode === 'atividades' ? (
           <ActivitiesReport />
         ) : (
-          <TasksReport />
+          <TasksReport onProjectClick={openEditById} />
         )}
       </div>
 

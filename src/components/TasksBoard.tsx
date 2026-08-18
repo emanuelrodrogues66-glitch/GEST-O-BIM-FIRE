@@ -20,7 +20,12 @@ const STATUS_BAR_COLORS: Record<string, string> = {
   'Concluído': '#22c55e',
 }
 
-export default function TasksBoard() {
+export default function TasksBoard({
+  onProjectClick,
+}: {
+  /** Abre o cartão do projeto ao qual a tarefa pertence. */
+  onProjectClick?: (projectId: string) => void
+} = {}) {
   const [rows, setRows] = useState<TaskRow[]>([])
   const [loading, setLoading] = useState(true)
   const [groupBy, setGroupBy] = useState<GroupBy>('colaborador')
@@ -220,20 +225,30 @@ export default function TasksBoard() {
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span
-                      className={`font-medium text-slate-800 ${
-                        t.status === 'Concluído' ? 'line-through text-slate-400' : ''
-                      }`}
+                    <button
+                      onClick={() => onProjectClick?.(t.project_id)}
+                      disabled={!onProjectClick}
+                      className={`font-medium text-left ${
+                        t.status === 'Concluído' ? 'line-through text-slate-400' : 'text-slate-800'
+                      } ${onProjectClick ? 'hover:text-indigo-700 hover:underline cursor-pointer' : ''}`}
+                      title={onProjectClick ? 'Abrir o cartão do projeto' : undefined}
                     >
                       {t.nome}
-                    </span>
+                    </button>
                     {groupBy === 'projeto' ? (
                       t.responsavel && <span className="text-slate-500">· {t.responsavel}</span>
                     ) : (
-                      <span className="text-slate-500">
+                      <button
+                        onClick={() => onProjectClick?.(t.project_id)}
+                        disabled={!onProjectClick}
+                        className={`text-slate-500 ${
+                          onProjectClick ? 'hover:text-indigo-700 hover:underline cursor-pointer' : ''
+                        }`}
+                        title={onProjectClick ? 'Abrir o cartão do projeto' : undefined}
+                      >
                         · {t.projects?.numero ? `${t.projects.numero} · ` : ''}
                         {t.projects?.nome}
-                      </span>
+                      </button>
                     )}
                     <span className="text-slate-400">· prazo {formatDate(t.data_prazo)}</span>
                     {late && <span className="text-red-600 font-semibold text-[10px]">⚠ Atrasada</span>}
