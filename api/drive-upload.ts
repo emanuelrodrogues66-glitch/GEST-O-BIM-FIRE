@@ -136,6 +136,19 @@ async function getAccessToken(): Promise<string> {
   return data.access_token as string
 }
 
+/**
+ * Aceita tanto o ID puro quanto a URL completa da pasta colada do navegador,
+ * ex.: https://drive.google.com/drive/folders/ABC123?usp=sharing
+ */
+function normalizarFolderId(valor: string): string {
+  let id = valor.trim().replace(/^["']|["']$/g, '')
+  const match = id.match(/\/folders\/([^/?#\s]+)/)
+  if (match) id = match[1]
+  // Remove parâmetros de query que às vezes vêm junto.
+  id = id.split('?')[0].split('#')[0].trim()
+  return id
+}
+
 /** Escapa aspas simples para a sintaxe de busca do Drive. */
 function escapeQuery(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
@@ -158,7 +171,15 @@ async function findOrCreateFolder(token: string, parentId: string, name: string)
   const found = await fetch(searchUrl, { headers: { Authorization: `Bearer ${token}` } })
   const foundData = await found.json()
   if (!found.ok) {
-    throw new Error(`Erro ao procurar a pasta no Drive: ${foundData.error?.message || found.status}`)
+    const msg = foundData.error?.message || String(found.status)
+    if (/not found/i.test(msg)) {
+      throw new Error(
+        `A pasta raiz do Drive não foi encontrada (ID recebido: "${parentId}"). ` +
+          'Confira a variável GOOGLE_DRIVE_FOLDER_ID no Vercel e certifique-se de que a pasta foi ' +
+          'compartilhada como Editor com o e-mail da conta de serviço.'
+      )
+    }
+    throw new Error(`Erro ao procurar a pasta no Drive: ${msg}`)
   }
   if (foundData.files?.length) return foundData.files[0].id as string
 
@@ -185,8 +206,13 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const rootId = process.env.GOOGLE_DRIVE_FOLDER_ID
-    if (!rootId) throw new Error('GOOGLE_DRIVE_FOLDER_ID não configurada no Vercel.')
+    const rootId = normalizarFolderId(process.env.GOOGLE_DRIVE_FOLDER_ID || '')
+    if (!rootId) {
+      throw new Error(
+        'GOOGLE_DRIVE_FOLDER_ID está vazia ou inválida no Vercel. ' +
+          'Cole o ID da pasta (o trecho da URL depois de /folders/) ou a URL completa da pasta.'
+      )
+    }
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {}
     const { fileName, mimeType, folderName } = body as {
