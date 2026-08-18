@@ -74,6 +74,45 @@ export default function GanttChart({
   const scrollRef = useRef<HTMLDivElement>(null)
   const todayColRef = useRef<HTMLDivElement>(null)
 
+  // Arrastar com o mouse para rolar na horizontal (mais confortável que a barra de rolagem).
+  const [arrastando, setArrastando] = useState(false)
+  const panRef = useRef({ ativo: false, inicioX: 0, inicioScroll: 0, moveu: false })
+
+  function iniciarPan(e: React.MouseEvent) {
+    // Só com o botão esquerdo, e nunca em cima de um link ou campo.
+    if (e.button !== 0) return
+    const alvo = e.target as HTMLElement
+    if (alvo.closest('a, input, select, textarea, button')) return
+    const el = scrollRef.current
+    if (!el) return
+    panRef.current = { ativo: true, inicioX: e.clientX, inicioScroll: el.scrollLeft, moveu: false }
+    setArrastando(true)
+  }
+
+  function moverPan(e: React.MouseEvent) {
+    const p = panRef.current
+    if (!p.ativo || !scrollRef.current) return
+    const dx = e.clientX - p.inicioX
+    if (Math.abs(dx) > 4) p.moveu = true
+    scrollRef.current.scrollLeft = p.inicioScroll - dx
+  }
+
+  function encerrarPan() {
+    if (!panRef.current.ativo) return
+    panRef.current.ativo = false
+    setArrastando(false)
+    // Deixa o flag "moveu" vivo por um instante para o clique seguinte ser ignorado.
+    setTimeout(() => {
+      panRef.current.moveu = false
+    }, 0)
+  }
+
+  /** Ignora o clique quando ele foi, na verdade, o fim de um arrasto. */
+  function clicarItem(id: string) {
+    if (panRef.current.moveu) return
+    onItemClick?.(id)
+  }
+
   const { min, days, months } = useMemo(() => {
     let minT: number
     let maxT: number
@@ -145,7 +184,14 @@ export default function GanttChart({
 
   return (
     <div className="border border-slate-200 rounded-lg overflow-hidden">
-      <div ref={scrollRef} className="overflow-x-auto">
+      <div
+        ref={scrollRef}
+        className={`overflow-x-auto select-none ${arrastando ? 'cursor-grabbing' : 'cursor-grab'}`}
+        onMouseDown={iniciarPan}
+        onMouseMove={moverPan}
+        onMouseUp={encerrarPan}
+        onMouseLeave={encerrarPan}
+      >
         <div style={{ width: labelWidth + timelineWidth, minWidth: '100%' }}>
           {/* Cabeçalho: meses */}
           <div className="flex sticky top-0 z-20 bg-slate-50 border-b border-slate-200">
@@ -231,7 +277,7 @@ export default function GanttChart({
                 >
                   <div
                     style={{ width: labelWidth }}
-                    onClick={onItemClick ? () => onItemClick(it.id) : undefined}
+                    onClick={onItemClick ? () => clicarItem(it.id) : undefined}
                     className={`shrink-0 sticky left-0 z-10 bg-white px-2 text-xs text-slate-700 border-r border-slate-200 truncate ${
                       onItemClick ? 'cursor-pointer hover:bg-indigo-50 hover:text-indigo-700' : ''
                     }`}
@@ -265,7 +311,7 @@ export default function GanttChart({
                         color: it.textColor || '#fff',
                         overflow: 'hidden',
                       }}
-                      onClick={onItemClick ? () => onItemClick(it.id) : undefined}
+                      onClick={onItemClick ? () => clicarItem(it.id) : undefined}
                       onMouseEnter={() => setHover(it.id)}
                       onMouseLeave={() => setHover(null)}
                     >
