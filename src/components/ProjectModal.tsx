@@ -12,7 +12,7 @@ import {
   suggestedPoints,
 } from '../types'
 import type { MonthRef } from '../lib/month'
-import { daysInMonth, monthLabel, monthRange } from '../lib/month'
+import { addMonths, daysInMonth, monthLabel, monthRange } from '../lib/month'
 import TaskSchedule from './TaskSchedule'
 import ActivityHistory from './ActivityHistory'
 import ClientDataForm from './ClientDataForm'
@@ -43,6 +43,17 @@ const LETRA_COLORS: Record<string, string> = {
   '': 'bg-white text-slate-300',
 }
 
+/** "2026-08" a partir de um mês. */
+function monthKeyDe(m: MonthRef): string {
+  return `${m.year}-${String(m.month).padStart(2, '0')}`
+}
+
+/** "2026-08" vira "Agosto 2026". */
+function rotuloMes(chave: string): string {
+  const [ano, mes] = chave.split('-').map(Number)
+  return monthLabel({ year: ano, month: mes })
+}
+
 type Props = {
   project: Project | null
   isNew: boolean
@@ -71,6 +82,11 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
   const [form, setForm] = useState<Partial<Project>>(project ?? emptyProject)
   const [saving, setSaving] = useState(false)
   const [progress, setProgress] = useState<Record<number, string>>({})
+
+  // O progresso diário navega por mês por conta própria: projetos antigos
+  // precisam ser corrigidos em meses anteriores sem mexer no filtro do topo.
+  const [mesProgresso, setMesProgresso] = useState<MonthRef>(month)
+  const [mesesComRegistro, setMesesComRegistro] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias'>('geral')
   const [clientData, setClientData] = useState<Partial<ProjectClient>>({})
@@ -95,20 +111,23 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
     setPrevisaoPendencia('')
     setExigirPendencia(false)
     setMotivoPendencia(MOTIVOS_PENDENCIA[0])
+    setMesProgresso(month)
     if (project && !isNew) {
-      loadProgress(project.id)
+      loadProgress(project.id, month)
+      loadMesesComRegistro(project.id)
       loadClientData(project.id)
       pendenciaAberta(project.id).then((p) => setPendenciaJaAberta(!!p))
     } else {
       setProgress({})
+      setMesesComRegistro([])
       setClientData({})
       setPendenciaJaAberta(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, isNew, month])
 
-  async function loadProgress(projectId: string) {
-    const { start, end } = monthRange(month)
+  async function loadProgress(projectId: string, mes: MonthRef) {
+    const { start, end } = monthRange(mes)
     const { data } = await supabase
       .from('daily_progress')
       .select('*')
@@ -123,14 +142,41 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
     setProgress(map)
   }
 
+  /** Meses que já têm registro, para o usuário saltar direto até eles. */
+  async function loadMesesComRegistro(projectId: string) {
+    const { data } = await supabase
+      .from('daily_progress')
+      .select('data')
+      .eq('project_id', projectId)
+      .order('data', { ascending: true })
+
+    const meses = new Set<string>()
+    ;(data as { data: string }[] | null)?.forEach((d) => meses.add(d.data.slice(0, 7)))
+    setMesesComRegistro(Array.from(meses))
+  }
+
   async function loadClientData(projectId: string) {
     const { data } = await supabase.from('project_clients').select('*').eq('project_id', projectId).maybeSingle()
     setClientData((data as Partial<ProjectClient>) || {})
   }
 
+  /** Troca o mês do progresso diário sem mexer no filtro geral do app. */
+  function navegarProgresso(delta: number) {
+    const novo = addMonths(mesProgresso, delta)
+    setMesProgresso(novo)
+    if (project) loadProgress(project.id, novo)
+  }
+
+  function irParaMes(chave: string) {
+    const [ano, mes] = chave.split('-').map(Number)
+    const novo = { year: ano, month: mes }
+    setMesProgresso(novo)
+    if (project) loadProgress(project.id, novo)
+  }
+
   async function handleDayChange(day: number, letra: string) {
     if (!project) return
-    const dateStr = `${month.year}-${String(month.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const dateStr = `${mesProgresso.year}-${String(mesProgresso.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     setProgress((p) => ({ ...p, [day]: letra }))
     if (letra === '') {
       await supabase.from('daily_progress').delete().eq('project_id', project.id).eq('data', dateStr)
@@ -140,6 +186,8 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
         { onConflict: 'project_id,data' }
       )
     }
+    // Um mês que ganhou o primeiro registro passa a valer no atalho.
+    loadMesesComRegistro(project.id)
   }
 
   async function handleSave() {
@@ -572,11 +620,65 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
 
               {!isNew && project && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-2">
-                    Progresso diário · {monthLabel(month)}
-                  </label>
+                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                    <label className="block text-xs font-medium text-slate-500">Progresso diário</label>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Navegação de mês própria: dá para corrigir meses antigos
+                          sem mexer no filtro do topo do app. */}
+                      <div className="flex items-center gap-1 border border-slate-200 rounded-lg px-1 py-0.5">
+                        <button
+                          onClick={() => navegarProgresso(-1)}
+                          className="w-6 h-6 text-slate-500 hover:bg-slate-100 rounded"
+                          title="Mês anterior"
+                        >
+                          ‹
+                        </button>
+                        <span className="text-[11px] font-semibold text-slate-700 px-1 min-w-[100px] text-center">
+                          {monthLabel(mesProgresso)}
+                        </span>
+                        <button
+                          onClick={() => navegarProgresso(1)}
+                          className="w-6 h-6 text-slate-500 hover:bg-slate-100 rounded"
+                          title="Próximo mês"
+                        >
+                          ›
+                        </button>
+                      </div>
+
+                      {mesesComRegistro.length > 0 && (
+                        <select
+                          value={monthKeyDe(mesProgresso)}
+                          onChange={(e) => irParaMes(e.target.value)}
+                          className="text-[11px] border border-slate-300 rounded-lg px-2 py-1 bg-white"
+                          title="Meses que já têm registro neste projeto"
+                        >
+                          {!mesesComRegistro.includes(monthKeyDe(mesProgresso)) && (
+                            <option value={monthKeyDe(mesProgresso)}>
+                              {monthLabel(mesProgresso)} (vazio)
+                            </option>
+                          )}
+                          {mesesComRegistro.map((m) => (
+                            <option key={m} value={m}>
+                              {rotuloMes(m)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      {monthKeyDe(mesProgresso) !== monthKeyDe(month) && (
+                        <button
+                          onClick={() => irParaMes(monthKeyDe(month))}
+                          className="text-[11px] text-indigo-600 hover:text-indigo-800 font-medium"
+                        >
+                          voltar para {monthLabel(month)}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-7 gap-1.5">
-                    {Array.from({ length: daysInMonth(month) }, (_, i) => i + 1).map((day) => {
+                    {Array.from({ length: daysInMonth(mesProgresso) }, (_, i) => i + 1).map((day) => {
                       const letra = progress[day] || ''
                       return (
                         <select
