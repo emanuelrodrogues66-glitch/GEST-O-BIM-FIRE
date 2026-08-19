@@ -41,6 +41,58 @@ export default function PlanningForm({ projectId }: { projectId: string }) {
     setLoading(false)
   }
 
+  /**
+   * Datas do projeto derivadas das fases:
+   * — início = começo da primeira fase;
+   * — fim = término da fase "Concluído" (é ela que marca a entrega).
+   * Sem fase de conclusão, usa o término mais distante como aproximação.
+   */
+  function derivarDasFases(fases: ProjectPlanPhase[]): { inicio: string | null; fim: string | null } {
+    if (fases.length === 0) return { inicio: null, fim: null }
+
+    const inicio = fases.reduce((min, f) => (f.data_inicio < min ? f.data_inicio : min), fases[0].data_inicio)
+
+    const conclusoes = fases.filter((f) => f.status === 'Concluído')
+    const fim = conclusoes.length
+      ? conclusoes.reduce((max, f) => (f.data_fim > max ? f.data_fim : max), conclusoes[0].data_fim)
+      : fases.reduce((max, f) => (f.data_fim > max ? f.data_fim : max), fases[0].data_fim)
+
+    return { inicio, fim }
+  }
+
+  /** Mantém início e fim previstos em dia sempre que as fases mudam. */
+  async function sincronizarComFases(fases: ProjectPlanPhase[]) {
+    const { inicio, fim } = derivarDasFases(fases)
+    if (!inicio && !fim) return
+
+    const proximo = {
+      ...plan,
+      data_inicio_prevista: inicio || plan.data_inicio_prevista || null,
+      data_fim_prevista: fim || plan.data_fim_prevista || null,
+    }
+
+    // Nada mudou: evita gravação desnecessária.
+    if (
+      proximo.data_inicio_prevista === plan.data_inicio_prevista &&
+      proximo.data_fim_prevista === plan.data_fim_prevista
+    ) {
+      return
+    }
+
+    setPlan(proximo)
+    const { error } = await supabase.from('project_plans').upsert(
+      {
+        project_id: projectId,
+        data_inicio_prevista: proximo.data_inicio_prevista,
+        data_fim_prevista: proximo.data_fim_prevista,
+        observacoes: proximo.observacoes || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'project_id' }
+    )
+    if (error) setErro(error.message)
+  }
+
   async function savePlan(patch: Partial<ProjectPlan>) {
     const next = { ...plan, ...patch }
     setPlan(next)
@@ -82,26 +134,37 @@ export default function PlanningForm({ projectId }: { projectId: string }) {
       setErro(error.message)
       return
     }
-    setPhases((prev) =>
-      [...prev, data as ProjectPlanPhase].sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))
+    const atualizadas = [...phases, data as ProjectPlanPhase].sort((a, b) =>
+      a.data_inicio.localeCompare(b.data_inicio)
     )
+    setPhases(atualizadas)
     setNovaFase({ status: STATUS_COLUNAS[0], data_inicio: '', data_fim: '' })
+    sincronizarComFases(atualizadas)
   }
 
   async function removeFase(id: string) {
-    setPhases((prev) => prev.filter((f) => f.id !== id))
+    const atualizadas = phases.filter((f) => f.id !== id)
+    setPhases(atualizadas)
     await supabase.from('project_plan_phases').delete().eq('id', id)
+    sincronizarComFases(atualizadas)
   }
 
   async function updateFase(id: string, patch: Partial<ProjectPlanPhase>) {
-    setPhases((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+    const atualizadas = phases.map((f) => (f.id === id ? { ...f, ...patch } : f))
+    setPhases(atualizadas)
     const { error } = await supabase.from('project_plan_phases').update(patch).eq('id', id)
-    if (error) setErro(error.message)
+    if (error) {
+      setErro(error.message)
+      return
+    }
+    sincronizarComFases(atualizadas)
   }
 
   if (loading) return <p className="text-xs text-slate-400">Carregando planejamento...</p>
 
   const totalDias = diasEntre(plan.data_inicio_prevista || '', plan.data_fim_prevista || '')
+  const temFases = phases.length > 0
+  const temFaseConcluido = phases.some((f) => f.status === 'Concluído')
 
   return (
     <div className="space-y-4">
@@ -112,24 +175,50 @@ export default function PlanningForm({ projectId }: { projectId: string }) {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Início previsto</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1.5">
+            Início previsto
+            {temFases && (
+              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                das fases
+              </span>
+            )}
+          </label>
           <input
             type="date"
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+              temFases ? 'border-indigo-200 bg-indigo-50/40' : 'border-slate-300'
+            }`}
             value={plan.data_inicio_prevista || ''}
             onChange={(e) => savePlan({ data_inicio_prevista: e.target.value })}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Fim previsto</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1.5">
+            Fim previsto
+            {temFases && (
+              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
+                {temFaseConcluido ? 'da fase Concluído' : 'da última fase'}
+              </span>
+            )}
+          </label>
           <input
             type="date"
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+              temFases ? 'border-indigo-200 bg-indigo-50/40' : 'border-slate-300'
+            }`}
             value={plan.data_fim_prevista || ''}
             onChange={(e) => savePlan({ data_fim_prevista: e.target.value })}
           />
         </div>
       </div>
+
+      {temFases && (
+        <p className="text-[11px] text-slate-500 -mt-2">
+          {temFaseConcluido
+            ? 'Estas datas vêm do detalhamento de fases: o fim é o término da fase Concluído. Alterar as fases atualiza os dois campos.'
+            : 'Estas datas vêm do detalhamento de fases. Adicione uma fase "Concluído" para o fim previsto marcar a entrega.'}
+        </p>
+      )}
 
       {totalDias > 0 && (
         <p className="text-[11px] text-slate-500 -mt-2">
