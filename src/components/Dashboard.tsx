@@ -31,6 +31,110 @@ const MEDALS = ['🥇', '🥈', '🥉']
 /** Quantos meses à frente a projeção olha. */
 const MESES_PROJECAO = 6
 
+/** Um projeto dentro de uma barra da projeção. */
+type ItemProjecao = {
+  nome: string
+  responsavel: string | null
+  pts: number
+  data: string
+  status?: string
+  vencido?: boolean
+  aproximado?: boolean
+}
+
+function dataCurta(d: string): string {
+  const [, m, dia] = d.split('-')
+  return `${dia}/${m}`
+}
+
+/** Bloco de uma categoria dentro da prévia. */
+function GrupoPrevia({
+  titulo,
+  cor,
+  itens,
+  nota,
+}: {
+  titulo: string
+  cor: string
+  itens: ItemProjecao[]
+  nota?: string
+}) {
+  if (itens.length === 0) return null
+  const LIMITE = 6
+  const total = itens.reduce((s, i) => s + i.pts, 0)
+  const mostrados = itens.slice(0, LIMITE)
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1">
+        <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: cor }} />
+        <span className="text-[11px] font-semibold text-slate-700">{titulo}</span>
+        <span className="text-[10px] text-slate-400">
+          {itens.length} projeto{itens.length !== 1 ? 's' : ''} · {total.toLocaleString('pt-BR')} pts
+        </span>
+      </div>
+      <ul className="space-y-0.5 pl-4">
+        {mostrados.map((i, k) => (
+          <li key={k} className="text-[10.5px] text-slate-600 flex items-baseline gap-1.5">
+            <span className="truncate max-w-[190px]">{i.nome}</span>
+            <span className="text-slate-400 shrink-0">{i.pts} pts</span>
+            <span className="text-slate-300 shrink-0">{dataCurta(i.data)}</span>
+            {i.vencido && <span className="text-red-600 font-medium shrink-0">vencido</span>}
+          </li>
+        ))}
+        {itens.length > LIMITE && (
+          <li className="text-[10.5px] text-slate-400">+{itens.length - LIMITE} projeto(s)</li>
+        )}
+      </ul>
+      {nota && <p className="text-[10px] text-slate-400 pl-4 mt-0.5 italic">{nota}</p>}
+    </div>
+  )
+}
+
+/** Prévia detalhada ao passar o mouse sobre um mês do gráfico. */
+function PreviaProjecao({ active, payload }: any) {
+  if (!active || !payload?.length) return null
+  const linha = payload[0].payload
+  const d = linha.detalhes as {
+    realizado: ItemProjecao[]
+    previsto: ItemProjecao[]
+    estimado: ItemProjecao[]
+  }
+  if (!d) return null
+
+  const vazio = d.realizado.length + d.previsto.length + d.estimado.length === 0
+
+  return (
+    <div className="bg-white border border-slate-300 rounded-lg shadow-xl p-3 max-w-[330px] space-y-2.5">
+      <p className="text-xs font-bold text-slate-800">{linha.mesExtenso}</p>
+
+      {vazio ? (
+        <p className="text-[11px] text-slate-400">Nenhum projeto neste mês.</p>
+      ) : (
+        <>
+          <GrupoPrevia
+            titulo="Concluídos"
+            cor="#22c55e"
+            itens={d.realizado}
+            nota={
+              d.realizado.some((i) => i.aproximado)
+                ? 'Alguns sem data de aprovação — usando o prazo.'
+                : undefined
+            }
+          />
+          <GrupoPrevia titulo="Previstos (planejado)" cor="#6366f1" itens={d.previsto} />
+          <GrupoPrevia
+            titulo="Estimados (sem plano)"
+            cor="#c7d2fe"
+            itens={d.estimado}
+            nota="Posição baseada no prazo do projeto, não no planejamento."
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function Dashboard({
   projects: todosProjetos,
   month,
@@ -100,10 +204,17 @@ export default function Dashboard({
     const linhas = meses.map((m) => ({
       mes: m,
       name: `${monthLabel(m).slice(0, 3)}/${String(m.year).slice(2)}`,
+      mesExtenso: monthLabel(m),
       realizado: 0,
       // Separadas de propósito: uma vem do planejamento, a outra é só estimativa.
       previsto: 0,
       estimado: 0,
+      // Guarda quais projetos compõem cada barra, para a prévia ao passar o mouse.
+      detalhes: {
+        realizado: [] as ItemProjecao[],
+        previsto: [] as ItemProjecao[],
+        estimado: [] as ItemProjecao[],
+      },
     }))
 
     const indicePorChave = new Map(linhas.map((l, i) => [monthKey(l.mes), i]))
@@ -133,7 +244,16 @@ export default function Dashboard({
         const dataRef = aprovacoes[p.id] || p.data_prazo || p.data_inicio
         if (!dataRef) continue
         const idx = indicePorChave.get(dataRef.slice(0, 7))
-        if (idx !== undefined) linhas[idx].realizado += pts
+        if (idx !== undefined) {
+          linhas[idx].realizado += pts
+          linhas[idx].detalhes.realizado.push({
+            nome: p.numero ? `${p.numero} · ${p.nome}` : p.nome,
+            responsavel: p.responsavel,
+            pts,
+            data: dataRef,
+            aproximado: !aprovacoes[p.id],
+          })
+        }
         continue
       }
 
@@ -173,8 +293,22 @@ export default function Dashboard({
         continue
       }
 
-      if (temPlano) linhas[idx].previsto += pts
-      else linhas[idx].estimado += pts
+      const item: ItemProjecao = {
+        nome: p.numero ? `${p.numero} · ${p.nome}` : p.nome,
+        responsavel: p.responsavel,
+        pts,
+        data: dataRef,
+        status: normalizeStatus(p.status),
+        vencido,
+      }
+
+      if (temPlano) {
+        linhas[idx].previsto += pts
+        linhas[idx].detalhes.previsto.push(item)
+      } else {
+        linhas[idx].estimado += pts
+        linhas[idx].detalhes.estimado.push(item)
+      }
     }
 
     return { projecao: linhas, diagnostico: diag }
@@ -335,7 +469,7 @@ export default function Dashboard({
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
             <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} />
             <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v: any) => `${v} pts`} />
+            <Tooltip content={<PreviaProjecao />} cursor={{ fill: 'rgba(99,102,241,.07)' }} />
             <Legend
               formatter={(value) =>
                 value === 'realizado' ? 'Realizado' : value === 'previsto' ? 'Previsto (planejado)' : 'Estimado (sem plano)'
