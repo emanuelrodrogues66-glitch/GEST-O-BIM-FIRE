@@ -42,6 +42,8 @@ export default function Dashboard({
   const [statusSel, setStatusSel] = useState<string[]>([...STATUS_COLUNAS])
   const [mesSel, setMesSel] = useState<MonthRef | null>(month)
   const [planos, setPlanos] = useState<Record<string, ProjectPlan>>({})
+  // Data em que cada projeto foi aprovado — é ela que posiciona o "realizado".
+  const [aprovacoes, setAprovacoes] = useState<Record<string, string>>({})
 
   useEffect(() => {
     setMesSel(month)
@@ -52,12 +54,22 @@ export default function Dashboard({
   }, [])
 
   async function carregarPlanos() {
-    const { data } = await supabase.from('project_plans').select('*')
+    const [{ data: planosData }, { data: clientes }] = await Promise.all([
+      supabase.from('project_plans').select('*'),
+      supabase.from('project_clients').select('project_id, data_aprovacao'),
+    ])
+
     const mapa: Record<string, ProjectPlan> = {}
-    ;(data as ProjectPlan[] | null)?.forEach((p) => {
+    ;(planosData as ProjectPlan[] | null)?.forEach((p) => {
       mapa[p.project_id] = p
     })
     setPlanos(mapa)
+
+    const aprov: Record<string, string> = {}
+    ;(clientes as { project_id: string; data_aprovacao: string | null }[] | null)?.forEach((c) => {
+      if (c.data_aprovacao) aprov[c.project_id] = c.data_aprovacao
+    })
+    setAprovacoes(aprov)
   }
 
   function toggleStatus(s: string) {
@@ -78,52 +90,95 @@ export default function Dashboard({
    * - Previsto: projetos em aberto, no mês do fim previsto do planejamento
    *   (caindo para o prazo do projeto quando não há planejamento).
    */
-  const projecao = useMemo(() => {
+  const { projecao, diagnostico } = useMemo(() => {
+    const hoje = new Date().toISOString().slice(0, 10)
+    const mesAtualChave = hoje.slice(0, 7)
+
     const meses: MonthRef[] = []
-    for (let i = -2; i < MESES_PROJECAO; i++) meses.push(addMonths(month, i))
+    for (let i = -2; i <= MESES_PROJECAO; i++) meses.push(addMonths(month, i))
 
     const linhas = meses.map((m) => ({
       mes: m,
-      name: monthLabel(m).replace(' de ', '/').slice(0, 3) + '/' + String(m.year).slice(2),
+      name: `${monthLabel(m).slice(0, 3)}/${String(m.year).slice(2)}`,
       realizado: 0,
+      // Separadas de propósito: uma vem do planejamento, a outra é só estimativa.
       previsto: 0,
+      estimado: 0,
     }))
 
     const indicePorChave = new Map(linhas.map((l, i) => [monthKey(l.mes), i]))
 
+    // O que não entra no gráfico precisa aparecer em algum lugar,
+    // senão a projeção parece menor do que a realidade.
+    const diag = {
+      semData: { projetos: 0, pontos: 0 },
+      foraDaJanela: { projetos: 0, pontos: 0 },
+      vencidos: { projetos: 0, pontos: 0 },
+      comPlano: { projetos: 0, pontos: 0 },
+      semPlano: { projetos: 0, pontos: 0 },
+    }
+
     for (const p of todosProjetos) {
-      // Respeita o filtro de status, mas não o de mês: a projeção é justamente sobre o tempo.
+      // Respeita o filtro de status, mas não o de mês: a projeção é sobre o tempo.
       if (statusSel.length > 0 && !statusSel.includes(normalizeStatus(p.status))) continue
 
       const pts = p.pts || 0
       if (!pts) continue
 
       const concluido = normalizeStatus(p.status) === 'Concluído'
-      const plano = planos[p.id]
 
-      const dataRef = concluido
-        ? p.data_prazo || p.data_inicio
-        : plano?.data_fim_prevista || p.data_prazo || null
+      if (concluido) {
+        // Realizado entra no mês em que o projeto foi de fato aprovado.
+        // O prazo só serve de aproximação quando a aprovação não foi registrada.
+        const dataRef = aprovacoes[p.id] || p.data_prazo || p.data_inicio
+        if (!dataRef) continue
+        const idx = indicePorChave.get(dataRef.slice(0, 7))
+        if (idx !== undefined) linhas[idx].realizado += pts
+        continue
+      }
 
-      if (!dataRef) continue
+      // --- Projetos em aberto ---
+      const fimPrevisto = planos[p.id]?.data_fim_prevista || null
+      const temPlano = !!fimPrevisto
+      const dataRef = fimPrevisto || p.data_prazo || null
 
-      const idx = indicePorChave.get(dataRef.slice(0, 7))
-      if (idx === undefined) continue
+      if (temPlano) {
+        diag.comPlano.projetos += 1
+        diag.comPlano.pontos += pts
+      } else {
+        diag.semPlano.projetos += 1
+        diag.semPlano.pontos += pts
+      }
 
-      if (concluido) linhas[idx].realizado += pts
-      else linhas[idx].previsto += pts
+      if (!dataRef) {
+        diag.semData.projetos += 1
+        diag.semData.pontos += pts
+        continue
+      }
+
+      // Previsão que já passou e o projeto não foi concluído: a entrega não
+      // aconteceu naquele mês. Realoca para o mês corrente para não mostrar
+      // "previsto" no passado, que seria falso.
+      const vencido = dataRef < hoje
+      if (vencido) {
+        diag.vencidos.projetos += 1
+        diag.vencidos.pontos += pts
+      }
+      const chave = vencido ? mesAtualChave : dataRef.slice(0, 7)
+
+      const idx = indicePorChave.get(chave)
+      if (idx === undefined) {
+        diag.foraDaJanela.projetos += 1
+        diag.foraDaJanela.pontos += pts
+        continue
+      }
+
+      if (temPlano) linhas[idx].previsto += pts
+      else linhas[idx].estimado += pts
     }
 
-    return linhas
-  }, [todosProjetos, planos, statusSel, month])
-
-  const semPlanejamento = useMemo(
-    () =>
-      todosProjetos.filter(
-        (p) => normalizeStatus(p.status) !== 'Concluído' && !planos[p.id]?.data_fim_prevista
-      ).length,
-    [todosProjetos, planos]
-  )
+    return { projecao: linhas, diagnostico: diag }
+  }, [todosProjetos, planos, aprovacoes, statusSel, month])
 
   const ranking = rankingPorResponsavel(projects)
   const statusRows = statusDistribution(projects)
@@ -269,18 +324,11 @@ export default function Dashboard({
           <span className="text-xs text-slate-400">{MESES_PROJECAO} meses à frente</span>
         </div>
         <p className="text-xs text-slate-500 mb-3">
-          Pontos já <b className="text-slate-700">realizados</b> (projetos concluídos, no mês do prazo) e{' '}
-          <b className="text-slate-700">previstos</b> (projetos em aberto, no mês do fim previsto definido na aba
-          Planejamento). Ignora o filtro de mês acima, mas respeita o de status.
+          <b className="text-slate-700">Realizado</b>: projetos concluídos, no mês da aprovação.{' '}
+          <b className="text-slate-700">Previsto</b>: em aberto, no mês do fim previsto da aba Planejamento.{' '}
+          <b className="text-slate-700">Estimado</b>: em aberto sem planejamento — usa a data de prazo, então é
+          só uma aproximação. Ignora o filtro de mês, mas respeita o de status.
         </p>
-
-        {semPlanejamento > 0 && (
-          <p className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 mb-3">
-            {semPlanejamento} projeto{semPlanejamento !== 1 ? 's' : ''} em aberto ainda sem fim previsto no
-            planejamento. Para esses, a projeção usa a data de prazo do projeto — preencha a aba{' '}
-            <b>Planejamento</b> para uma previsão mais fiel.
-          </p>
-        )}
 
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={projecao} margin={{ left: -20 }}>
@@ -289,28 +337,78 @@ export default function Dashboard({
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v: any) => `${v} pts`} />
             <Legend
-              formatter={(value) => (value === 'realizado' ? 'Realizado' : 'Previsto')}
+              formatter={(value) =>
+                value === 'realizado' ? 'Realizado' : value === 'previsto' ? 'Previsto (planejado)' : 'Estimado (sem plano)'
+              }
               wrapperStyle={{ fontSize: 12 }}
             />
             <Bar dataKey="realizado" name="realizado" stackId="p" fill="#22c55e" />
-            <Bar dataKey="previsto" name="previsto" stackId="p" fill="#a5b4fc" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="previsto" name="previsto" stackId="p" fill="#6366f1" />
+            <Bar dataKey="estimado" name="estimado" stackId="p" fill="#c7d2fe" radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
 
         <div className="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-[11px] text-slate-500">
           <span>
-            Total previsto no período:{' '}
+            Realizado no período:{' '}
+            <b className="text-slate-700">
+              {projecao.reduce((s, l) => s + l.realizado, 0).toLocaleString('pt-BR')} pts
+            </b>
+          </span>
+          <span>
+            Previsto pelo planejamento:{' '}
             <b className="text-slate-700">
               {projecao.reduce((s, l) => s + l.previsto, 0).toLocaleString('pt-BR')} pts
             </b>
           </span>
           <span>
-            Total realizado no período:{' '}
+            Estimado pelo prazo:{' '}
             <b className="text-slate-700">
-              {projecao.reduce((s, l) => s + l.realizado, 0).toLocaleString('pt-BR')} pts
+              {projecao.reduce((s, l) => s + l.estimado, 0).toLocaleString('pt-BR')} pts
             </b>
           </span>
         </div>
+
+        {/* O que NÃO está no gráfico — sem isso a projeção engana */}
+        {(diagnostico.semData.pontos > 0 ||
+          diagnostico.foraDaJanela.pontos > 0 ||
+          diagnostico.vencidos.pontos > 0) && (
+          <div className="mt-3 border border-amber-200 bg-amber-50 rounded-lg px-3 py-2.5 space-y-1">
+            <p className="text-[11px] font-semibold text-amber-900">Atenção ao ler este gráfico</p>
+
+            {diagnostico.semData.pontos > 0 && (
+              <p className="text-[11px] text-amber-800">
+                <b>{diagnostico.semData.pontos.toLocaleString('pt-BR')} pts</b> em{' '}
+                {diagnostico.semData.projetos} projeto{diagnostico.semData.projetos !== 1 ? 's' : ''} ficam
+                <b> fora do gráfico</b>: não têm fim previsto nem data de prazo. Preencha a aba Planejamento
+                para eles entrarem na conta.
+              </p>
+            )}
+
+            {diagnostico.vencidos.pontos > 0 && (
+              <p className="text-[11px] text-amber-800">
+                <b>{diagnostico.vencidos.pontos.toLocaleString('pt-BR')} pts</b> em{' '}
+                {diagnostico.vencidos.projetos} projeto{diagnostico.vencidos.projetos !== 1 ? 's' : ''} estão
+                com a data já vencida e foram realocados para o mês atual.
+              </p>
+            )}
+
+            {diagnostico.foraDaJanela.pontos > 0 && (
+              <p className="text-[11px] text-amber-800">
+                <b>{diagnostico.foraDaJanela.pontos.toLocaleString('pt-BR')} pts</b> caem fora da janela de
+                meses mostrada.
+              </p>
+            )}
+          </div>
+        )}
+
+        {(diagnostico.comPlano.projetos > 0 || diagnostico.semPlano.projetos > 0) && (
+          <p className="text-[11px] text-slate-500 mt-2">
+            Dos projetos em aberto, <b className="text-slate-700">{diagnostico.comPlano.projetos}</b> têm
+            planejamento preenchido e <b className="text-slate-700">{diagnostico.semPlano.projetos}</b> não têm.
+            Quanto maior o primeiro número, mais confiável fica a projeção.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
