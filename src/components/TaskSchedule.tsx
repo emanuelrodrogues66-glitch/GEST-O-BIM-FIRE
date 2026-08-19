@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { ProjectTask } from '../types'
 import { TASK_STATUS, TASK_STATUS_COLORS, taskNeedsJustificativa } from '../types'
@@ -22,6 +22,11 @@ export default function TaskSchedule({
   const [showGantt, setShowGantt] = useState(false)
   const [newTask, setNewTask] = useState({ nome: '', responsavel: '', data_inicio: todayStr(), data_prazo: '' })
   const [adding, setAdding] = useState(false)
+
+  // Reordenação manual por arrastar.
+  const [arrastandoId, setArrastandoId] = useState<string | null>(null)
+  const [arrastandoSobre, setArrastandoSobre] = useState<string | null>(null)
+  const linhasRef = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
     loadTasks()
@@ -82,6 +87,37 @@ export default function TaskSchedule({
     }
   }
 
+  /**
+   * Move a tarefa arrastada para a posição de destino e grava a nova ordem.
+   * A lista passa a seguir a ordem manual, não mais o prazo.
+   */
+  async function soltarEm(destino: number) {
+    const origem = tasks.findIndex((t) => t.id === arrastandoId)
+    setArrastandoSobre(null)
+    setArrastandoId(null)
+    if (origem === -1 || origem === destino) return
+
+    const nova = [...tasks]
+    const [movida] = nova.splice(origem, 1)
+    nova.splice(destino, 0, movida)
+
+    // Renumera do zero para a ordem ficar previsível no banco.
+    const comOrdem = nova.map((t, i) => ({ ...t, ordem: i }))
+    setTasks(comOrdem)
+
+    // Só as linhas que realmente mudaram de posição precisam ir ao banco.
+    const alteradas = comOrdem.filter((t, i) => tasks[i]?.id !== t.id)
+    const resultados = await Promise.all(
+      alteradas.map((t) => supabase.from('project_tasks').update({ ordem: t.ordem }).eq('id', t.id))
+    )
+
+    const falha = resultados.find((r) => r.error)
+    if (falha?.error) {
+      alert(falha.error.message)
+      loadTasks()
+    }
+  }
+
   function updateLocal(id: string, patch: Partial<ProjectTask>) {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
   }
@@ -132,7 +168,14 @@ export default function TaskSchedule({
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <label className="block text-xs font-medium text-slate-500">Cronograma de tarefas</label>
+        <label className="block text-xs font-medium text-slate-500">
+          Cronograma de tarefas
+          {tasks.length > 1 && !showGantt && (
+            <span className="ml-2 font-normal text-slate-400">
+              · arraste pela alça <span className="text-slate-500">⠿</span> para reordenar
+            </span>
+          )}
+        </label>
         {tasks.length > 0 && (
           <button
             onClick={() => setShowGantt((v) => !v)}
@@ -149,14 +192,59 @@ export default function TaskSchedule({
         <GanttChart items={ganttItems} labelWidth={150} />
       ) : (
         <div className="space-y-2">
-          {tasks.map((t) => {
+          {tasks.map((t, index) => {
             const late = taskNeedsJustificativa(t)
+            const arrastando = arrastandoId === t.id
+            const alvo = arrastandoSobre === t.id && !arrastando
+
             return (
               <div
                 key={t.id}
-                className={`border rounded-lg p-2.5 space-y-2 ${late ? 'border-red-300 bg-red-50/40' : 'border-slate-200'}`}
+                ref={(el) => {
+                  linhasRef.current[t.id] = el
+                }}
+                onDragOver={(e) => {
+                  if (!arrastandoId) return
+                  e.preventDefault()
+                  setArrastandoSobre(t.id)
+                }}
+                onDragLeave={() => setArrastandoSobre((v) => (v === t.id ? null : v))}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  soltarEm(index)
+                }}
+                className={`border rounded-lg p-2.5 space-y-2 transition ${
+                  arrastando ? 'opacity-40' : ''
+                } ${
+                  alvo
+                    ? 'border-indigo-400 ring-2 ring-indigo-300'
+                    : late
+                      ? 'border-red-300 bg-red-50/40'
+                      : 'border-slate-200'
+                }`}
               >
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* Alça de arrastar: só ela é arrastável, para não atrapalhar
+                      a seleção de texto nos campos ao lado. */}
+                  <span
+                    draggable
+                    onDragStart={(e) => {
+                      setArrastandoId(t.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                      e.dataTransfer.setData('text/plain', t.id)
+                      // Arrasta a linha inteira como imagem, não só a alça.
+                      const linha = linhasRef.current[t.id]
+                      if (linha) e.dataTransfer.setDragImage(linha, 20, 20)
+                    }}
+                    onDragEnd={() => {
+                      setArrastandoId(null)
+                      setArrastandoSobre(null)
+                    }}
+                    className="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 select-none px-0.5"
+                    title="Arraste para reordenar"
+                  >
+                    ⠿
+                  </span>
                   <input
                     className="flex-1 min-w-[140px] border border-slate-300 rounded-md px-2 py-1 text-xs"
                     value={t.nome}
