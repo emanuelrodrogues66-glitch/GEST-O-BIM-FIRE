@@ -449,17 +449,39 @@ export function prazoColor(categoria: string | null): string {
 
 // Pontuação automática por tipo de documento. "Vistoria" cobre também o que
 // era chamado de "Fiscalização" na tabela de referência.
+// PRO não entra aqui: depende da área, ver PRO_LIMITE_M2 abaixo.
 export const DOC_POINTS: Record<string, number> = {
   HAB: 1,
   Vistoria: 1,
   FUNC: 1,
   MEM: 2,
   TCAC: 3,
-  PRO: 5,
 }
 
-export function suggestedPoints(tipo: string | null | undefined): number | null {
+/** Projeto (PRO) vale por porte: acima deste limite, pontuação cheia. */
+export const PRO_LIMITE_M2 = 1000
+export const PRO_PONTOS_GRANDE = 5
+export const PRO_PONTOS_PEQUENO = 2.5
+
+/**
+ * Pontos sugeridos para o projeto.
+ *
+ * PRO depende da área: acima de 1.000 m² vale 5, até 1.000 m² vale 2,5.
+ * Sem a área informada não há como decidir, então não sugerimos nada —
+ * melhor o campo ficar em branco do que chutar o valor errado.
+ */
+export function suggestedPoints(
+  tipo: string | null | undefined,
+  m2?: number | string | null
+): number | null {
   if (!tipo) return null
+
+  if (tipo === 'PRO') {
+    const area = m2 === '' || m2 === null || m2 === undefined ? null : Number(m2)
+    if (area === null || Number.isNaN(area)) return null
+    return area > PRO_LIMITE_M2 ? PRO_PONTOS_GRANDE : PRO_PONTOS_PEQUENO
+  }
+
   return DOC_POINTS[tipo] ?? null
 }
 

@@ -8,6 +8,9 @@ import type { DailyProgress, Project, ProjectClient } from '../types'
 import {
   MOTIVOS_PENDENCIA,
   STATUS_COLUNAS,
+  PRO_LIMITE_M2,
+  PRO_PONTOS_GRANDE,
+  PRO_PONTOS_PEQUENO,
   anexosObrigatoriosFaltando,
   isClientDataComplete,
   suggestedPoints,
@@ -71,7 +74,8 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
     responsavel: '',
     status: 'Pendente',
     tipo: 'PRO',
-    pts: 5,
+    // PRO só tem pontuação depois que a área é informada.
+    pts: null,
     m2: null,
     categoria: 'PROJETOS EM ANDAMENTO',
     prazo_categoria: null,
@@ -545,7 +549,7 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                     value={form.tipo || ''}
                     onChange={(e) => {
                       const tipo = e.target.value
-                      const suggested = suggestedPoints(tipo)
+                      const suggested = suggestedPoints(tipo, form.m2)
                       // Sem permissão para mexer nos pontos, trocar o tipo não
                       // pode arrastar a pontuação junto — o banco recusaria.
                       setForm((f) => ({
@@ -588,11 +592,22 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                       Alteração só com autorização do administrador.
                     </p>
                   ) : (
-                    suggestedPoints(form.tipo) != null && (
+                    (suggestedPoints(form.tipo, form.m2) != null ? (
                       <p className="text-[10px] text-slate-400 mt-1">
-                        Sugestão automática para {form.tipo}: {suggestedPoints(form.tipo)} pts
+                        Sugestão automática para {form.tipo}
+                        {form.tipo === 'PRO' &&
+                          ` (${Number(form.m2) > PRO_LIMITE_M2 ? 'acima de' : 'até'} ${PRO_LIMITE_M2.toLocaleString('pt-BR')} m²)`}
+                        : {suggestedPoints(form.tipo, form.m2)} pts
                       </p>
-                    )
+                    ) : (
+                      form.tipo === 'PRO' && (
+                        <p className="text-[10px] text-amber-700 mt-1">
+                          Informe a área para calcular os pontos: acima de{' '}
+                          {PRO_LIMITE_M2.toLocaleString('pt-BR')} m² vale {PRO_PONTOS_GRANDE}, até isso vale{' '}
+                          {PRO_PONTOS_PEQUENO.toLocaleString('pt-BR')}.
+                        </p>
+                      )
+                    ))
                   )}
                 </div>
                 <div>
@@ -602,7 +617,17 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                     step="0.01"
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     value={form.m2 ?? ''}
-                    onChange={(e) => setForm({ ...form, m2: e.target.value as any })}
+                    onChange={(e) => {
+                      const m2 = e.target.value
+                      // A área é que define a pontuação do PRO, então mexer
+                      // nela recalcula os pontos junto.
+                      const suggested = suggestedPoints(form.tipo, m2)
+                      setForm((f) => ({
+                        ...f,
+                        m2: m2 as any,
+                        pts: podeEditarPontos && suggested != null ? suggested : f.pts,
+                      }))
+                    }}
                   />
                 </div>
               </div>
