@@ -12,7 +12,24 @@ function formatDate(d: string | null) {
   return `${parts[2]}/${parts[1]}`
 }
 
-export default function ProjectCard({ project, onClick }: { project: Project; onClick: () => void }) {
+const MESES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+/** "2026-06-14" vira "jun/26". */
+function mesCurto(data: string | null): string {
+  if (!data) return ''
+  const [ano, mes] = data.split('-')
+  return `${MESES_CURTO[Number(mes) - 1]}/${ano.slice(2)}`
+}
+
+export default function ProjectCard({
+  project,
+  onClick,
+  mostrarMes,
+}: {
+  project: Project
+  onClick: () => void
+  mostrarMes?: boolean
+}) {
   return (
     <button
       onClick={onClick}
@@ -40,6 +57,14 @@ export default function ProjectCard({ project, onClick }: { project: Project; on
         {project.m2 != null && (
           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
             {project.m2.toLocaleString('pt-BR')} m²
+          </span>
+        )}
+        {mostrarMes && project.data_inicio && (
+          <span
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100"
+            title="Mês de início do projeto"
+          >
+            {mesCurto(project.data_inicio)}
           </span>
         )}
       </div>

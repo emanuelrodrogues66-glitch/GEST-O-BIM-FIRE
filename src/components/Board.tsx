@@ -8,11 +8,14 @@ export default function Board({
   onCardClick,
   onDropCard,
   colunas,
+  mostrarMes,
 }: {
   projects: Project[]
   onCardClick: (p: Project) => void
   onDropCard?: (projectId: string, status: string) => void
   colunas?: readonly string[]
+  /** Com projetos de varios meses no quadro, o cartao mostra de qual mes e. */
+  mostrarMes?: boolean
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
@@ -81,7 +84,7 @@ export default function Board({
                       draggingId === p.id ? 'opacity-40' : ''
                     }`}
                   >
-                    <ProjectCard project={p} onClick={() => onCardClick(p)} />
+                    <ProjectCard project={p} onClick={() => onCardClick(p)} mostrarMes={mostrarMes} />
                   </div>
                 ))}
                 {items.length === 0 && (

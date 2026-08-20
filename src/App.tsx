@@ -40,6 +40,9 @@ export default function App() {
   const [pdfAllModalOpen, setPdfAllModalOpen] = useState(false)
   const [month, setMonth] = useState<MonthRef>({ year: 2026, month: 8 })
   const [dragOverCategoria, setDragOverCategoria] = useState<string | null>(null)
+  // No Kanban, permite ver projetos de todos os meses (trabalho em andamento
+  // nao se encerra na virada do mes).
+  const [verTodosMeses, setVerTodosMeses] = useState(false)
   // Projeto que está indo para Pendente e precisa de justificativa.
   const [pedirPendencia, setPedirPendencia] = useState<{ projeto: Project; status: string } | null>(null)
 
@@ -82,22 +85,40 @@ export default function App() {
     return projects.filter((p) => dateInMonth(p.data_inicio, month))
   }, [projects, month])
 
-  const filtered = useMemo(() => {
-    return projectsDoMes.filter((p) => {
-      if (categoria && p.categoria !== categoria) return false
-      if (responsavelFiltro && p.responsavel !== responsavelFiltro) return false
-      if (busca && !p.nome.toLowerCase().includes(busca.toLowerCase())) return false
-      return true
-    })
-  }, [projectsDoMes, categoria, responsavelFiltro, busca])
+  function passaNosFiltros(p: Project): boolean {
+    if (categoria && p.categoria !== categoria) return false
+    if (responsavelFiltro && p.responsavel !== responsavelFiltro) return false
+    if (busca && !p.nome.toLowerCase().includes(busca.toLowerCase())) return false
+    return true
+  }
+
+  // Lista e relatórios continuam agrupados por mês.
+  const filtered = useMemo(
+    () => projectsDoMes.filter(passaNosFiltros),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projectsDoMes, categoria, responsavelFiltro, busca]
+  )
+
+  /**
+   * O Kanban pode ignorar o mês: um projeto iniciado em junho continua em
+   * andamento hoje e precisa aparecer no quadro de trabalho.
+   */
+  const filteredKanban = useMemo(
+    () => (verTodosMeses ? projects.filter(passaNosFiltros) : filtered),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [verTodosMeses, projects, filtered, categoria, responsavelFiltro, busca]
+  )
+
+  // Os contadores do topo seguem o que está de fato na tela.
+  const listaVisivel = viewMode === 'kanban' ? filteredKanban : filtered
 
   // Para o Gantt global não faz sentido restringir ao mês selecionado (é uma
   // visão de linha do tempo), então aplica os outros filtros sobre todos os projetos.
   const stats = useMemo(() => {
-    const atrasados = filtered.filter((p) => p.prazo_categoria === 'ATRASADO').length
-    const essaSemana = filtered.filter((p) => p.prazo_categoria === 'ESSA SEMANA').length
-    return { total: filtered.length, atrasados, essaSemana }
-  }, [filtered])
+    const atrasados = listaVisivel.filter((p) => p.prazo_categoria === 'ATRASADO').length
+    const essaSemana = listaVisivel.filter((p) => p.prazo_categoria === 'ESSA SEMANA').length
+    return { total: listaVisivel.length, atrasados, essaSemana }
+  }, [listaVisivel])
 
   function openNew() {
     setModalProject(null)
@@ -235,7 +256,11 @@ export default function App() {
             >
               ‹
             </button>
-            <span className="text-xs font-semibold text-slate-700 px-2 min-w-[110px] text-center">
+            <span
+              className={`text-xs font-semibold px-2 min-w-[110px] text-center ${
+                verTodosMeses && viewMode === 'kanban' ? 'text-slate-300 line-through' : 'text-slate-700'
+              }`}
+            >
               {monthLabel(month)}
             </span>
             <button
@@ -246,6 +271,21 @@ export default function App() {
               ›
             </button>
           </div>
+
+          {/* No Kanban, o trabalho em andamento não termina na virada do mês */}
+          {viewMode === 'kanban' && (
+            <button
+              onClick={() => setVerTodosMeses((v) => !v)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                verTodosMeses
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+              }`}
+              title="Mostra os projetos desta categoria de todos os meses, não só do mês selecionado"
+            >
+              Todos os meses
+            </button>
+          )}
 
           <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1">
             {CATEGORIAS.map((c) => {
@@ -346,7 +386,8 @@ export default function App() {
           <p className="text-sm text-slate-400 text-center py-10">Carregando projetos...</p>
         ) : viewMode === 'kanban' ? (
           <Board
-            projects={filtered}
+            projects={filteredKanban}
+            mostrarMes={verTodosMeses}
             onCardClick={openEdit}
             onDropCard={handleDropCard}
             colunas={categoria === 'PROJETOS FINALIZADOS' ? ['Concluído'] : undefined}
