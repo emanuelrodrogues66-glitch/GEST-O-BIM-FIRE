@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { carregarTabelaCompleta } from '../lib/supabase'
 import type { DailyProgress, Project, ProjectPlan, ProjectPlanPhase } from '../types'
 import { CATEGORIAS, STATUS_COLUNAS, STATUS_TO_LETRA, normalizeStatus, statusColor } from '../types'
 import GanttChart from './GanttChart'
@@ -103,27 +103,29 @@ export default function GanttGlobal({
 
   async function carregarDados() {
     setCarregando(true)
-    const [{ data: progresso }, { data: planosData }, { data: fases }] = await Promise.all([
-      supabase.from('daily_progress').select('*'),
-      supabase.from('project_plans').select('*'),
-      supabase.from('project_plan_phases').select('*'),
+    // Em páginas: o progresso diário já passa de 3 mil linhas e a API
+    // devolveria só as 1.000 primeiras, deixando os meses antigos vazios.
+    const [progresso, planosData, fases] = await Promise.all([
+      carregarTabelaCompleta<DailyProgress>('daily_progress', '*', 'data'),
+      carregarTabelaCompleta<ProjectPlan>('project_plans'),
+      carregarTabelaCompleta<ProjectPlanPhase>('project_plan_phases'),
     ])
 
     const mapaProgresso: Record<string, DailyProgress[]> = {}
-    ;(progresso as DailyProgress[] | null)?.forEach((d) => {
+    progresso.forEach((d) => {
       if (!mapaProgresso[d.project_id]) mapaProgresso[d.project_id] = []
       mapaProgresso[d.project_id].push(d)
     })
     setProgressoPorProjeto(mapaProgresso)
 
     const mapaPlanos: Record<string, ProjectPlan> = {}
-    ;(planosData as ProjectPlan[] | null)?.forEach((p) => {
+    planosData.forEach((p) => {
       mapaPlanos[p.project_id] = p
     })
     setPlanos(mapaPlanos)
 
     const mapaFases: Record<string, ProjectPlanPhase[]> = {}
-    ;(fases as ProjectPlanPhase[] | null)?.forEach((f) => {
+    fases.forEach((f) => {
       if (!mapaFases[f.project_id]) mapaFases[f.project_id] = []
       mapaFases[f.project_id].push(f)
     })
