@@ -5,7 +5,14 @@ import { supabase } from '../lib/supabase'
  * Tela mostrada quando o usuário chega pelo link de recuperação de senha.
  * O Supabase já abriu uma sessão temporária; aqui ele só define a senha nova.
  */
-export default function NovaSenha({ onPronto }: { onPronto: () => void }) {
+export default function NovaSenha({
+  onPronto,
+  onCancelar,
+}: {
+  onPronto: () => void
+  /** Presente quando a tela foi aberta pelo botão, não pelo link do e-mail. */
+  onCancelar?: () => void
+}) {
   const [senha, setSenha] = useState('')
   const [confirmacao, setConfirmacao] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -24,6 +31,11 @@ export default function NovaSenha({ onPronto }: { onPronto: () => void }) {
     if (error) {
       setErro(error.message)
       return
+    }
+    // Limpa o token de recuperação da barra de endereços para que um F5
+    // não jogue o usuário de volta nesta tela.
+    if (window.location.hash || window.location.search) {
+      window.history.replaceState(null, '', window.location.pathname)
     }
     onPronto()
   }
@@ -68,6 +80,15 @@ export default function NovaSenha({ onPronto }: { onPronto: () => void }) {
           >
             {salvando ? 'Salvando...' : 'Salvar e entrar'}
           </button>
+          {onCancelar && (
+            <button
+              type="button"
+              onClick={onCancelar}
+              className="w-full text-xs text-slate-500 hover:text-slate-700 underline"
+            >
+              Cancelar
+            </button>
+          )}
         </form>
       </div>
     </div>

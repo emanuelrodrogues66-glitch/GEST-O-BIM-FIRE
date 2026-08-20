@@ -25,10 +25,24 @@ import { addMonths, dateInMonth, monthLabel } from './lib/month'
 
 type ViewMode = 'kanban' | 'lista' | 'dashboard' | 'gantt' | 'relatorio' | 'tarefas' | 'atividades'
 
+/**
+ * O link de recuperação chega com `type=recovery` na URL. O supabase-js
+ * consome esse pedaço da URL assim que é criado, muitas vezes antes de o
+ * React assinar o onAuthStateChange — por isso o evento PASSWORD_RECOVERY
+ * sozinho não é confiável. Lemos a URL na carga do módulo e guardamos.
+ */
+const CHEGOU_PARA_TROCAR_SENHA = (() => {
+  if (typeof window === 'undefined') return false
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const query = new URLSearchParams(window.location.search)
+  return hash.get('type') === 'recovery' || query.get('type') === 'recovery'
+})()
+
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   // Chegou pelo link de recuperação: antes de entrar, define a senha nova.
-  const [redefinindoSenha, setRedefinindoSenha] = useState(false)
+  // Também dá para abrir pelo botão "Trocar senha" no cabeçalho.
+  const [redefinindoSenha, setRedefinindoSenha] = useState(CHEGOU_PARA_TROCAR_SENHA)
   const [nome, setNome] = useState<string>('')
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -218,7 +232,14 @@ export default function App() {
   }
 
   if (redefinindoSenha) {
-    return <NovaSenha onPronto={() => setRedefinindoSenha(false)} />
+    return (
+      <NovaSenha
+        onPronto={() => setRedefinindoSenha(false)}
+        // Vindo do link do e-mail não há para onde cancelar: a senha precisa
+        // ser definida. Aberto pelo botão, dá para desistir.
+        onCancelar={CHEGOU_PARA_TROCAR_SENHA ? undefined : () => setRedefinindoSenha(false)}
+      />
+    )
   }
 
   return (
@@ -249,6 +270,13 @@ export default function App() {
               + Novo projeto
             </button>
             <CelebrationSettings />
+            <button
+              onClick={() => setRedefinindoSenha(true)}
+              className="text-sm text-slate-500 hover:text-slate-800 px-2 py-1.5"
+              title="Definir uma nova senha para a sua conta"
+            >
+              Trocar senha
+            </button>
             <button
               onClick={() => supabase.auth.signOut()}
               className="text-sm text-slate-500 hover:text-slate-800 px-2 py-1.5"
