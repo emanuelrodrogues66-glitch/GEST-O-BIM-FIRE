@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { syncDailyProgressForStatus } from '../lib/statusSync'
 import { abrirPendencia, fecharPendencia, nomeDoUsuario, pendenciaAberta } from '../lib/pendencias'
 import { alertarCorrecao, comemorarConclusao } from '../lib/celebracao'
+import { usePerfil } from '../lib/perfil'
 import type { DailyProgress, Project, ProjectClient } from '../types'
 import {
   MOTIVOS_PENDENCIA,
@@ -81,6 +82,11 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
 
   const [form, setForm] = useState<Partial<Project>>(project ?? emptyProject)
   const [saving, setSaving] = useState(false)
+
+  // Pontuação e exclusão são do administrador. Na criação o campo continua
+  // liberado, porque aí ele só recebe a sugestão automática do tipo.
+  const { ehAdmin } = usePerfil()
+  const podeEditarPontos = ehAdmin || isNew
   const [progress, setProgress] = useState<Record<number, string>>({})
 
   // O progresso diário navega por mês por conta própria: projetos antigos
@@ -349,6 +355,10 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
 
   async function handleDelete() {
     if (!project) return
+    if (!ehAdmin) {
+      alert('Somente o administrador pode excluir projetos.')
+      return
+    }
     if (!confirm(`Excluir "${project.nome}"? Essa ação não pode ser desfeita.`)) return
     setSaving(true)
     await supabase.from('projects').delete().eq('id', project.id)
@@ -536,7 +546,13 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                     onChange={(e) => {
                       const tipo = e.target.value
                       const suggested = suggestedPoints(tipo)
-                      setForm((f) => ({ ...f, tipo, pts: suggested != null ? suggested : f.pts }))
+                      // Sem permissão para mexer nos pontos, trocar o tipo não
+                      // pode arrastar a pontuação junto — o banco recusaria.
+                      setForm((f) => ({
+                        ...f,
+                        tipo,
+                        pts: podeEditarPontos && suggested != null ? suggested : f.pts,
+                      }))
                     }}
                   >
                     {['PRO', 'MEM', 'TCAC', 'HAB', 'FUNC', 'Vistoria'].map((t) => (
@@ -547,18 +563,36 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Pontos</label>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">
+                    Pontos {!podeEditarPontos && <span title="Somente o administrador">🔒</span>}
+                  </label>
                   <input
                     type="number"
                     step="0.5"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    disabled={!podeEditarPontos}
+                    title={
+                      podeEditarPontos
+                        ? undefined
+                        : 'Somente o administrador pode alterar a pontuação'
+                    }
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+                      podeEditarPontos
+                        ? 'border-slate-300'
+                        : 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed'
+                    }`}
                     value={form.pts ?? ''}
                     onChange={(e) => setForm({ ...form, pts: e.target.value as any })}
                   />
-                  {suggestedPoints(form.tipo) != null && (
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Sugestão automática para {form.tipo}: {suggestedPoints(form.tipo)} pts
+                  {!podeEditarPontos ? (
+                    <p className="text-[10px] text-amber-700 mt-1">
+                      Alteração só com autorização do administrador.
                     </p>
+                  ) : (
+                    suggestedPoints(form.tipo) != null && (
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Sugestão automática para {form.tipo}: {suggestedPoints(form.tipo)} pts
+                      </p>
+                    )
                   )}
                 </div>
                 <div>
@@ -725,7 +759,7 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
         </div>
 
         <div className="sticky bottom-0 bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between rounded-b-2xl">
-          {!isNew ? (
+          {!isNew && ehAdmin ? (
             <button
               onClick={handleDelete}
               disabled={saving}

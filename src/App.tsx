@@ -7,6 +7,7 @@ import { alertarCorrecao, comemorarConclusao } from './lib/celebracao'
 import type { Project } from './types'
 import { CATEGORIAS } from './types'
 import Login from './components/Login'
+import NovaSenha from './components/NovaSenha'
 import Board from './components/Board'
 import ListView from './components/ListView'
 import Dashboard from './components/Dashboard'
@@ -26,6 +27,8 @@ type ViewMode = 'kanban' | 'lista' | 'dashboard' | 'gantt' | 'relatorio' | 'tare
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
+  // Chegou pelo link de recuperação: antes de entrar, define a senha nova.
+  const [redefinindoSenha, setRedefinindoSenha] = useState(false)
   const [nome, setNome] = useState<string>('')
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +51,10 @@ export default function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
+    const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
+      setSession(s)
+      if (evento === 'PASSWORD_RECOVERY') setRedefinindoSenha(true)
+    })
     return () => sub.subscription.unsubscribe()
   }, [])
 
@@ -209,6 +215,10 @@ export default function App() {
 
   if (!session) {
     return <Login />
+  }
+
+  if (redefinindoSenha) {
+    return <NovaSenha onPronto={() => setRedefinindoSenha(false)} />
   }
 
   return (

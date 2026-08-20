@@ -448,13 +448,14 @@ export function prazoColor(categoria: string | null): string {
 }
 
 // Pontuação automática por tipo de documento. "Vistoria" cobre também o que
-// era chamado de "Fiscalização" na tabela de referência. PRO e FUNC não têm
-// pontuação automática — permanecem com valor manual.
+// era chamado de "Fiscalização" na tabela de referência.
 export const DOC_POINTS: Record<string, number> = {
   HAB: 1,
   Vistoria: 1,
+  FUNC: 1,
   MEM: 2,
   TCAC: 3,
+  PRO: 5,
 }
 
 export function suggestedPoints(tipo: string | null | undefined): number | null {
