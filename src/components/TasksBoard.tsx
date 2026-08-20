@@ -225,6 +225,11 @@ export default function TasksBoard({
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {t.codigo && (
+                      <span className="text-[10px] font-semibold text-slate-400 tabular-nums shrink-0">
+                        {t.codigo}
+                      </span>
+                    )}
                     <button
                       onClick={() => onProjectClick?.(t.project_id)}
                       disabled={!onProjectClick}

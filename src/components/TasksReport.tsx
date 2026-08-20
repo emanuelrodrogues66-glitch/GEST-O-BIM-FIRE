@@ -134,6 +134,11 @@ export default function TasksReport({
             {g.tasks.map((t) => (
               <div key={t.id} className="border border-red-200 bg-red-50/40 rounded-lg p-2.5 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {t.codigo && (
+                    <span className="text-[10px] font-semibold text-slate-400 tabular-nums shrink-0">
+                      {t.codigo}
+                    </span>
+                  )}
                   <button
                     onClick={() => onProjectClick?.(t.project_id)}
                     disabled={!onProjectClick}

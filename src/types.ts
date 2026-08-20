@@ -26,6 +26,8 @@ export type DailyProgress = {
 export type ProjectTask = {
   id: string
   project_id: string
+  /** Código no formato MM + sequência do mês: 0801, 0802, 0901... */
+  codigo: string | null
   nome: string
   responsavel: string | null
   data_inicio: string | null

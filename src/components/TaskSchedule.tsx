@@ -245,6 +245,14 @@ export default function TaskSchedule({
                   >
                     ⠿
                   </span>
+                  {t.codigo && (
+                    <span
+                      className="shrink-0 text-[10px] font-semibold text-slate-400 tabular-nums"
+                      title="Código da tarefa"
+                    >
+                      {t.codigo}
+                    </span>
+                  )}
                   <input
                     className="flex-1 min-w-[140px] border border-slate-300 rounded-md px-2 py-1 text-xs"
                     value={t.nome}

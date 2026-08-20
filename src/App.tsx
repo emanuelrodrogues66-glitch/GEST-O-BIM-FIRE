@@ -100,17 +100,20 @@ export default function App() {
   )
 
   /**
-   * O Kanban pode ignorar o mês: um projeto iniciado em junho continua em
-   * andamento hoje e precisa aparecer no quadro de trabalho.
+   * Kanban e Lista podem ignorar o mês: um projeto iniciado em junho continua
+   * em andamento hoje e precisa aparecer no quadro de trabalho.
    */
-  const filteredKanban = useMemo(
+  const filteredTodosMeses = useMemo(
     () => (verTodosMeses ? projects.filter(passaNosFiltros) : filtered),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [verTodosMeses, projects, filtered, categoria, responsavelFiltro, busca]
   )
 
+  // O botão "Todos os meses" vale para o quadro e para a lista.
+  const aceitaTodosMeses = viewMode === 'kanban' || viewMode === 'lista'
+
   // Os contadores do topo seguem o que está de fato na tela.
-  const listaVisivel = viewMode === 'kanban' ? filteredKanban : filtered
+  const listaVisivel = aceitaTodosMeses ? filteredTodosMeses : filtered
 
   // Para o Gantt global não faz sentido restringir ao mês selecionado (é uma
   // visão de linha do tempo), então aplica os outros filtros sobre todos os projetos.
@@ -258,7 +261,7 @@ export default function App() {
             </button>
             <span
               className={`text-xs font-semibold px-2 min-w-[110px] text-center ${
-                verTodosMeses && viewMode === 'kanban' ? 'text-slate-300 line-through' : 'text-slate-700'
+                verTodosMeses && aceitaTodosMeses ? 'text-slate-300 line-through' : 'text-slate-700'
               }`}
             >
               {monthLabel(month)}
@@ -272,8 +275,8 @@ export default function App() {
             </button>
           </div>
 
-          {/* No Kanban, o trabalho em andamento não termina na virada do mês */}
-          {viewMode === 'kanban' && (
+          {/* O trabalho em andamento não termina na virada do mês */}
+          {aceitaTodosMeses && (
             <button
               onClick={() => setVerTodosMeses((v) => !v)}
               className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
@@ -386,14 +389,19 @@ export default function App() {
           <p className="text-sm text-slate-400 text-center py-10">Carregando projetos...</p>
         ) : viewMode === 'kanban' ? (
           <Board
-            projects={filteredKanban}
+            projects={filteredTodosMeses}
             mostrarMes={verTodosMeses}
             onCardClick={openEdit}
             onDropCard={handleDropCard}
             colunas={categoria === 'PROJETOS FINALIZADOS' ? ['Concluído'] : undefined}
           />
         ) : viewMode === 'lista' ? (
-          <ListView projects={filtered} onRowClick={openEdit} onBulkUpdated={fetchProjects} />
+          <ListView
+            projects={filteredTodosMeses}
+            mostrarMes={verTodosMeses}
+            onRowClick={openEdit}
+            onBulkUpdated={fetchProjects}
+          />
         ) : viewMode === 'dashboard' ? (
           // O Dashboard recebe tudo e aplica os próprios filtros de status e mês.
           <Dashboard projects={projects} month={month} />

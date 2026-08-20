@@ -14,14 +14,26 @@ function formatDate(d: string | null) {
   return `${parts[2]}/${parts[1]}/${parts[0]}`
 }
 
+const MESES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+/** "2026-06-14" -> "jun/26" */
+function mesCurto(data: string | null): string {
+  if (!data) return '—'
+  const [ano, mes] = data.split('-')
+  return `${MESES_CURTO[Number(mes) - 1]}/${ano.slice(2)}`
+}
+
 export default function ListView({
   projects,
   onRowClick,
   onBulkUpdated,
+  mostrarMes,
 }: {
   projects: Project[]
   onRowClick: (p: Project) => void
   onBulkUpdated?: () => void
+  /** Com projetos de vários meses na lista, mostra de qual mês cada um é. */
+  mostrarMes?: boolean
 }) {
   const [sortKey, setSortKey] = useState<SortKey>('numero')
   const [sortDir, setSortDir] = useState<1 | -1>(1)
@@ -265,6 +277,11 @@ export default function ListView({
                     {col.label} {sortKey === col.key && (sortDir === 1 ? '▲' : '▼')}
                   </th>
                 ))}
+                {mostrarMes && (
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Mês
+                  </th>
+                )}
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
                   Tipo
                 </th>
@@ -305,6 +322,11 @@ export default function ListView({
                       <span className="text-slate-400 text-xs">{formatDate(p.data_prazo)}</span>
                     )}
                   </td>
+                  {mostrarMes && (
+                    <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">
+                      {mesCurto(p.data_inicio)}
+                    </td>
+                  )}
                   <td className="px-3 py-2">
                     {p.tipo && (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded ${tipoColor(p.tipo)}`}>{p.tipo}</span>
@@ -314,7 +336,7 @@ export default function ListView({
               ))}
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center text-slate-400 py-8 text-sm">
+                  <td colSpan={mostrarMes ? 10 : 9} className="text-center text-slate-400 py-8 text-sm">
                     Nenhum projeto encontrado
                   </td>
                 </tr>
