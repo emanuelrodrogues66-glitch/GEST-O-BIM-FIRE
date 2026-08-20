@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { ProjectTask } from '../types'
 import { TASK_STATUS, TASK_STATUS_COLORS, taskNeedsJustificativa } from '../types'
+import { usePerfil } from '../lib/perfil'
 import GanttChart from './GanttChart'
 import type { GanttItem } from './GanttChart'
 
@@ -22,6 +23,12 @@ export default function TaskSchedule({
   const [showGantt, setShowGantt] = useState(false)
   const [newTask, setNewTask] = useState({ nome: '', responsavel: '', data_inicio: todayStr(), data_prazo: '' })
   const [adding, setAdding] = useState(false)
+
+  // Datas definidas ficam travadas; só o administrador reabre.
+  const { ehAdmin } = usePerfil()
+
+  // Tarefa recém-concluída: destaca o campo de data para confirmar ou ajustar.
+  const [confirmandoConclusao, setConfirmandoConclusao] = useState<string | null>(null)
 
   // Reordenação manual por arrastar.
   const [arrastandoId, setArrastandoId] = useState<string | null>(null)
@@ -130,11 +137,14 @@ export default function TaskSchedule({
 
   async function handleStatusChange(task: ProjectTask, status: string) {
     const patch: Partial<ProjectTask> = { status }
-    if (status === 'Concluído' && !task.data_conclusao) {
-      patch.data_conclusao = todayStr()
+    if (status === 'Concluído') {
+      if (!task.data_conclusao) patch.data_conclusao = todayStr()
+      // Hoje é só o palpite: o usuário confirma ou corrige logo abaixo.
+      setConfirmandoConclusao(task.id)
     }
     if (status !== 'Concluído') {
       patch.data_conclusao = null
+      setConfirmandoConclusao((v) => (v === task.id ? null : v))
     }
     await saveField(task.id, patch)
   }
@@ -293,7 +303,17 @@ export default function TaskSchedule({
                     Início
                     <input
                       type="date"
-                      className="border border-slate-200 rounded px-1 py-0.5"
+                      disabled={!!t.data_inicio && !ehAdmin}
+                      title={
+                        !!t.data_inicio && !ehAdmin
+                          ? 'Data já definida. Peça ao administrador para alterar.'
+                          : undefined
+                      }
+                      className={`border rounded px-1 py-0.5 ${
+                        !!t.data_inicio && !ehAdmin
+                          ? 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed'
+                          : 'border-slate-200'
+                      }`}
                       value={t.data_inicio || ''}
                       onChange={(e) => saveField(t.id, { data_inicio: e.target.value || null })}
                     />
@@ -302,13 +322,32 @@ export default function TaskSchedule({
                     Prazo
                     <input
                       type="date"
-                      className="border border-slate-200 rounded px-1 py-0.5"
+                      disabled={!!t.data_prazo && !ehAdmin}
+                      title={
+                        !!t.data_prazo && !ehAdmin
+                          ? 'Prazo já definido. Peça ao administrador para alterar.'
+                          : undefined
+                      }
+                      className={`border rounded px-1 py-0.5 ${
+                        !!t.data_prazo && !ehAdmin
+                          ? 'border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed'
+                          : 'border-slate-200'
+                      }`}
                       value={t.data_prazo || ''}
                       onChange={(e) => saveField(t.id, { data_prazo: e.target.value })}
                     />
                   </label>
+                  {(t.data_inicio || t.data_prazo) && !ehAdmin && (
+                    <span className="text-slate-400" title="Datas definidas só o administrador altera">
+                      🔒
+                    </span>
+                  )}
                   {t.status === 'Concluído' && (
-                    <label className="flex items-center gap-1">
+                    <label
+                      className={`flex items-center gap-1 rounded px-1 ${
+                        confirmandoConclusao === t.id ? 'bg-emerald-50 ring-1 ring-emerald-300' : ''
+                      }`}
+                    >
                       Concluída em
                       <input
                         type="date"
@@ -316,7 +355,20 @@ export default function TaskSchedule({
                         value={t.data_conclusao || ''}
                         onChange={(e) => saveField(t.id, { data_conclusao: e.target.value || null })}
                       />
+                      {confirmandoConclusao === t.id && (
+                        <button
+                          onClick={() => setConfirmandoConclusao(null)}
+                          className="text-emerald-700 font-medium hover:underline"
+                        >
+                          ok
+                        </button>
+                      )}
                     </label>
+                  )}
+                  {confirmandoConclusao === t.id && (
+                    <span className="text-emerald-700">
+                      Concluiu em outro dia? Ajuste a data ao lado.
+                    </span>
                   )}
                   {late && <span className="text-red-600 font-semibold">⚠ Atrasada</span>}
                 </div>

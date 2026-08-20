@@ -65,6 +65,17 @@ export default function TasksBoard({
     }
   }
 
+  /** Corrige a data em que a tarefa foi de fato concluída. */
+  async function mudarDataConclusao(task: TaskRow, data: string) {
+    const valor = data || null
+    setRows((prev) => prev.map((r) => (r.id === task.id ? { ...r, data_conclusao: valor } : r)))
+    const { error } = await supabase
+      .from('project_tasks')
+      .update({ data_conclusao: valor })
+      .eq('id', task.id)
+    if (error) alert(error.message)
+  }
+
   /** Ajusta a justificativa de uma tarefa atrasada sem sair da tela. */
   async function salvarJustificativa(task: TaskRow, texto: string) {
     setRows((prev) => prev.map((r) => (r.id === task.id ? { ...r, justificativa: texto } : r)))
@@ -256,6 +267,18 @@ export default function TasksBoard({
                       </button>
                     )}
                     <span className="text-slate-400">· prazo {formatDate(t.data_prazo)}</span>
+                    {t.status === 'Concluído' && (
+                      <label className="flex items-center gap-1 text-[10px] text-slate-500">
+                        concluída em
+                        <input
+                          type="date"
+                          className="border border-slate-200 rounded px-1 py-0.5 text-[10px]"
+                          value={t.data_conclusao || ''}
+                          onChange={(e) => mudarDataConclusao(t, e.target.value)}
+                          title="Ajuste se a tarefa foi concluída em outro dia"
+                        />
+                      </label>
+                    )}
                     {late && <span className="text-red-600 font-semibold text-[10px]">⚠ Atrasada</span>}
 
                     {/* Mudar o status sem precisar abrir o projeto */}

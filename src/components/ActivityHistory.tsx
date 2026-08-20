@@ -24,6 +24,10 @@ export default function ActivityHistory({
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ responsavel: '', data: todayStr(), descricao: '' })
 
+  // Edição de um registro já gravado do histórico.
+  const [editandoId, setEditandoId] = useState<string | null>(null)
+  const [rascunho, setRascunho] = useState({ responsavel: '', data: '', descricao: '' })
+
   useEffect(() => {
     load()
     prefillResponsavel()
@@ -68,6 +72,16 @@ export default function ActivityHistory({
       alert(err.message || 'Erro ao registrar atividade')
     } finally {
       setSaving(false)
+    }
+  }
+
+  /** Salva a edição de um registro já existente do histórico. */
+  async function salvarEdicao(id: string, patch: Partial<ProjectActivity>) {
+    setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)))
+    const { error } = await supabase.from('project_activities').update(patch).eq('id', id)
+    if (error) {
+      alert(error.message)
+      load()
     }
   }
 
@@ -144,25 +158,90 @@ export default function ActivityHistory({
         <p className="text-xs text-slate-400 py-2">Nenhuma atividade registrada ainda.</p>
       ) : (
         <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-          {activities.map((a) => (
-            <div
-              key={a.id}
-              className="flex items-start gap-2 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs"
-            >
-              <span className="text-slate-400 shrink-0 w-16">{formatDate(a.data)}</span>
-              <div className="flex-1 min-w-0">
-                <span className="font-medium text-slate-700">{a.responsavel}</span>
-                {a.descricao && <p className="text-slate-500 mt-0.5">{a.descricao}</p>}
+          {activities.map((a) =>
+            editandoId === a.id ? (
+              <div key={a.id} className="border border-indigo-300 bg-indigo-50/40 rounded-lg p-2 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="flex-1 min-w-[140px] border border-slate-300 rounded-md px-2 py-1 text-xs"
+                    list="activity-resp-suggestions"
+                    value={rascunho.responsavel}
+                    onChange={(e) => setRascunho((r) => ({ ...r, responsavel: e.target.value }))}
+                  />
+                  <input
+                    type="date"
+                    className="border border-slate-300 rounded-md px-2 py-1 text-xs"
+                    value={rascunho.data}
+                    onChange={(e) => setRascunho((r) => ({ ...r, data: e.target.value }))}
+                  />
+                </div>
+                <textarea
+                  className="w-full border border-slate-300 rounded-md px-2 py-1 text-xs"
+                  rows={2}
+                  placeholder="O que foi feito no projeto neste dia?"
+                  value={rascunho.descricao}
+                  onChange={(e) => setRascunho((r) => ({ ...r, descricao: e.target.value }))}
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setEditandoId(null)}
+                    className="px-3 py-1 text-xs text-slate-500 hover:bg-slate-100 rounded-md"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await salvarEdicao(a.id, {
+                        responsavel: rascunho.responsavel.trim() || a.responsavel,
+                        data: rascunho.data || a.data,
+                        descricao: rascunho.descricao.trim() || null,
+                      })
+                      setEditandoId(null)
+                    }}
+                    className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-medium"
+                  >
+                    Salvar
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => handleDelete(a.id)}
-                className="text-slate-300 hover:text-red-500 shrink-0 px-1"
-                title="Excluir"
+            ) : (
+              <div
+                key={a.id}
+                className="flex items-start gap-2 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs"
               >
-                ×
-              </button>
-            </div>
-          ))}
+                <span className="text-slate-400 shrink-0 w-16">{formatDate(a.data)}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-slate-700">{a.responsavel}</span>
+                  {a.descricao ? (
+                    <p className="text-slate-500 mt-0.5 whitespace-pre-wrap">{a.descricao}</p>
+                  ) : (
+                    <p className="text-slate-300 mt-0.5 italic">Sem descrição</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setEditandoId(a.id)
+                    setRascunho({
+                      responsavel: a.responsavel,
+                      data: a.data,
+                      descricao: a.descricao || '',
+                    })
+                  }}
+                  className="text-slate-300 hover:text-indigo-600 shrink-0 px-1"
+                  title="Editar"
+                >
+                  ✎
+                </button>
+                <button
+                  onClick={() => handleDelete(a.id)}
+                  className="text-slate-300 hover:text-red-500 shrink-0 px-1"
+                  title="Excluir"
+                >
+                  ×
+                </button>
+              </div>
+            )
+          )}
         </div>
       )}
     </div>
