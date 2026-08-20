@@ -16,6 +16,7 @@ import PdfExportModal from './components/PdfExportModal'
 import PdfExportAllModal from './components/PdfExportAllModal'
 import GanttGlobal from './components/GanttGlobal'
 import ReportsView from './components/ReportsView'
+import AvisoAtrasadas from './components/AvisoAtrasadas'
 import TasksBoard from './components/TasksBoard'
 import ActivitiesReport from './components/ActivitiesReport'
 import PendencyDialog from './components/PendencyDialog'
@@ -453,6 +454,9 @@ export default function App() {
           <ReportsView onProjectClick={openEditById} />
         )}
       </div>
+
+      {/* Cobrança das tarefas vencidas, uma vez por abertura do sistema. */}
+      <AvisoAtrasadas onVerRelatorio={() => setViewMode('relatorio')} />
 
       {pdfModalOpen && (
         <PdfExportModal categoria={categoria} projects={filtered} month={month} onClose={() => setPdfModalOpen(false)} />
