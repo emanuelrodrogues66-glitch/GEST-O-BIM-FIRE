@@ -66,11 +66,12 @@ export default function TasksReport({
   const grouped = useMemo(() => {
     const map = new Map<string, { id: string; nome: string; numero: number | null; tasks: TaskRow[] }>()
     for (const r of late) {
-      const key = r.project_id
+      // Tarefa geral não tem projeto; agrupa todas num bloco só.
+      const key = r.project_id || 'gerais'
       if (!map.has(key)) {
         map.set(key, {
-          id: r.project_id,
-          nome: r.projects?.nome || 'Projeto',
+          id: key,
+          nome: r.project_id ? r.projects?.nome || 'Projeto' : 'Tarefas gerais',
           numero: r.projects?.numero ?? null,
           tasks: [],
         })
@@ -121,8 +122,8 @@ export default function TasksReport({
         <div key={g.id} className="bg-white border border-slate-200 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-slate-800 mb-3">
             <button
-              onClick={() => onProjectClick?.(g.id)}
-              disabled={!onProjectClick}
+              onClick={() => g.id !== 'gerais' && onProjectClick?.(g.id)}
+              disabled={!onProjectClick || g.id === 'gerais'}
               className={onProjectClick ? 'hover:text-indigo-700 hover:underline cursor-pointer' : ''}
               title={onProjectClick ? 'Abrir o cartão do projeto' : undefined}
             >
@@ -140,8 +141,8 @@ export default function TasksReport({
                     </span>
                   )}
                   <button
-                    onClick={() => onProjectClick?.(t.project_id)}
-                    disabled={!onProjectClick}
+                    onClick={() => t.project_id && onProjectClick?.(t.project_id)}
+                    disabled={!onProjectClick || !t.project_id}
                     className={`font-medium text-slate-800 text-left ${
                       onProjectClick ? 'hover:text-indigo-700 hover:underline cursor-pointer' : ''
                     }`}

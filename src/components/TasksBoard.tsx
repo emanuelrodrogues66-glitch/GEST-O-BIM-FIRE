@@ -131,9 +131,11 @@ export default function TasksBoard({
       const key =
         groupBy === 'colaborador'
           ? t.responsavel || 'Sem responsável'
-          : t.projects?.numero
-            ? `${t.projects.numero} · ${t.projects.nome}`
-            : t.projects?.nome || 'Projeto'
+          : !t.project_id
+            ? 'Tarefas gerais'
+            : t.projects?.numero
+              ? `${t.projects.numero} · ${t.projects.nome}`
+              : t.projects?.nome || 'Projeto'
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(t)
     }
@@ -242,8 +244,8 @@ export default function TasksBoard({
                       </span>
                     )}
                     <button
-                      onClick={() => onProjectClick?.(t.project_id)}
-                      disabled={!onProjectClick}
+                      onClick={() => t.project_id && onProjectClick?.(t.project_id)}
+                      disabled={!onProjectClick || !t.project_id}
                       className={`font-medium text-left ${
                         t.status === 'Concluído' ? 'line-through text-slate-400' : 'text-slate-800'
                       } ${onProjectClick ? 'hover:text-indigo-700 hover:underline cursor-pointer' : ''}`}
@@ -254,17 +256,21 @@ export default function TasksBoard({
                     {groupBy === 'projeto' ? (
                       t.responsavel && <span className="text-slate-500">· {t.responsavel}</span>
                     ) : (
-                      <button
-                        onClick={() => onProjectClick?.(t.project_id)}
-                        disabled={!onProjectClick}
-                        className={`text-slate-500 ${
-                          onProjectClick ? 'hover:text-indigo-700 hover:underline cursor-pointer' : ''
-                        }`}
-                        title={onProjectClick ? 'Abrir o cartão do projeto' : undefined}
-                      >
-                        · {t.projects?.numero ? `${t.projects.numero} · ` : ''}
-                        {t.projects?.nome}
-                      </button>
+                      !t.project_id ? (
+                        <span className="text-slate-400">· tarefa geral</span>
+                      ) : (
+                        <button
+                          onClick={() => t.project_id && onProjectClick?.(t.project_id)}
+                          disabled={!onProjectClick}
+                          className={`text-slate-500 ${
+                            onProjectClick ? 'hover:text-indigo-700 hover:underline cursor-pointer' : ''
+                          }`}
+                          title={onProjectClick ? 'Abrir o cartão do projeto' : undefined}
+                        >
+                          · {t.projects?.numero ? `${t.projects.numero} · ` : ''}
+                          {t.projects?.nome}
+                        </button>
+                      )
                     )}
                     <span className="text-slate-400">· prazo {formatDate(t.data_prazo)}</span>
                     {t.status === 'Concluído' && (

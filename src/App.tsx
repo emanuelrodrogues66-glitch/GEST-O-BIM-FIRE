@@ -17,6 +17,7 @@ import PdfExportAllModal from './components/PdfExportAllModal'
 import GanttGlobal from './components/GanttGlobal'
 import ReportsView from './components/ReportsView'
 import AvisoAtrasadas from './components/AvisoAtrasadas'
+import AgendaView from './components/AgendaView'
 import TasksBoard from './components/TasksBoard'
 import ActivitiesReport from './components/ActivitiesReport'
 import PendencyDialog from './components/PendencyDialog'
@@ -24,7 +25,15 @@ import CelebrationSettings from './components/CelebrationSettings'
 import type { MonthRef } from './lib/month'
 import { addMonths, dateInMonth, monthLabel } from './lib/month'
 
-type ViewMode = 'kanban' | 'lista' | 'dashboard' | 'gantt' | 'relatorio' | 'tarefas' | 'atividades'
+type ViewMode =
+  | 'kanban'
+  | 'lista'
+  | 'dashboard'
+  | 'gantt'
+  | 'relatorio'
+  | 'tarefas'
+  | 'agenda'
+  | 'atividades'
 
 /**
  * O link de recuperação chega com `type=recovery` na URL. O supabase-js
@@ -395,6 +404,7 @@ export default function App() {
                 ['dashboard', 'Dashboard'],
                 ['gantt', 'Gantt'],
                 ['tarefas', 'Tarefas'],
+                ['agenda', 'Agenda'],
                 ['atividades', 'Atividades'],
                 ['relatorio', 'Relatório'],
               ] as [ViewMode, string][]
@@ -448,6 +458,8 @@ export default function App() {
           <GanttGlobal projects={projects} onProjectClick={openEdit} />
         ) : viewMode === 'tarefas' ? (
           <TasksBoard onProjectClick={openEditById} />
+        ) : viewMode === 'agenda' ? (
+          <AgendaView responsaveis={responsaveis} onProjectClick={openEditById} />
         ) : viewMode === 'atividades' ? (
           <ActivitiesReport />
         ) : (

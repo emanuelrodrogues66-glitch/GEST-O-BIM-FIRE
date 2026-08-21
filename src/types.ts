@@ -23,9 +23,61 @@ export type DailyProgress = {
   letra: string
 }
 
+export type TaskCategory = {
+  id: string
+  nome: string
+  cor: string
+  ordem: number
+}
+
+export const FREQUENCIAS = [
+  { valor: 'diaria', rotulo: 'Todo dia' },
+  { valor: 'semanal', rotulo: 'Semanal' },
+  { valor: 'quinzenal', rotulo: 'Quinzenal' },
+  { valor: 'mensal', rotulo: 'Mensal' },
+] as const
+
+export const DIAS_SEMANA = [
+  { valor: 0, curto: 'D', rotulo: 'Domingo' },
+  { valor: 1, curto: 'S', rotulo: 'Segunda' },
+  { valor: 2, curto: 'T', rotulo: 'Terça' },
+  { valor: 3, curto: 'Q', rotulo: 'Quarta' },
+  { valor: 4, curto: 'Q', rotulo: 'Quinta' },
+  { valor: 5, curto: 'S', rotulo: 'Sexta' },
+  { valor: 6, curto: 'S', rotulo: 'Sábado' },
+] as const
+
+export type TaskRecurrence = {
+  id: string
+  nome: string
+  responsavel: string | null
+  categoria_id: string | null
+  project_id: string | null
+  frequencia: 'diaria' | 'semanal' | 'quinzenal' | 'mensal'
+  dias_semana: number[]
+  dia_mes: number | null
+  data_inicio: string
+  data_fim: string | null
+  ativa: boolean
+  gerado_ate: string | null
+}
+
+/** Resumo legível da regra: "Semanal · seg, qua, sex". */
+export function descreverRecorrencia(r: TaskRecurrence): string {
+  const freq = FREQUENCIAS.find((f) => f.valor === r.frequencia)?.rotulo || r.frequencia
+  if (r.frequencia === 'mensal') return `${freq} · dia ${r.dia_mes ?? '?'}`
+  if (r.frequencia === 'diaria') return freq
+  const nomes = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+  const dias = [...r.dias_semana].sort().map((d) => nomes[d]).join(', ')
+  return dias ? `${freq} · ${dias}` : freq
+}
+
 export type ProjectTask = {
   id: string
-  project_id: string
+  /** Nulo quando é tarefa geral, sem vínculo com projeto. */
+  project_id: string | null
+  categoria_id: string | null
+  recurrence_id: string | null
   /** Código no formato MM + sequência do mês: 0801, 0802, 0901... */
   codigo: string | null
   nome: string
