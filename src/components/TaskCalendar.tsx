@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { TarefaDaAgenda } from '../lib/agenda'
 import { corDoResponsavel, hojeStr, inicioDaSemana, paraData, paraIso, somarDias } from '../lib/agenda'
-import { isTaskLate } from '../types'
+import { faixaHoraria, horaCurta, isTaskLate } from '../types'
 
 const NOMES_MES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -10,14 +10,29 @@ const NOMES_MES = [
 
 const CABECALHO_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
-type Visao = 'mes' | 'semana'
+type Visao = 'mes' | 'semana' | 'dia'
+
+/** Faixa de horas mostrada na visão Dia. */
+const HORA_INICIAL = 6
+const HORA_FINAL = 22
+const ALTURA_HORA = 48 // px
+
+/** "09:30:00" -> 9.5 */
+function emHoras(h: string | null): number | null {
+  if (!h) return null
+  const [hh, mm] = h.split(':').map(Number)
+  return hh + (mm || 0) / 60
+}
 
 export default function TaskCalendar({
   tarefas,
   onTarefaClick,
+  onNovoHorario,
 }: {
   tarefas: TarefaDaAgenda[]
   onTarefaClick?: (t: TarefaDaAgenda) => void
+  /** Clique num espaço vazio da grade de horas: cria tarefa naquele horário. */
+  onNovoHorario?: (dados: { data: string; hora: string; responsavel: string }) => void
 }) {
   const [visao, setVisao] = useState<Visao>('mes')
   const [ancora, setAncora] = useState<Date>(() => paraData(hojeStr()))
@@ -45,21 +60,31 @@ export default function TaskCalendar({
       if (!mapa.has(t.data_prazo)) mapa.set(t.data_prazo, [])
       mapa.get(t.data_prazo)!.push(t)
     }
+    // Com hora marcada vem primeiro, na ordem do relógio.
+    for (const lista of mapa.values()) {
+      lista.sort((a, b) => (a.hora_inicio || '99').localeCompare(b.hora_inicio || '99'))
+    }
     return mapa
   }, [visiveis])
 
   function navegar(delta: number) {
-    setAncora((a) => (visao === 'mes' ? new Date(a.getFullYear(), a.getMonth() + delta, 1) : somarDias(a, delta * 7)))
+    setAncora((a) => {
+      if (visao === 'mes') return new Date(a.getFullYear(), a.getMonth() + delta, 1)
+      if (visao === 'dia') return somarDias(a, delta)
+      return somarDias(a, delta * 7)
+    })
   }
 
   const titulo =
     visao === 'mes'
       ? `${NOMES_MES[ancora.getMonth()]} ${ancora.getFullYear()}`
-      : (() => {
+      : visao === 'dia'
+        ? `${CABECALHO_SEMANA[ancora.getDay()]}, ${ancora.getDate()} de ${NOMES_MES[ancora.getMonth()].toLowerCase()}`
+        : (() => {
           const ini = inicioDaSemana(ancora)
           const fim = somarDias(ini, 6)
           return `${ini.getDate()}/${ini.getMonth() + 1} a ${fim.getDate()}/${fim.getMonth() + 1}`
-        })()
+          })()
 
   return (
     <div className="space-y-3">
@@ -92,6 +117,7 @@ export default function TaskCalendar({
             [
               ['mes', 'Mês'],
               ['semana', 'Semana'],
+              ['dia', 'Dia'],
             ] as [Visao, string][]
           ).map(([v, rotulo]) => (
             <button
@@ -131,6 +157,14 @@ export default function TaskCalendar({
 
       {visao === 'mes' ? (
         <VisaoMes ancora={ancora} porDia={porDia} onTarefaClick={onTarefaClick} />
+      ) : visao === 'dia' ? (
+        <VisaoDia
+          ancora={ancora}
+          porDia={porDia}
+          responsaveis={responsavelFiltro ? [responsavelFiltro] : responsaveis}
+          onTarefaClick={onTarefaClick}
+          onNovoHorario={onNovoHorario}
+        />
       ) : (
         <VisaoSemana
           ancora={ancora}
@@ -167,6 +201,7 @@ function Pilula({
       } ${atrasada && !concluida ? 'bg-red-50 text-red-700' : ''}`}
       style={{ borderLeftColor: atrasada && !concluida ? '#ef4444' : cor }}
     >
+      {t.hora_inicio && <span className="font-semibold tabular-nums">{horaCurta(t.hora_inicio)} </span>}
       {mostrarResponsavel && t.responsavel && (
         <span className="font-semibold" style={{ color: corDoResponsavel(t.responsavel) }}>
           {t.responsavel.split(' ')[0]}{' '}
@@ -345,5 +380,134 @@ function ColunaResponsavel({
         )
       })}
     </>
+  )
+}
+
+
+/**
+ * Visão de um dia com grade de horas, uma coluna por responsável.
+ * Tarefas sem hora ficam na faixa "dia todo", como no Google Agenda.
+ */
+function VisaoDia({
+  ancora,
+  porDia,
+  responsaveis,
+  onTarefaClick,
+  onNovoHorario,
+}: {
+  ancora: Date
+  porDia: Map<string, TarefaDaAgenda[]>
+  responsaveis: string[]
+  onTarefaClick?: (t: TarefaDaAgenda) => void
+  onNovoHorario?: (dados: { data: string; hora: string; responsavel: string }) => void
+}) {
+  const iso = paraIso(ancora)
+  const doDia = porDia.get(iso) || []
+  const colunas = responsaveis.length > 0 ? responsaveis : ['Sem responsável']
+
+  const horas = Array.from({ length: HORA_FINAL - HORA_INICIAL + 1 }, (_, i) => HORA_INICIAL + i)
+  const semHora = doDia.filter((t) => !t.hora_inicio)
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      {/* Cabeçalho com os responsáveis */}
+      <div className="grid border-b border-slate-200 bg-slate-50" style={{ gridTemplateColumns: `56px repeat(${colunas.length}, 1fr)` }}>
+        <div className="px-2 py-1.5 text-[10px] font-semibold text-slate-400 uppercase">Hora</div>
+        {colunas.map((r) => (
+          <div key={r} className="px-2 py-1.5 border-l border-slate-200 flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: corDoResponsavel(r) }} />
+            <span className="text-xs text-slate-700 truncate" title={r}>
+              {r}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Faixa das tarefas sem hora marcada */}
+      {semHora.length > 0 && (
+        <div className="grid border-b border-slate-200 bg-slate-50/60" style={{ gridTemplateColumns: `56px repeat(${colunas.length}, 1fr)` }}>
+          <div className="px-2 py-1 text-[10px] text-slate-400">dia todo</div>
+          {colunas.map((r) => (
+            <div key={r} className="px-1 py-1 border-l border-slate-200 space-y-0.5">
+              {semHora
+                .filter((t) => (t.responsavel || 'Sem responsável').trim() === r)
+                .map((t) => (
+                  <Pilula key={t.id} t={t} mostrarResponsavel={false} onClick={() => onTarefaClick?.(t)} />
+                ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Grade de horas */}
+      <div className="relative overflow-y-auto" style={{ maxHeight: '64vh' }}>
+        <div className="grid" style={{ gridTemplateColumns: `56px repeat(${colunas.length}, 1fr)` }}>
+          {/* Régua de horas */}
+          <div>
+            {horas.map((h) => (
+              <div
+                key={h}
+                className="border-b border-slate-100 text-[10px] text-slate-400 px-2 pt-0.5 tabular-nums"
+                style={{ height: ALTURA_HORA }}
+              >
+                {String(h).padStart(2, '0')}:00
+              </div>
+            ))}
+          </div>
+
+          {colunas.map((r) => {
+            const comHora = doDia.filter(
+              (t) => t.hora_inicio && (t.responsavel || 'Sem responsável').trim() === r
+            )
+            return (
+              <div key={r} className="relative border-l border-slate-200">
+                {horas.map((h) => (
+                  <div
+                    key={h}
+                    onClick={() =>
+                      onNovoHorario?.({ data: iso, hora: `${String(h).padStart(2, '0')}:00`, responsavel: r })
+                    }
+                    className="border-b border-slate-100 hover:bg-indigo-50/60 cursor-pointer transition"
+                    style={{ height: ALTURA_HORA }}
+                    title={`Criar tarefa às ${String(h).padStart(2, '0')}:00`}
+                  />
+                ))}
+
+                {comHora.map((t) => {
+                  const inicio = emHoras(t.hora_inicio) ?? HORA_INICIAL
+                  const fim = emHoras(t.hora_fim) ?? inicio + 1
+                  const topo = (inicio - HORA_INICIAL) * ALTURA_HORA
+                  const altura = Math.max(22, (fim - inicio) * ALTURA_HORA - 2)
+                  const atrasada = isTaskLate(t)
+                  const concluida = t.status === 'Concluído'
+                  const cor = t.task_categories?.cor || corDoResponsavel(t.responsavel)
+
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => onTarefaClick?.(t)}
+                      className={`absolute left-1 right-1 rounded-md px-1.5 py-0.5 text-left text-[10px] border-l-4 shadow-sm overflow-hidden transition hover:brightness-95 ${
+                        concluida ? 'bg-slate-100 text-slate-400 line-through' : 'bg-white text-slate-700'
+                      } ${atrasada && !concluida ? 'bg-red-50 text-red-700' : ''}`}
+                      style={{
+                        top: topo,
+                        height: altura,
+                        borderLeftColor: atrasada && !concluida ? '#ef4444' : cor,
+                      }}
+                      title={`${faixaHoraria(t.hora_inicio, t.hora_fim)} · ${t.nome}`}
+                    >
+                      <span className="font-semibold tabular-nums">
+                        {faixaHoraria(t.hora_inicio, t.hora_fim)}
+                      </span>
+                      <span className="block truncate">{t.nome}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
   )
 }

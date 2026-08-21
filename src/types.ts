@@ -58,8 +58,21 @@ export type TaskRecurrence = {
   dia_mes: number | null
   data_inicio: string
   data_fim: string | null
+  hora_inicio: string | null
+  hora_fim: string | null
   ativa: boolean
   gerado_ate: string | null
+}
+
+/** "09:00:00" -> "09:00". Nulo vira string vazia. */
+export function horaCurta(h: string | null | undefined): string {
+  return h ? h.slice(0, 5) : ''
+}
+
+/** Faixa legível: "09:00–10:30", ou só o início quando não há fim. */
+export function faixaHoraria(inicio: string | null, fim: string | null): string {
+  if (!inicio) return ''
+  return fim ? `${horaCurta(inicio)}–${horaCurta(fim)}` : horaCurta(inicio)
 }
 
 /** Resumo legível da regra: "Semanal · seg, qua, sex". */
@@ -84,6 +97,9 @@ export type ProjectTask = {
   responsavel: string | null
   data_inicio: string | null
   data_prazo: string
+  /** "09:00:00" quando a tarefa tem hora marcada; nulo = dia inteiro. */
+  hora_inicio: string | null
+  hora_fim: string | null
   status: string
   data_conclusao: string | null
   justificativa: string | null

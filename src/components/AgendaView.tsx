@@ -11,7 +11,15 @@ import {
   hojeStr,
 } from '../lib/agenda'
 import type { ProjectTask, TaskCategory, TaskRecurrence } from '../types'
-import { DIAS_SEMANA, FREQUENCIAS, TASK_STATUS, TASK_STATUS_COLORS, descreverRecorrencia, isTaskLate } from '../types'
+import {
+  DIAS_SEMANA,
+  FREQUENCIAS,
+  TASK_STATUS,
+  TASK_STATUS_COLORS,
+  descreverRecorrencia,
+  faixaHoraria,
+  isTaskLate,
+} from '../types'
 import GanttChart from './GanttChart'
 import type { GanttItem } from './GanttChart'
 import TaskCalendar from './TaskCalendar'
@@ -38,6 +46,13 @@ export default function AgendaView({
   const [categorias, setCategorias] = useState<TaskCategory[]>([])
   const [recorrencias, setRecorrencias] = useState<TaskRecurrence[]>([])
   const [carregando, setCarregando] = useState(true)
+
+  // Pré-preenchimento vindo do clique num horário do calendário.
+  const [novoHorario, setNovoHorario] = useState<{
+    data: string
+    hora: string
+    responsavel: string
+  } | null>(null)
 
   const [escopo, setEscopo] = useState<Escopo>('gerais')
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
@@ -301,6 +316,7 @@ export default function AgendaView({
                         />
                         <span className={atrasada ? 'text-red-600' : 'text-slate-400'}>
                           · {formatarData(t.data_prazo)}
+                          {t.hora_inicio && ` · ${faixaHoraria(t.hora_inicio, t.hora_fim)}`}
                         </span>
                         {atrasada && <span className="text-red-600 font-semibold text-[10px]">⚠ Atrasada</span>}
                         <select
@@ -333,7 +349,26 @@ export default function AgendaView({
         </>
       )}
 
-      {aba === 'calendario' && <TaskCalendar tarefas={filtradas} />}
+      {aba === 'calendario' && (
+        <>
+          {novoHorario && (
+            <NovaTarefaGeral
+              categorias={categorias}
+              responsaveis={responsaveis}
+              inicial={novoHorario}
+              onCancelar={() => setNovoHorario(null)}
+              onCriada={() => {
+                setNovoHorario(null)
+                recarregar()
+              }}
+            />
+          )}
+          <TaskCalendar
+            tarefas={filtradas}
+            onNovoHorario={(dados) => setNovoHorario(dados)}
+          />
+        </>
+      )}
 
       {aba === 'gantt' && (
         <div className="bg-white border border-slate-200 rounded-xl p-4">
@@ -371,15 +406,26 @@ function NovaTarefaGeral({
   categorias,
   responsaveis,
   onCriada,
+  inicial,
+  onCancelar,
 }: {
   categorias: TaskCategory[]
   responsaveis: string[]
   onCriada: () => void
+  /** Vindo do clique num horário do calendário. */
+  inicial?: { data: string; hora: string; responsavel: string }
+  onCancelar?: () => void
 }) {
   const [nome, setNome] = useState('')
-  const [responsavel, setResponsavel] = useState('')
+  const [responsavel, setResponsavel] = useState(
+    inicial?.responsavel === 'Sem responsável' ? '' : inicial?.responsavel || ''
+  )
   const [categoriaId, setCategoriaId] = useState('')
-  const [prazo, setPrazo] = useState(hojeStr())
+  const [prazo, setPrazo] = useState(inicial?.data || hojeStr())
+  const [horaInicio, setHoraInicio] = useState(inicial?.hora || '')
+  const [horaFim, setHoraFim] = useState(
+    inicial?.hora ? `${String(Number(inicial.hora.slice(0, 2)) + 1).padStart(2, '0')}:00` : ''
+  )
   const [salvando, setSalvando] = useState(false)
 
   async function criar() {
@@ -392,6 +438,8 @@ function NovaTarefaGeral({
       categoria_id: categoriaId || null,
       data_inicio: prazo,
       data_prazo: prazo,
+      hora_inicio: horaInicio || null,
+      hora_fim: horaFim || null,
       status: 'Pendente',
       ordem: 0,
     })
@@ -405,7 +453,13 @@ function NovaTarefaGeral({
   }
 
   return (
-    <div className="border border-dashed border-slate-300 rounded-xl p-3 bg-slate-50 flex flex-wrap items-center gap-2">
+    <div
+      className={`border rounded-xl p-3 flex flex-wrap items-center gap-2 ${
+        inicial
+          ? 'border-indigo-300 bg-indigo-50'
+          : 'border-dashed border-slate-300 bg-slate-50'
+      }`}
+    >
       <input
         className="flex-1 min-w-[180px] border border-slate-300 rounded-md px-2 py-1.5 text-xs"
         placeholder="Nova tarefa geral (ex.: enviar relatório para o Emanuel)"
@@ -438,6 +492,23 @@ function NovaTarefaGeral({
         onChange={(e) => setPrazo(e.target.value)}
         className="text-xs border border-slate-300 rounded-md px-2 py-1.5"
       />
+      <label className="flex items-center gap-1 text-[10px] text-slate-500">
+        das
+        <input
+          type="time"
+          value={horaInicio}
+          onChange={(e) => setHoraInicio(e.target.value)}
+          className="text-xs border border-slate-300 rounded-md px-1.5 py-1.5"
+          title="Deixe vazio para tarefa do dia inteiro"
+        />
+        às
+        <input
+          type="time"
+          value={horaFim}
+          onChange={(e) => setHoraFim(e.target.value)}
+          className="text-xs border border-slate-300 rounded-md px-1.5 py-1.5"
+        />
+      </label>
       <button
         onClick={criar}
         disabled={salvando || !nome.trim()}
@@ -445,6 +516,14 @@ function NovaTarefaGeral({
       >
         {salvando ? 'Salvando...' : '+ Adicionar'}
       </button>
+      {onCancelar && (
+        <button
+          onClick={onCancelar}
+          className="px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-200 rounded-md"
+        >
+          Cancelar
+        </button>
+      )}
       <datalist id="agenda-resp">
         {responsaveis.map((r) => (
           <option key={r} value={r} />
@@ -472,6 +551,8 @@ function Recorrentes({
   const [frequencia, setFrequencia] = useState<TaskRecurrence['frequencia']>('semanal')
   const [dias, setDias] = useState<number[]>([1])
   const [diaMes, setDiaMes] = useState(1)
+  const [horaInicio, setHoraInicio] = useState('')
+  const [horaFim, setHoraFim] = useState('')
   const [salvando, setSalvando] = useState(false)
 
   const [novaCategoria, setNovaCategoria] = useState('')
@@ -488,6 +569,8 @@ function Recorrentes({
       dias_semana: frequencia === 'semanal' || frequencia === 'quinzenal' ? dias : [],
       dia_mes: frequencia === 'mensal' ? diaMes : null,
       data_inicio: hojeStr(),
+      hora_inicio: horaInicio || null,
+      hora_fim: horaFim || null,
     })
     setSalvando(false)
     if (error) {
@@ -625,6 +708,24 @@ function Recorrentes({
               </label>
             )}
 
+            <label className="flex items-center gap-1 text-[10px] text-slate-500">
+              das
+              <input
+                type="time"
+                value={horaInicio}
+                onChange={(e) => setHoraInicio(e.target.value)}
+                className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
+                title="Deixe vazio para a repetição valer o dia inteiro"
+              />
+              às
+              <input
+                type="time"
+                value={horaFim}
+                onChange={(e) => setHoraFim(e.target.value)}
+                className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
+              />
+            </label>
+
             <button
               onClick={criarRegra}
               disabled={salvando || !nome.trim()}
@@ -655,6 +756,11 @@ function Recorrentes({
                   <span className="font-medium text-slate-800">{r.nome}</span>
                   {r.responsavel && <span className="text-slate-500">· {r.responsavel}</span>}
                   <span className="text-slate-400">· {descreverRecorrencia(r)}</span>
+                  {r.hora_inicio && (
+                    <span className="text-slate-400 tabular-nums">
+                      · {faixaHoraria(r.hora_inicio, r.hora_fim)}
+                    </span>
+                  )}
                   {cat && <span className="text-slate-400">· {cat.nome}</span>}
                   <button
                     onClick={() => alternarAtiva(r)}
