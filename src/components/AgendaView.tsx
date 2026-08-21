@@ -15,6 +15,7 @@ import type { ProjectTask, TaskCategory, TaskRecurrence } from '../types'
 import {
   DIAS_SEMANA,
   FREQUENCIAS,
+  SEMANAS_DO_MES,
   TASK_STATUS,
   TASK_STATUS_COLORS,
   descreverRecorrencia,
@@ -644,6 +645,7 @@ function Recorrentes({
   const [frequencia, setFrequencia] = useState<TaskRecurrence['frequencia']>('semanal')
   const [dias, setDias] = useState<number[]>([1])
   const [diaMes, setDiaMes] = useState(1)
+  const [semanaDoMes, setSemanaDoMes] = useState(1)
   const [horaInicio, setHoraInicio] = useState('')
   const [horaFim, setHoraFim] = useState('')
   // Período de vigência da repetição.
@@ -665,8 +667,12 @@ function Recorrentes({
       responsavel: responsavel.trim() || null,
       categoria_id: categoriaId || null,
       frequencia,
-      dias_semana: frequencia === 'semanal' || frequencia === 'quinzenal' ? dias : [],
+      dias_semana:
+        frequencia === 'semanal' || frequencia === 'quinzenal' || frequencia === 'mensal_semana'
+          ? dias
+          : [],
       dia_mes: frequencia === 'mensal' ? diaMes : null,
+      semana_do_mes: frequencia === 'mensal_semana' ? semanaDoMes : null,
       data_inicio: comecaEm || hojeStr(),
       data_fim: terminaEm || null,
       hora_inicio: horaInicio || null,
@@ -769,7 +775,24 @@ function Recorrentes({
               ))}
             </select>
 
-            {(frequencia === 'semanal' || frequencia === 'quinzenal') && (
+            {frequencia === 'mensal_semana' && (
+              <select
+                value={semanaDoMes}
+                onChange={(e) => setSemanaDoMes(Number(e.target.value))}
+                className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+                title="Qual ocorrência do dia da semana dentro do mês"
+              >
+                {SEMANAS_DO_MES.map((s) => (
+                  <option key={s.valor} value={s.valor}>
+                    {s.rotulo}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {(frequencia === 'semanal' ||
+              frequencia === 'quinzenal' ||
+              frequencia === 'mensal_semana') && (
               <div className="flex gap-1">
                 {DIAS_SEMANA.map((d) => {
                   const ativo = dias.includes(d.valor)
@@ -778,8 +801,13 @@ function Recorrentes({
                       key={d.valor}
                       title={d.rotulo}
                       onClick={() =>
+                        // No mensal por semana só faz sentido um dia por vez.
                         setDias((prev) =>
-                          prev.includes(d.valor) ? prev.filter((x) => x !== d.valor) : [...prev, d.valor]
+                          frequencia === 'mensal_semana'
+                            ? [d.valor]
+                            : prev.includes(d.valor)
+                              ? prev.filter((x) => x !== d.valor)
+                              : [...prev, d.valor]
                         )
                       }
                       className={`w-7 h-7 rounded-md text-[11px] font-medium border transition ${
@@ -1146,6 +1174,7 @@ function EditarRecorrencia({
   const [frequencia, setFrequencia] = useState<TaskRecurrence['frequencia']>(regra.frequencia)
   const [dias, setDias] = useState<number[]>(regra.dias_semana || [])
   const [diaMes, setDiaMes] = useState(regra.dia_mes || 1)
+  const [semanaDoMes, setSemanaDoMes] = useState(regra.semana_do_mes ?? 1)
   const [horaInicio, setHoraInicio] = useState(horaCurta(regra.hora_inicio))
   const [horaFim, setHoraFim] = useState(horaCurta(regra.hora_fim))
   const [dataInicio, setDataInicio] = useState(regra.data_inicio)
@@ -1162,8 +1191,12 @@ function EditarRecorrencia({
         responsavel: responsavel.trim() || null,
         categoria_id: categoriaId || null,
         frequencia,
-        dias_semana: frequencia === 'semanal' || frequencia === 'quinzenal' ? dias : [],
+        dias_semana:
+          frequencia === 'semanal' || frequencia === 'quinzenal' || frequencia === 'mensal_semana'
+            ? dias
+            : [],
         dia_mes: frequencia === 'mensal' ? diaMes : null,
+        semana_do_mes: frequencia === 'mensal_semana' ? semanaDoMes : null,
         hora_inicio: horaInicio || null,
         hora_fim: horaFim || null,
         data_inicio: dataInicio,
@@ -1230,7 +1263,23 @@ function EditarRecorrencia({
           ))}
         </select>
 
-        {(frequencia === 'semanal' || frequencia === 'quinzenal') && (
+        {frequencia === 'mensal_semana' && (
+          <select
+            value={semanaDoMes}
+            onChange={(e) => setSemanaDoMes(Number(e.target.value))}
+            className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+          >
+            {SEMANAS_DO_MES.map((s) => (
+              <option key={s.valor} value={s.valor}>
+                {s.rotulo}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {(frequencia === 'semanal' ||
+          frequencia === 'quinzenal' ||
+          frequencia === 'mensal_semana') && (
           <div className="flex gap-1">
             {DIAS_SEMANA.map((d) => {
               const ativo = dias.includes(d.valor)
@@ -1240,7 +1289,11 @@ function EditarRecorrencia({
                   title={d.rotulo}
                   onClick={() =>
                     setDias((prev) =>
-                      prev.includes(d.valor) ? prev.filter((x) => x !== d.valor) : [...prev, d.valor]
+                      frequencia === 'mensal_semana'
+                        ? [d.valor]
+                        : prev.includes(d.valor)
+                          ? prev.filter((x) => x !== d.valor)
+                          : [...prev, d.valor]
                     )
                   }
                   className={`w-7 h-7 rounded-md text-[11px] font-medium border transition ${

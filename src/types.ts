@@ -34,7 +34,17 @@ export const FREQUENCIAS = [
   { valor: 'diaria', rotulo: 'Todo dia' },
   { valor: 'semanal', rotulo: 'Semanal' },
   { valor: 'quinzenal', rotulo: 'Quinzenal' },
-  { valor: 'mensal', rotulo: 'Mensal' },
+  { valor: 'mensal', rotulo: 'Mensal (dia fixo)' },
+  { valor: 'mensal_semana', rotulo: 'Mensal (dia da semana)' },
+] as const
+
+/** Qual ocorrência do dia da semana dentro do mês. -1 = a última. */
+export const SEMANAS_DO_MES = [
+  { valor: 1, rotulo: 'primeira' },
+  { valor: 2, rotulo: 'segunda' },
+  { valor: 3, rotulo: 'terceira' },
+  { valor: 4, rotulo: 'quarta' },
+  { valor: -1, rotulo: 'última' },
 ] as const
 
 export const DIAS_SEMANA = [
@@ -53,9 +63,11 @@ export type TaskRecurrence = {
   responsavel: string | null
   categoria_id: string | null
   project_id: string | null
-  frequencia: 'diaria' | 'semanal' | 'quinzenal' | 'mensal'
+  frequencia: 'diaria' | 'semanal' | 'quinzenal' | 'mensal' | 'mensal_semana'
   dias_semana: number[]
   dia_mes: number | null
+  /** Usado só em 'mensal_semana': 1..4 ou -1 para a última. */
+  semana_do_mes: number | null
   data_inicio: string
   data_fim: string | null
   hora_inicio: string | null
@@ -78,10 +90,20 @@ export function faixaHoraria(inicio: string | null, fim: string | null): string 
 /** Resumo legível da regra: "Semanal · seg, qua, sex". */
 export function descreverRecorrencia(r: TaskRecurrence): string {
   const freq = FREQUENCIAS.find((f) => f.valor === r.frequencia)?.rotulo || r.frequencia
-  if (r.frequencia === 'mensal') return `${freq} · dia ${r.dia_mes ?? '?'}`
-  if (r.frequencia === 'diaria') return freq
   const nomes = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
   const dias = [...r.dias_semana].sort().map((d) => nomes[d]).join(', ')
+
+  if (r.frequencia === 'diaria') return freq
+  if (r.frequencia === 'mensal') return `Mensal · dia ${r.dia_mes ?? '?'}`
+
+  if (r.frequencia === 'mensal_semana') {
+    // "1ª terça-feira do mês" lê melhor do que o rótulo genérico.
+    const ordem = SEMANAS_DO_MES.find((s) => s.valor === (r.semana_do_mes ?? 1))?.rotulo || ''
+    const completos = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+    const nomeDia = r.dias_semana.length ? completos[r.dias_semana[0]] : '?'
+    return `Mensal · ${ordem} ${nomeDia} do mês`
+  }
+
   return dias ? `${freq} · ${dias}` : freq
 }
 
