@@ -9,6 +9,7 @@ import {
   corDoResponsavel,
   gerarOcorrencias,
   hojeStr,
+  reaplicarRecorrencia,
 } from '../lib/agenda'
 import type { ProjectTask, TaskCategory, TaskRecurrence } from '../types'
 import {
@@ -580,6 +581,9 @@ function Recorrentes({
   const [horaFim, setHoraFim] = useState('')
   const [salvando, setSalvando] = useState(false)
 
+  // Regra aberta para edição.
+  const [editandoRegra, setEditandoRegra] = useState<string | null>(null)
+
   const [novaCategoria, setNovaCategoria] = useState('')
   const [corCategoria, setCorCategoria] = useState('#6366f1')
 
@@ -767,6 +771,22 @@ function Recorrentes({
           <div className="space-y-1.5">
             {recorrencias.map((r) => {
               const cat = categorias.find((c) => c.id === r.categoria_id)
+
+              if (editandoRegra === r.id) {
+                return (
+                  <EditarRecorrencia
+                    key={r.id}
+                    regra={r}
+                    categorias={categorias}
+                    onCancelar={() => setEditandoRegra(null)}
+                    onSalvo={async () => {
+                      setEditandoRegra(null)
+                      onMudou()
+                    }}
+                  />
+                )
+              }
+
               return (
                 <div
                   key={r.id}
@@ -796,6 +816,13 @@ function Recorrentes({
                     }`}
                   >
                     {r.ativa ? 'Ativa' : 'Pausada'}
+                  </button>
+                  <button
+                    onClick={() => setEditandoRegra(r.id)}
+                    className="text-slate-300 hover:text-indigo-600 px-1"
+                    title="Editar regra"
+                  >
+                    ✎
                   </button>
                   <button
                     onClick={() => excluirRegra(r)}
@@ -992,6 +1019,206 @@ function EditarTarefa({
           <option key={r} value={r} />
         ))}
       </datalist>
+    </div>
+  )
+}
+
+
+/**
+ * Edição de uma regra recorrente.
+ *
+ * Ao salvar, as ocorrências futuras ainda pendentes são refeitas com os dados
+ * novos. O que já passou ou foi concluído permanece, para não apagar histórico.
+ */
+function EditarRecorrencia({
+  regra,
+  categorias,
+  onSalvo,
+  onCancelar,
+}: {
+  regra: TaskRecurrence
+  categorias: TaskCategory[]
+  onSalvo: () => void
+  onCancelar: () => void
+}) {
+  const [nome, setNome] = useState(regra.nome)
+  const [responsavel, setResponsavel] = useState(regra.responsavel || '')
+  const [categoriaId, setCategoriaId] = useState(regra.categoria_id || '')
+  const [frequencia, setFrequencia] = useState<TaskRecurrence['frequencia']>(regra.frequencia)
+  const [dias, setDias] = useState<number[]>(regra.dias_semana || [])
+  const [diaMes, setDiaMes] = useState(regra.dia_mes || 1)
+  const [horaInicio, setHoraInicio] = useState(horaCurta(regra.hora_inicio))
+  const [horaFim, setHoraFim] = useState(horaCurta(regra.hora_fim))
+  const [dataFim, setDataFim] = useState(regra.data_fim || '')
+  const [salvando, setSalvando] = useState(false)
+
+  async function salvar() {
+    if (!nome.trim()) return
+    setSalvando(true)
+    const { error } = await supabase
+      .from('task_recurrences')
+      .update({
+        nome: nome.trim(),
+        responsavel: responsavel.trim() || null,
+        categoria_id: categoriaId || null,
+        frequencia,
+        dias_semana: frequencia === 'semanal' || frequencia === 'quinzenal' ? dias : [],
+        dia_mes: frequencia === 'mensal' ? diaMes : null,
+        hora_inicio: horaInicio || null,
+        hora_fim: horaFim || null,
+        data_fim: dataFim || null,
+      })
+      .eq('id', regra.id)
+
+    if (error) {
+      setSalvando(false)
+      alert(error.message)
+      return
+    }
+
+    try {
+      await reaplicarRecorrencia(regra.id)
+    } catch (err: any) {
+      alert(`Regra salva, mas as ocorrências não foram refeitas: ${err.message}`)
+    }
+
+    setSalvando(false)
+    onSalvo()
+  }
+
+  return (
+    <div className="border border-indigo-300 bg-indigo-50/50 rounded-lg p-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          className="flex-1 min-w-[180px] border border-slate-300 rounded-md px-2 py-1.5 text-xs"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          autoFocus
+        />
+        <input
+          className="w-32 border border-slate-300 rounded-md px-2 py-1.5 text-xs"
+          placeholder="Responsável"
+          list="agenda-resp"
+          value={responsavel}
+          onChange={(e) => setResponsavel(e.target.value)}
+        />
+        <select
+          value={categoriaId}
+          onChange={(e) => setCategoriaId(e.target.value)}
+          className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+        >
+          <option value="">Sem categoria</option>
+          {categorias.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={frequencia}
+          onChange={(e) => setFrequencia(e.target.value as TaskRecurrence['frequencia'])}
+          className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+        >
+          {FREQUENCIAS.map((f) => (
+            <option key={f.valor} value={f.valor}>
+              {f.rotulo}
+            </option>
+          ))}
+        </select>
+
+        {(frequencia === 'semanal' || frequencia === 'quinzenal') && (
+          <div className="flex gap-1">
+            {DIAS_SEMANA.map((d) => {
+              const ativo = dias.includes(d.valor)
+              return (
+                <button
+                  key={d.valor}
+                  title={d.rotulo}
+                  onClick={() =>
+                    setDias((prev) =>
+                      prev.includes(d.valor) ? prev.filter((x) => x !== d.valor) : [...prev, d.valor]
+                    )
+                  }
+                  className={`w-7 h-7 rounded-md text-[11px] font-medium border transition ${
+                    ativo
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-slate-500 border-slate-300 hover:border-slate-400'
+                  }`}
+                >
+                  {d.curto}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {frequencia === 'mensal' && (
+          <label className="flex items-center gap-1 text-xs text-slate-600">
+            Dia do mês
+            <input
+              type="number"
+              min={1}
+              max={31}
+              value={diaMes}
+              onChange={(e) => setDiaMes(Number(e.target.value))}
+              className="w-16 border border-slate-300 rounded-md px-2 py-1 text-xs"
+            />
+          </label>
+        )}
+
+        <label className="flex items-center gap-1 text-[10px] text-slate-500">
+          das
+          <input
+            type="time"
+            value={horaInicio}
+            onChange={(e) => setHoraInicio(e.target.value)}
+            className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
+          />
+          às
+          <input
+            type="time"
+            value={horaFim}
+            onChange={(e) => setHoraFim(e.target.value)}
+            className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
+          />
+        </label>
+
+        <label className="flex items-center gap-1 text-[10px] text-slate-500">
+          até
+          <input
+            type="date"
+            value={dataFim}
+            onChange={(e) => setDataFim(e.target.value)}
+            className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
+            title="Data em que a repetição para. Vazio = sem fim."
+          />
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-[10px] text-amber-700">
+          Ao salvar, as ocorrências futuras ainda pendentes são refeitas. As passadas e as já
+          concluídas não mudam.
+        </p>
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={onCancelar}
+            className="px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-200 rounded-md"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={salvar}
+            disabled={salvando || !nome.trim()}
+            className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md font-medium"
+          >
+            {salvando ? 'Salvando...' : 'Salvar e reaplicar'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

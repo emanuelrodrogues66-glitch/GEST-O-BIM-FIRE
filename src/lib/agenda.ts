@@ -76,6 +76,15 @@ export async function gerarOcorrencias(horizonteDias = 60): Promise<number> {
   return (data as number) ?? 0
 }
 
+/**
+ * Reaplica uma regra editada: apaga as ocorrências futuras ainda pendentes
+ * e gera de novo com os dados novos. O que já passou ou foi concluído fica.
+ */
+export async function reaplicarRecorrencia(regraId: string): Promise<void> {
+  const { error } = await supabase.rpc('reaplicar_recorrencia', { regra_id: regraId })
+  if (error) throw error
+}
+
 /** Paleta estável por responsável, para o calendário não trocar de cor a cada carga. */
 const CORES_RESPONSAVEL = [
   '#6366f1',
