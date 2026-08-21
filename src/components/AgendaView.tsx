@@ -250,6 +250,9 @@ export default function AgendaView({
                 onChange={(e) => setMostrarConcluidas(e.target.checked)}
               />
               Mostrar concluídas
+              {aba === 'calendario' && !mostrarConcluidas && (
+                <span className="text-slate-400">(some ao concluir)</span>
+              )}
             </label>
 
             <span className="text-xs text-slate-400 ml-auto">{filtradas.length} tarefa(s)</span>
@@ -397,6 +400,7 @@ export default function AgendaView({
             tarefas={filtradas}
             onNovoHorario={(dados) => setNovoHorario(dados)}
             onTarefaClick={(t) => setTarefaNoCalendario(t)}
+            onConcluir={(t, concluir) => mudarStatus(t, concluir ? 'Concluído' : 'Pendente')}
           />
 
           {tarefaNoCalendario && (

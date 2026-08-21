@@ -28,11 +28,14 @@ export default function TaskCalendar({
   tarefas,
   onTarefaClick,
   onNovoHorario,
+  onConcluir,
 }: {
   tarefas: TarefaDaAgenda[]
   onTarefaClick?: (t: TarefaDaAgenda) => void
   /** Clique num espaço vazio da grade de horas: cria tarefa naquele horário. */
   onNovoHorario?: (dados: { data: string; hora: string; responsavel: string }) => void
+  /** Marca/desmarca a tarefa como concluída sem sair do calendário. */
+  onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
 }) {
   const [visao, setVisao] = useState<Visao>('mes')
   const [ancora, setAncora] = useState<Date>(() => paraData(hojeStr()))
@@ -156,7 +159,7 @@ export default function TaskCalendar({
       </div>
 
       {visao === 'mes' ? (
-        <VisaoMes ancora={ancora} porDia={porDia} onTarefaClick={onTarefaClick} />
+        <VisaoMes ancora={ancora} porDia={porDia} onTarefaClick={onTarefaClick} onConcluir={onConcluir} />
       ) : visao === 'dia' ? (
         <VisaoDia
           ancora={ancora}
@@ -164,6 +167,7 @@ export default function TaskCalendar({
           responsaveis={responsavelFiltro ? [responsavelFiltro] : responsaveis}
           onTarefaClick={onTarefaClick}
           onNovoHorario={onNovoHorario}
+          onConcluir={onConcluir}
         />
       ) : (
         <VisaoSemana
@@ -171,19 +175,49 @@ export default function TaskCalendar({
           porDia={porDia}
           responsaveis={responsavelFiltro ? [responsavelFiltro] : responsaveis}
           onTarefaClick={onTarefaClick}
+          onConcluir={onConcluir}
         />
       )}
     </div>
   )
 }
 
+/** Caixinha de concluir: um clique marca, outro desmarca. */
+function MarcadorConclusao({
+  concluida,
+  onToggle,
+}: {
+  concluida: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      onClick={(e) => {
+        // Não pode abrir a tarefa junto com o clique de concluir.
+        e.stopPropagation()
+        onToggle()
+      }}
+      title={concluida ? 'Reabrir tarefa' : 'Marcar como concluída'}
+      className={`shrink-0 w-3.5 h-3.5 rounded-full border flex items-center justify-center text-[8px] leading-none transition ${
+        concluida
+          ? 'bg-emerald-500 border-emerald-500 text-white'
+          : 'border-slate-300 text-transparent hover:border-emerald-500 hover:text-emerald-500'
+      }`}
+    >
+      ✓
+    </button>
+  )
+}
+
 function Pilula({
   t,
   onClick,
+  onConcluir,
   mostrarResponsavel = true,
 }: {
   t: TarefaDaAgenda
   onClick?: () => void
+  onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
   mostrarResponsavel?: boolean
 }) {
   const atrasada = isTaskLate(t)
@@ -191,24 +225,29 @@ function Pilula({
   const cor = t.task_categories?.cor || corDoResponsavel(t.responsavel)
 
   return (
-    <button
+    <div
       onClick={onClick}
       title={`${t.nome}${t.responsavel ? ` · ${t.responsavel}` : ''}${
         t.projects ? ` · ${t.projects.nome}` : ' · tarefa geral'
       }${atrasada ? ' · ATRASADA' : ''}`}
-      className={`w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate border-l-2 transition hover:brightness-95 ${
-        concluida ? 'line-through text-slate-400 bg-slate-50' : 'text-slate-700 bg-slate-50'
+      className={`w-full flex items-center gap-1 text-left text-[10px] px-1.5 py-0.5 rounded border-l-2 cursor-pointer transition hover:brightness-95 ${
+        concluida ? 'text-slate-400 bg-slate-50' : 'text-slate-700 bg-slate-50'
       } ${atrasada && !concluida ? 'bg-red-50 text-red-700' : ''}`}
       style={{ borderLeftColor: atrasada && !concluida ? '#ef4444' : cor }}
     >
-      {t.hora_inicio && <span className="font-semibold tabular-nums">{horaCurta(t.hora_inicio)} </span>}
-      {mostrarResponsavel && t.responsavel && (
-        <span className="font-semibold" style={{ color: corDoResponsavel(t.responsavel) }}>
-          {t.responsavel.split(' ')[0]}{' '}
-        </span>
+      {onConcluir && (
+        <MarcadorConclusao concluida={concluida} onToggle={() => onConcluir(t, !concluida)} />
       )}
-      {t.nome}
-    </button>
+      <span className={`truncate ${concluida ? 'line-through' : ''}`}>
+        {t.hora_inicio && <span className="font-semibold tabular-nums">{horaCurta(t.hora_inicio)} </span>}
+        {mostrarResponsavel && t.responsavel && (
+          <span className="font-semibold" style={{ color: corDoResponsavel(t.responsavel) }}>
+            {t.responsavel.split(' ')[0]}{' '}
+          </span>
+        )}
+        {t.nome}
+      </span>
+    </div>
   )
 }
 
@@ -216,10 +255,12 @@ function VisaoMes({
   ancora,
   porDia,
   onTarefaClick,
+  onConcluir,
 }: {
   ancora: Date
   porDia: Map<string, TarefaDaAgenda[]>
   onTarefaClick?: (t: TarefaDaAgenda) => void
+  onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
 }) {
   const hoje = hojeStr()
   const primeiro = new Date(ancora.getFullYear(), ancora.getMonth(), 1)
@@ -262,7 +303,7 @@ function VisaoMes({
                 {d.getDate()}
               </div>
               {items.slice(0, 4).map((t) => (
-                <Pilula key={t.id} t={t} onClick={() => onTarefaClick?.(t)} />
+                <Pilula key={t.id} t={t} onClick={() => onTarefaClick?.(t)} onConcluir={onConcluir} />
               ))}
               {items.length > 4 && (
                 <p className="text-[9px] text-slate-400 px-1">+{items.length - 4} mais</p>
@@ -280,11 +321,13 @@ function VisaoSemana({
   porDia,
   responsaveis,
   onTarefaClick,
+  onConcluir,
 }: {
   ancora: Date
   porDia: Map<string, TarefaDaAgenda[]>
   responsaveis: string[]
   onTarefaClick?: (t: TarefaDaAgenda) => void
+  onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
 }) {
   const hoje = hojeStr()
   const inicio = inicioDaSemana(ancora)
@@ -332,6 +375,7 @@ function VisaoSemana({
               porDia={porDia}
               hoje={hoje}
               onTarefaClick={onTarefaClick}
+              onConcluir={onConcluir}
             />
           ))}
         </div>
@@ -346,12 +390,14 @@ function ColunaResponsavel({
   porDia,
   hoje,
   onTarefaClick,
+  onConcluir,
 }: {
   responsavel: string
   dias: Date[]
   porDia: Map<string, TarefaDaAgenda[]>
   hoje: string
   onTarefaClick?: (t: TarefaDaAgenda) => void
+  onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
 }) {
   return (
     <>
@@ -374,7 +420,13 @@ function ColunaResponsavel({
             }`}
           >
             {items.map((t) => (
-              <Pilula key={t.id} t={t} mostrarResponsavel={false} onClick={() => onTarefaClick?.(t)} />
+              <Pilula
+                key={t.id}
+                t={t}
+                mostrarResponsavel={false}
+                onClick={() => onTarefaClick?.(t)}
+                onConcluir={onConcluir}
+              />
             ))}
           </div>
         )
@@ -394,12 +446,14 @@ function VisaoDia({
   responsaveis,
   onTarefaClick,
   onNovoHorario,
+  onConcluir,
 }: {
   ancora: Date
   porDia: Map<string, TarefaDaAgenda[]>
   responsaveis: string[]
   onTarefaClick?: (t: TarefaDaAgenda) => void
   onNovoHorario?: (dados: { data: string; hora: string; responsavel: string }) => void
+  onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
 }) {
   const iso = paraIso(ancora)
   const doDia = porDia.get(iso) || []
@@ -432,7 +486,13 @@ function VisaoDia({
               {semHora
                 .filter((t) => (t.responsavel || 'Sem responsável').trim() === r)
                 .map((t) => (
-                  <Pilula key={t.id} t={t} mostrarResponsavel={false} onClick={() => onTarefaClick?.(t)} />
+                  <Pilula
+                    key={t.id}
+                    t={t}
+                    mostrarResponsavel={false}
+                    onClick={() => onTarefaClick?.(t)}
+                    onConcluir={onConcluir}
+                  />
                 ))}
             </div>
           ))}
@@ -483,11 +543,11 @@ function VisaoDia({
                   const cor = t.task_categories?.cor || corDoResponsavel(t.responsavel)
 
                   return (
-                    <button
+                    <div
                       key={t.id}
                       onClick={() => onTarefaClick?.(t)}
-                      className={`absolute left-1 right-1 rounded-md px-1.5 py-0.5 text-left text-[10px] border-l-4 shadow-sm overflow-hidden transition hover:brightness-95 ${
-                        concluida ? 'bg-slate-100 text-slate-400 line-through' : 'bg-white text-slate-700'
+                      className={`absolute left-1 right-1 rounded-md px-1.5 py-0.5 text-left text-[10px] border-l-4 shadow-sm overflow-hidden cursor-pointer transition hover:brightness-95 ${
+                        concluida ? 'bg-slate-100 text-slate-400' : 'bg-white text-slate-700'
                       } ${atrasada && !concluida ? 'bg-red-50 text-red-700' : ''}`}
                       style={{
                         top: topo,
@@ -496,11 +556,19 @@ function VisaoDia({
                       }}
                       title={`${faixaHoraria(t.hora_inicio, t.hora_fim)} · ${t.nome}`}
                     >
-                      <span className="font-semibold tabular-nums">
-                        {faixaHoraria(t.hora_inicio, t.hora_fim)}
-                      </span>
-                      <span className="block truncate">{t.nome}</span>
-                    </button>
+                      <div className="flex items-center gap-1">
+                        {onConcluir && (
+                          <MarcadorConclusao
+                            concluida={concluida}
+                            onToggle={() => onConcluir(t, !concluida)}
+                          />
+                        )}
+                        <span className={`font-semibold tabular-nums ${concluida ? 'line-through' : ''}`}>
+                          {faixaHoraria(t.hora_inicio, t.hora_fim)}
+                        </span>
+                      </div>
+                      <span className={`block truncate ${concluida ? 'line-through' : ''}`}>{t.nome}</span>
+                    </div>
                   )
                 })}
               </div>
