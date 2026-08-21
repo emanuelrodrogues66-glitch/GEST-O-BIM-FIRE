@@ -59,6 +59,9 @@ export default function AgendaView({
   // Tarefa aberta para edição completa na lista.
   const [editandoId, setEditandoId] = useState<string | null>(null)
 
+  // Tarefa aberta em janela, vinda de um clique no calendário.
+  const [tarefaNoCalendario, setTarefaNoCalendario] = useState<TarefaDaAgenda | null>(null)
+
   const [escopo, setEscopo] = useState<Escopo>('gerais')
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
   const [mostrarConcluidas, setMostrarConcluidas] = useState(false)
@@ -392,7 +395,71 @@ export default function AgendaView({
           <TaskCalendar
             tarefas={filtradas}
             onNovoHorario={(dados) => setNovoHorario(dados)}
+            onTarefaClick={(t) => setTarefaNoCalendario(t)}
           />
+
+          {tarefaNoCalendario && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+              <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg border border-slate-200 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-800">Editar tarefa</h3>
+                  <button
+                    onClick={() => setTarefaNoCalendario(null)}
+                    className="text-slate-400 hover:text-slate-700 text-lg leading-none px-1"
+                    title="Fechar"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <select
+                    value={tarefaNoCalendario.status}
+                    onChange={async (e) => {
+                      await mudarStatus(tarefaNoCalendario, e.target.value)
+                      setTarefaNoCalendario((t) => (t ? { ...t, status: e.target.value } : t))
+                    }}
+                    className={`text-[11px] font-medium px-2 py-1 rounded border ${
+                      TASK_STATUS_COLORS[tarefaNoCalendario.status] || ''
+                    }`}
+                  >
+                    {TASK_STATUS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                  {tarefaNoCalendario.projects && (
+                    <span className="text-slate-500">
+                      Projeto: {tarefaNoCalendario.projects.numero ? `${tarefaNoCalendario.projects.numero} · ` : ''}
+                      {tarefaNoCalendario.projects.nome}
+                    </span>
+                  )}
+                  <button
+                    onClick={async () => {
+                      await excluirTarefa(tarefaNoCalendario)
+                      setTarefaNoCalendario(null)
+                    }}
+                    className="ml-auto text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Excluir
+                  </button>
+                </div>
+
+                <EditarTarefa
+                  tarefa={tarefaNoCalendario}
+                  categorias={categorias}
+                  responsaveis={responsaveis}
+                  onCancelar={() => setTarefaNoCalendario(null)}
+                  onSalvo={async (patch) => {
+                    await atualizarTarefa(tarefaNoCalendario.id, patch)
+                    setTarefaNoCalendario(null)
+                    recarregar()
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -579,6 +646,9 @@ function Recorrentes({
   const [diaMes, setDiaMes] = useState(1)
   const [horaInicio, setHoraInicio] = useState('')
   const [horaFim, setHoraFim] = useState('')
+  // Período de vigência da repetição.
+  const [comecaEm, setComecaEm] = useState(hojeStr())
+  const [terminaEm, setTerminaEm] = useState('')
   const [salvando, setSalvando] = useState(false)
 
   // Regra aberta para edição.
@@ -597,7 +667,8 @@ function Recorrentes({
       frequencia,
       dias_semana: frequencia === 'semanal' || frequencia === 'quinzenal' ? dias : [],
       dia_mes: frequencia === 'mensal' ? diaMes : null,
-      data_inicio: hojeStr(),
+      data_inicio: comecaEm || hojeStr(),
+      data_fim: terminaEm || null,
       hora_inicio: horaInicio || null,
       hora_fim: horaFim || null,
     })
@@ -607,6 +678,7 @@ function Recorrentes({
       return
     }
     setNome('')
+    setTerminaEm('')
     onMudou()
   }
 
@@ -755,6 +827,29 @@ function Recorrentes({
               />
             </label>
 
+            <label className="flex items-center gap-1 text-[10px] text-slate-500">
+              começa em
+              <input
+                type="date"
+                value={comecaEm}
+                onChange={(e) => setComecaEm(e.target.value)}
+                className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
+                title="Primeiro dia em que a repetição vale"
+              />
+            </label>
+
+            <label className="flex items-center gap-1 text-[10px] text-slate-500">
+              termina em
+              <input
+                type="date"
+                value={terminaEm}
+                onChange={(e) => setTerminaEm(e.target.value)}
+                className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
+                title="Vazio = repete sem data para acabar"
+              />
+              <span className="text-slate-400">{terminaEm ? '' : '(sem fim)'}</span>
+            </label>
+
             <button
               onClick={criarRegra}
               disabled={salvando || !nome.trim()}
@@ -806,6 +901,10 @@ function Recorrentes({
                       · {faixaHoraria(r.hora_inicio, r.hora_fim)}
                     </span>
                   )}
+                  <span className="text-slate-400">
+                    · de {formatarData(r.data_inicio)}
+                    {r.data_fim ? ` até ${formatarData(r.data_fim)}` : ' (sem fim)'}
+                  </span>
                   {cat && <span className="text-slate-400">· {cat.nome}</span>}
                   <button
                     onClick={() => alternarAtiva(r)}
@@ -1049,6 +1148,7 @@ function EditarRecorrencia({
   const [diaMes, setDiaMes] = useState(regra.dia_mes || 1)
   const [horaInicio, setHoraInicio] = useState(horaCurta(regra.hora_inicio))
   const [horaFim, setHoraFim] = useState(horaCurta(regra.hora_fim))
+  const [dataInicio, setDataInicio] = useState(regra.data_inicio)
   const [dataFim, setDataFim] = useState(regra.data_fim || '')
   const [salvando, setSalvando] = useState(false)
 
@@ -1066,6 +1166,7 @@ function EditarRecorrencia({
         dia_mes: frequencia === 'mensal' ? diaMes : null,
         hora_inicio: horaInicio || null,
         hora_fim: horaFim || null,
+        data_inicio: dataInicio,
         data_fim: dataFim || null,
       })
       .eq('id', regra.id)
@@ -1187,13 +1288,23 @@ function EditarRecorrencia({
         </label>
 
         <label className="flex items-center gap-1 text-[10px] text-slate-500">
-          até
+          começa em
+          <input
+            type="date"
+            value={dataInicio}
+            onChange={(e) => setDataInicio(e.target.value)}
+            className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
+          />
+        </label>
+
+        <label className="flex items-center gap-1 text-[10px] text-slate-500">
+          termina em
           <input
             type="date"
             value={dataFim}
             onChange={(e) => setDataFim(e.target.value)}
             className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
-            title="Data em que a repetição para. Vazio = sem fim."
+            title="Vazio = repete sem data para acabar"
           />
         </label>
       </div>
