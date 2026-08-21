@@ -31,6 +31,9 @@ export default function TasksBoard({
   const [groupBy, setGroupBy] = useState<GroupBy>('colaborador')
   const [busca, setBusca] = useState('')
   const [mostrarConcluidas, setMostrarConcluidas] = useState(false)
+  // Tarefas gerais (café, cobrança, rotina) poluem a leitura de produção
+  // por projeto, então dá para tirá-las do gráfico e da lista de uma vez.
+  const [ocultarGerais, setOcultarGerais] = useState(false)
 
   useEffect(() => {
     load()
@@ -86,10 +89,18 @@ export default function TasksBoard({
     if (error) alert(error.message)
   }
 
-  const visiveis = useMemo(
-    () => (mostrarConcluidas ? rows : rows.filter((r) => r.status !== 'Concluído')),
-    [rows, mostrarConcluidas]
+  // Base única do gráfico e da lista, para os dois nunca divergirem.
+  const base = useMemo(
+    () => (ocultarGerais ? rows.filter((r) => r.project_id) : rows),
+    [rows, ocultarGerais]
   )
+
+  const visiveis = useMemo(
+    () => (mostrarConcluidas ? base : base.filter((r) => r.status !== 'Concluído')),
+    [base, mostrarConcluidas]
+  )
+
+  const totalGerais = useMemo(() => rows.filter((r) => !r.project_id).length, [rows])
 
   const filtradas = useMemo(() => {
     if (!busca) return visiveis
@@ -99,12 +110,12 @@ export default function TasksBoard({
     })
   }, [visiveis, busca])
 
-  const totalConcluidas = useMemo(() => rows.filter((r) => r.status === 'Concluído').length, [rows])
+  const totalConcluidas = useMemo(() => base.filter((r) => r.status === 'Concluído').length, [base])
 
   // Dashboard: contagem por colaborador, separando Pendente / Em andamento / Atrasada
   const dashboardData = useMemo(() => {
     const map = new Map<string, { colaborador: string; Pendente: number; 'Em andamento': number; Atrasada: number; Concluído: number }>()
-    for (const t of rows) {
+    for (const t of base) {
       const nome = t.responsavel || 'Sem responsável'
       if (!map.has(nome)) {
         map.set(nome, { colaborador: nome, Pendente: 0, 'Em andamento': 0, Atrasada: 0, Concluído: 0 })
@@ -123,7 +134,7 @@ export default function TasksBoard({
     return Array.from(map.values()).sort(
       (a, b) => b.Pendente + b['Em andamento'] + b.Atrasada - (a.Pendente + a['Em andamento'] + a.Atrasada)
     )
-  }, [rows])
+  }, [base])
 
   const grouped = useMemo(() => {
     const map = new Map<string, TaskRow[]>()
@@ -149,7 +160,18 @@ export default function TasksBoard({
   return (
     <div className="space-y-4">
       <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Dashboard de tarefas por colaborador</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h3 className="text-sm font-semibold text-slate-700">Dashboard de tarefas por colaborador</h3>
+          <label className="flex items-center gap-1.5 text-xs text-slate-600">
+            <input
+              type="checkbox"
+              checked={ocultarGerais}
+              onChange={(e) => setOcultarGerais(e.target.checked)}
+            />
+            Ocultar tarefas gerais
+            {totalGerais > 0 && <span className="text-slate-400">({totalGerais})</span>}
+          </label>
+        </div>
         {dashboardData.length === 0 ? (
           <p className="text-xs text-slate-400">Sem dados de tarefas ainda.</p>
         ) : (

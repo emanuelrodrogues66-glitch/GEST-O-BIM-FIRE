@@ -18,6 +18,7 @@ import {
   TASK_STATUS_COLORS,
   descreverRecorrencia,
   faixaHoraria,
+  horaCurta,
   isTaskLate,
 } from '../types'
 import GanttChart from './GanttChart'
@@ -53,6 +54,9 @@ export default function AgendaView({
     hora: string
     responsavel: string
   } | null>(null)
+
+  // Tarefa aberta para edição completa na lista.
+  const [editandoId, setEditandoId] = useState<string | null>(null)
 
   const [escopo, setEscopo] = useState<Escopo>('gerais')
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
@@ -271,6 +275,24 @@ export default function AgendaView({
               <div className="space-y-1.5">
                 {items.map((t) => {
                   const atrasada = isTaskLate(t)
+
+                  if (editandoId === t.id) {
+                    return (
+                      <EditarTarefa
+                        key={t.id}
+                        tarefa={t}
+                        categorias={categorias}
+                        responsaveis={responsaveis}
+                        onCancelar={() => setEditandoId(null)}
+                        onSalvo={async (patch) => {
+                          await atualizarTarefa(t.id, patch)
+                          setEditandoId(null)
+                          recarregar()
+                        }}
+                      />
+                    )
+                  }
+
                   return (
                     <div
                       key={t.id}
@@ -307,13 +329,9 @@ export default function AgendaView({
                         ) : (
                           <span className="text-slate-400">· geral</span>
                         )}
-                        <input
-                          className="w-28 border border-slate-200 rounded px-1.5 py-0.5 text-[11px]"
-                          placeholder="Responsável"
-                          list="agenda-resp"
-                          defaultValue={t.responsavel || ''}
-                          onBlur={(e) => atualizarTarefa(t.id, { responsavel: e.target.value || null })}
-                        />
+                        <span className="text-slate-500">
+                          · {t.responsavel || 'sem responsável'}
+                        </span>
                         <span className={atrasada ? 'text-red-600' : 'text-slate-400'}>
                           · {formatarData(t.data_prazo)}
                           {t.hora_inicio && ` · ${faixaHoraria(t.hora_inicio, t.hora_fim)}`}
@@ -332,6 +350,13 @@ export default function AgendaView({
                             </option>
                           ))}
                         </select>
+                        <button
+                          onClick={() => setEditandoId(t.id)}
+                          className="text-slate-300 hover:text-indigo-600 px-1"
+                          title="Editar tarefa"
+                        >
+                          ✎
+                        </button>
                         <button
                           onClick={() => excluirTarefa(t)}
                           className="text-slate-300 hover:text-red-500 px-1"
@@ -842,6 +867,131 @@ function Recorrentes({
           {categorias.length === 0 && <p className="text-xs text-slate-400">Nenhuma categoria cadastrada.</p>}
         </div>
       </div>
+    </div>
+  )
+}
+
+
+/** Edição completa de uma tarefa: nome, responsável, categoria, data e horário. */
+function EditarTarefa({
+  tarefa,
+  categorias,
+  responsaveis,
+  onSalvo,
+  onCancelar,
+}: {
+  tarefa: TarefaDaAgenda
+  categorias: TaskCategory[]
+  responsaveis: string[]
+  onSalvo: (patch: Partial<ProjectTask>) => void
+  onCancelar: () => void
+}) {
+  const [nome, setNome] = useState(tarefa.nome)
+  const [responsavel, setResponsavel] = useState(tarefa.responsavel || '')
+  const [categoriaId, setCategoriaId] = useState(tarefa.categoria_id || '')
+  const [prazo, setPrazo] = useState(tarefa.data_prazo)
+  const [horaInicio, setHoraInicio] = useState(horaCurta(tarefa.hora_inicio))
+  const [horaFim, setHoraFim] = useState(horaCurta(tarefa.hora_fim))
+  const [salvando, setSalvando] = useState(false)
+
+  async function salvar() {
+    if (!nome.trim()) return
+    setSalvando(true)
+    onSalvo({
+      nome: nome.trim(),
+      responsavel: responsavel.trim() || null,
+      categoria_id: categoriaId || null,
+      data_prazo: prazo,
+      data_inicio: prazo,
+      hora_inicio: horaInicio || null,
+      hora_fim: horaFim || null,
+    })
+  }
+
+  return (
+    <div className="border border-indigo-300 bg-indigo-50/50 rounded-lg p-2.5 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          className="flex-1 min-w-[180px] border border-slate-300 rounded-md px-2 py-1.5 text-xs"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && salvar()}
+          autoFocus
+        />
+        <input
+          className="w-32 border border-slate-300 rounded-md px-2 py-1.5 text-xs"
+          placeholder="Responsável"
+          list="agenda-resp"
+          value={responsavel}
+          onChange={(e) => setResponsavel(e.target.value)}
+        />
+        <select
+          value={categoriaId}
+          onChange={(e) => setCategoriaId(e.target.value)}
+          className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+        >
+          <option value="">Sem categoria</option>
+          {categorias.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="date"
+          value={prazo}
+          onChange={(e) => setPrazo(e.target.value)}
+          className="text-xs border border-slate-300 rounded-md px-2 py-1.5"
+        />
+        <label className="flex items-center gap-1 text-[10px] text-slate-500">
+          das
+          <input
+            type="time"
+            value={horaInicio}
+            onChange={(e) => setHoraInicio(e.target.value)}
+            className="text-xs border border-slate-300 rounded-md px-1.5 py-1.5"
+            title="Vazio = tarefa do dia inteiro"
+          />
+          às
+          <input
+            type="time"
+            value={horaFim}
+            onChange={(e) => setHoraFim(e.target.value)}
+            className="text-xs border border-slate-300 rounded-md px-1.5 py-1.5"
+          />
+        </label>
+
+        {tarefa.recurrence_id && (
+          <span className="text-[10px] text-amber-700">
+            ↻ Editando só esta ocorrência; a regra continua como está.
+          </span>
+        )}
+
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={onCancelar}
+            className="px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-200 rounded-md"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={salvar}
+            disabled={salvando || !nome.trim()}
+            className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md font-medium"
+          >
+            {salvando ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+
+      <datalist id="agenda-resp">
+        {responsaveis.map((r) => (
+          <option key={r} value={r} />
+        ))}
+      </datalist>
     </div>
   )
 }
