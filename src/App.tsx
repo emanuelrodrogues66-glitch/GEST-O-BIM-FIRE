@@ -18,6 +18,7 @@ import GanttGlobal from './components/GanttGlobal'
 import ReportsView from './components/ReportsView'
 import AvisoAtrasadas from './components/AvisoAtrasadas'
 import AgendaView from './components/AgendaView'
+import FeedView from './components/FeedView'
 import TasksBoard from './components/TasksBoard'
 import ActivitiesReport from './components/ActivitiesReport'
 import PendencyDialog from './components/PendencyDialog'
@@ -33,6 +34,7 @@ type ViewMode =
   | 'relatorio'
   | 'tarefas'
   | 'agenda'
+  | 'feed'
   | 'atividades'
 
 /**
@@ -405,6 +407,7 @@ export default function App() {
                 ['gantt', 'Gantt'],
                 ['tarefas', 'Tarefas'],
                 ['agenda', 'Agenda'],
+                ['feed', 'Feed'],
                 ['atividades', 'Atividades'],
                 ['relatorio', 'Relatório'],
               ] as [ViewMode, string][]
@@ -458,6 +461,8 @@ export default function App() {
           <GanttGlobal projects={projects} onProjectClick={openEdit} />
         ) : viewMode === 'tarefas' ? (
           <TasksBoard onProjectClick={openEditById} />
+        ) : viewMode === 'feed' ? (
+          <FeedView onProjectClick={openEditById} />
         ) : viewMode === 'agenda' ? (
           <AgendaView responsaveis={responsaveis} onProjectClick={openEditById} />
         ) : viewMode === 'atividades' ? (
