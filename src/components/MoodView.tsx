@@ -62,7 +62,14 @@ function emojiDaMedia(media: number | null): string {
   return HUMORES.find((h) => h.nota === arredondado)?.emoji || '—'
 }
 
-export default function MoodView({ nomeUsuario }: { nomeUsuario: string }) {
+/**
+ * Painel de humor da equipe.
+ *
+ * O escritório usa um login só, então não dá para saber quem está na frente
+ * da tela: cada pessoa marca o próprio humor no seu cartão, e qualquer um
+ * pode corrigir o do colega se ele pedir.
+ */
+export default function MoodView() {
   const { ehAdmin } = usePerfil()
   const [membros, setMembros] = useState<Membro[]>([])
   const [checkins, setCheckins] = useState<Checkin[]>([])
@@ -70,7 +77,6 @@ export default function MoodView({ nomeUsuario }: { nomeUsuario: string }) {
   const [dia, setDia] = useState(hojeStr())
   const [periodo, setPeriodo] = useState(30)
   const [salvando, setSalvando] = useState<string | null>(null)
-  const [comentario, setComentario] = useState('')
   const [novoMembro, setNovoMembro] = useState('')
 
   useEffect(() => {
@@ -95,26 +101,18 @@ export default function MoodView({ nomeUsuario }: { nomeUsuario: string }) {
     return mapa
   }, [checkins, dia])
 
-  /** Quem sou eu na lista da equipe (comparação frouxa por primeiro nome). */
-  const euNaEquipe = useMemo(() => {
-    const meu = nomeUsuario.trim().toLowerCase()
-    return (
-      membros.find((m) => m.nome.toLowerCase() === meu) ||
-      membros.find((m) => meu.startsWith(m.nome.toLowerCase())) ||
-      null
-    )
-  }, [membros, nomeUsuario])
-
   async function registrar(colaborador: string, humor: Humor) {
     const h = porHumor(humor)!
     setSalvando(colaborador)
+    const anterior = doDia.get(colaborador)
     const { error } = await supabase.from('mood_checkins').upsert(
       {
         colaborador,
         data: dia,
         humor,
         nota: h.nota,
-        comentario: comentario.trim() || null,
+        // Trocar o emoji não apaga o motivo que a pessoa já tinha escrito.
+        comentario: anterior?.comentario ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'colaborador,data' }
@@ -124,7 +122,22 @@ export default function MoodView({ nomeUsuario }: { nomeUsuario: string }) {
       alert(error.message)
       return
     }
-    setComentario('')
+    carregar()
+  }
+
+  /** Motivo é opcional e só existe depois que a pessoa escolheu o humor. */
+  async function salvarComentario(colaborador: string, texto: string) {
+    const atual = doDia.get(colaborador)
+    if (!atual) return
+    if ((atual.comentario || '') === texto.trim()) return
+    const { error } = await supabase
+      .from('mood_checkins')
+      .update({ comentario: texto.trim() || null, updated_at: new Date().toISOString() })
+      .eq('id', atual.id)
+    if (error) {
+      alert(error.message)
+      return
+    }
     carregar()
   }
 
@@ -227,53 +240,11 @@ export default function MoodView({ nomeUsuario }: { nomeUsuario: string }) {
           </span>
         </div>
 
-        {euNaEquipe ? (
-          <div className="border border-indigo-200 bg-indigo-50/40 rounded-lg p-3 mb-4">
-            <p className="text-xs text-slate-600 mb-2">
-              Registrando como <b>{euNaEquipe.nome}</b>
-              {doDia.get(euNaEquipe.nome) && (
-                <span className="text-slate-400">
-                  {' '}
-                  · já respondeu {porHumor(doDia.get(euNaEquipe.nome)!.humor)?.emoji} — clicar de novo troca
-                </span>
-              )}
-            </p>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {HUMORES.map((h) => {
-                const atual = doDia.get(euNaEquipe.nome)?.humor === h.valor
-                return (
-                  <button
-                    key={h.valor}
-                    onClick={() => registrar(euNaEquipe.nome, h.valor)}
-                    disabled={salvando === euNaEquipe.nome}
-                    className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl border-2 transition disabled:opacity-50 ${
-                      atual
-                        ? 'border-indigo-500 bg-white shadow-sm'
-                        : 'border-transparent bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <span className="text-2xl leading-none">{h.emoji}</span>
-                    <span className="text-[10px] font-medium text-slate-600">{h.rotulo}</span>
-                  </button>
-                )
-              })}
-            </div>
-            <input
-              placeholder="Quer contar o motivo? (opcional)"
-              value={comentario}
-              onChange={(e) => setComentario(e.target.value)}
-              className="w-full text-xs border border-slate-300 rounded-md px-2 py-1.5"
-            />
-          </div>
-        ) : (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
-            Seu nome ({nomeUsuario || 'sem nome'}) não está na lista da equipe, então você pode ver mas não
-            registrar. {ehAdmin ? 'Adicione abaixo.' : 'Peça ao administrador para incluir.'}
-          </p>
-        )}
+        <p className="text-xs text-slate-500 mb-3">
+          Cada um marca o seu. Clicar de novo troca a resposta.
+        </p>
 
-        {/* Quadro do dia */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {membros
             .filter((m) => m.ativo)
             .map((m) => {
@@ -282,20 +253,51 @@ export default function MoodView({ nomeUsuario }: { nomeUsuario: string }) {
               return (
                 <div
                   key={m.id}
-                  className={`border rounded-xl p-3 text-center ${
+                  className={`border rounded-xl p-3 ${
                     resposta ? 'border-slate-200 bg-white' : 'border-dashed border-slate-300 bg-slate-50'
                   }`}
                 >
-                  <div className="text-3xl leading-none mb-1">{h ? h.emoji : '⏳'}</div>
-                  <p className="text-xs font-semibold text-slate-800">{m.nome}</p>
-                  <p className="text-[10px] text-slate-500">
-                    {h ? h.rotulo : 'não respondeu'}
-                  </p>
-                  {resposta?.comentario && (
-                    <p className="text-[10px] text-slate-400 mt-1 italic">"{resposta.comentario}"</p>
-                  )}
-                  {ehAdmin && !resposta && (
-                    <span className="inline-block mt-1 text-[9px] text-amber-600">pendente</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl leading-none">{h ? h.emoji : '⏳'}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{m.nome}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {h ? h.rotulo : 'ainda não respondeu'}
+                      </p>
+                    </div>
+                    {salvando === m.nome && (
+                      <span className="ml-auto text-[10px] text-slate-400">salvando...</span>
+                    )}
+                  </div>
+
+                  <div className="flex gap-1">
+                    {HUMORES.map((op) => {
+                      const atual = resposta?.humor === op.valor
+                      return (
+                        <button
+                          key={op.valor}
+                          onClick={() => registrar(m.nome, op.valor)}
+                          disabled={salvando === m.nome}
+                          title={op.rotulo}
+                          className={`flex-1 py-1.5 rounded-lg border-2 text-lg leading-none transition disabled:opacity-50 ${
+                            atual
+                              ? 'border-indigo-500 bg-indigo-50'
+                              : 'border-transparent bg-slate-100 hover:bg-slate-200 grayscale hover:grayscale-0'
+                          }`}
+                        >
+                          {op.emoji}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {resposta && (
+                    <input
+                      placeholder="Motivo (opcional)"
+                      defaultValue={resposta.comentario || ''}
+                      onBlur={(e) => salvarComentario(m.nome, e.target.value)}
+                      className="w-full mt-2 text-[11px] border border-slate-200 rounded-md px-2 py-1"
+                    />
                   )}
                 </div>
               )

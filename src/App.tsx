@@ -465,7 +465,7 @@ export default function App() {
         ) : viewMode === 'tarefas' ? (
           <TasksBoard onProjectClick={openEditById} />
         ) : viewMode === 'humor' ? (
-          <MoodView nomeUsuario={nome} />
+          <MoodView />
         ) : viewMode === 'feed' ? (
           <FeedView onProjectClick={openEditById} />
         ) : viewMode === 'agenda' ? (
