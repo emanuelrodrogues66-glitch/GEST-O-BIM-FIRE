@@ -19,7 +19,6 @@ import {
   RANKING_COLORS,
   STATUS_CHART_COLORS,
   METAS_PONTOS,
-  metaPontosAtual,
   rankingPorResponsavel,
   statusDistribution,
 } from '../lib/stats'
@@ -325,7 +324,33 @@ export default function Dashboard({
   const pieData = statusRows.map((r) => ({ name: r.status, value: r.count }))
   const rankingChartData = ranking.slice(0, 10).map((r) => ({ name: r.responsavel, pontos: r.pontos }))
 
-  const pontosAtuais = metaPontosAtual(projects)
+  /**
+   * Meta de pontos: o que vale é o mês da APROVAÇÃO, não o mês em que o
+   * projeto começou. Um projeto iniciado em junho e aprovado em agosto
+   * conta para agosto.
+   *
+   * Sem data de aprovação preenchida, cai no prazo do projeto — melhor do
+   * que sumir da conta, mas o painel avisa quantos estão nessa situação.
+   */
+  const { pontosAtuais, semDataAprovacao } = useMemo(() => {
+    let pontos = 0
+    let semData = 0
+
+    for (const p of todosProjetos) {
+      if (normalizeStatus(p.status) !== 'Concluído') continue
+
+      const aprovacao = aprovacoes[p.id]
+      const dataRef = aprovacao || p.data_prazo
+      if (!dataRef) continue
+
+      if (mesSel && !dateInMonth(dataRef, mesSel)) continue
+
+      pontos += p.pts || 0
+      if (!aprovacao) semData += 1
+    }
+
+    return { pontosAtuais: pontos, semDataAprovacao: semData }
+  }, [todosProjetos, aprovacoes, mesSel])
   const metaChartData = METAS_PONTOS.map((m) => ({
     name: `${m.label} · ${m.sub}`,
     atual: pontosAtuais,
@@ -422,8 +447,9 @@ export default function Dashboard({
           <span className="text-xs text-slate-400">{mesSel ? monthLabel(mesSel) : 'Todos os meses'}</span>
         </div>
         <p className="text-xs text-slate-500 mb-3">
-          Soma dos pontos de todos os funcionários nos projetos aprovados (Concluído) neste mês:{' '}
-          <b className="text-slate-700">{pontosAtuais.toLocaleString('pt-BR')} pts</b>
+          Soma dos pontos nos projetos aprovados (Concluído) com aprovação{' '}
+          {mesSel ? `em ${monthLabel(mesSel).toLowerCase()}` : 'em qualquer mês'}, independente de quando
+          começaram: <b className="text-slate-700">{pontosAtuais.toLocaleString('pt-BR')} pts</b>
           {proximaMeta && (
             <>
               {' '}
@@ -432,6 +458,13 @@ export default function Dashboard({
             </>
           )}
         </p>
+        {semDataAprovacao > 0 && (
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mb-3">
+            {semDataAprovacao} projeto{semDataAprovacao !== 1 ? 's' : ''} concluído
+            {semDataAprovacao !== 1 ? 's' : ''} sem <b>data de aprovação</b> preenchida nos Dados do cliente —
+            {semDataAprovacao !== 1 ? ' eles estão' : ' ele está'} contando pela data do prazo.
+          </p>
+        )}
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={metaChartData} margin={{ left: -20 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
