@@ -72,7 +72,8 @@ export default function AgendaView({
   // Criação centralizada: um botão só, com os três tipos de tarefa.
   const [criando, setCriando] = useState(false)
 
-  const [escopo, setEscopo] = useState<Escopo>('gerais')
+  // Começa mostrando tudo: gerais e de projeto na mesma lista.
+  const [escopo, setEscopo] = useState<Escopo>('todas')
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
   const [mostrarConcluidas, setMostrarConcluidas] = useState(false)
   const [busca, setBusca] = useState('')

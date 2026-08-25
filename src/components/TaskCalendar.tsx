@@ -38,6 +38,9 @@ export default function TaskCalendar({
   onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
 }) {
   const [visao, setVisao] = useState<Visao>('mes')
+  // A grade de horas fica apertada dentro da página; abre em janela cheia,
+  // como o cartão do projeto.
+  const [diaAmpliado, setDiaAmpliado] = useState(false)
   const [ancora, setAncora] = useState<Date>(() => paraData(hojeStr()))
   // O filtro de responsável é único e fica no topo do app; aqui só se lê
   // o que já veio filtrado.
@@ -127,7 +130,10 @@ export default function TaskCalendar({
           ).map(([v, rotulo]) => (
             <button
               key={v}
-              onClick={() => setVisao(v)}
+              onClick={() => {
+                setVisao(v)
+                setDiaAmpliado(v === 'dia')
+              }}
               className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${
                 visao === v ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100'
               }`}
@@ -147,18 +153,11 @@ export default function TaskCalendar({
         </div>
       </div>
 
-      {visao === 'mes' ? (
+      {visao === 'mes' && (
         <VisaoMes ancora={ancora} porDia={porDia} onTarefaClick={onTarefaClick} onConcluir={onConcluir} />
-      ) : visao === 'dia' ? (
-        <VisaoDia
-          ancora={ancora}
-          porDia={porDia}
-          responsaveis={responsavelFiltro ? [responsavelFiltro] : responsaveis}
-          onTarefaClick={onTarefaClick}
-          onNovoHorario={onNovoHorario}
-          onConcluir={onConcluir}
-        />
-      ) : (
+      )}
+
+      {visao === 'semana' && (
         <VisaoSemana
           ancora={ancora}
           porDia={porDia}
@@ -166,6 +165,77 @@ export default function TaskCalendar({
           onTarefaClick={onTarefaClick}
           onConcluir={onConcluir}
         />
+      )}
+
+      {visao === 'dia' && !diaAmpliado && (
+        <button
+          onClick={() => setDiaAmpliado(true)}
+          className="w-full border border-dashed border-slate-300 rounded-xl py-6 text-sm text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition"
+        >
+          Abrir a agenda de {titulo} em tela cheia
+        </button>
+      )}
+
+      {visao === 'dia' && diaAmpliado && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-6xl h-[92vh] bg-white rounded-2xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
+              <h3 className="text-sm font-semibold text-slate-800 capitalize">{titulo}</h3>
+
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1">
+                <button
+                  onClick={() => navegar(-1)}
+                  className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-slate-100 rounded-md"
+                  title="Dia anterior"
+                >
+                  ‹
+                </button>
+                <button
+                  onClick={() => setAncora(paraData(hojeStr()))}
+                  className="text-xs font-medium px-2 text-slate-600 hover:text-slate-900"
+                >
+                  Hoje
+                </button>
+                <button
+                  onClick={() => navegar(1)}
+                  className="w-7 h-7 flex items-center justify-center text-slate-500 hover:bg-slate-100 rounded-md"
+                  title="Próximo dia"
+                >
+                  ›
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 ml-auto">
+                {responsaveis.slice(0, 8).map((r) => (
+                  <span key={r} className="flex items-center gap-1 text-[10px] text-slate-500">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: corDoResponsavel(r) }} />
+                    {r}
+                  </span>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setDiaAmpliado(false)}
+                className="text-slate-400 hover:text-slate-700 text-xl leading-none px-1"
+                title="Fechar"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              <VisaoDia
+                ancora={ancora}
+                porDia={porDia}
+                responsaveis={responsavelFiltro ? [responsavelFiltro] : responsaveis}
+                onTarefaClick={onTarefaClick}
+                onNovoHorario={onNovoHorario}
+                onConcluir={onConcluir}
+                alturaCheia
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -436,6 +506,7 @@ function VisaoDia({
   onTarefaClick,
   onNovoHorario,
   onConcluir,
+  alturaCheia,
 }: {
   ancora: Date
   porDia: Map<string, TarefaDaAgenda[]>
@@ -443,6 +514,8 @@ function VisaoDia({
   onTarefaClick?: (t: TarefaDaAgenda) => void
   onNovoHorario?: (dados: { data: string; hora: string; responsavel: string }) => void
   onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
+  /** Dentro da janela ampliada a grade usa todo o espaço disponível. */
+  alturaCheia?: boolean
 }) {
   const iso = paraIso(ancora)
   const doDia = porDia.get(iso) || []
@@ -489,7 +562,7 @@ function VisaoDia({
       )}
 
       {/* Grade de horas */}
-      <div className="relative overflow-y-auto" style={{ maxHeight: '64vh' }}>
+      <div className="relative overflow-y-auto" style={{ maxHeight: alturaCheia ? 'none' : '64vh' }}>
         <div className="grid" style={{ gridTemplateColumns: `56px repeat(${colunas.length}, 1fr)` }}>
           {/* Régua de horas */}
           <div>
