@@ -12,10 +12,13 @@ const CABECALHO_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
 type Visao = 'mes' | 'semana' | 'dia'
 
-/** Faixa de horas mostrada na visão Dia. */
-const HORA_INICIAL = 6
-const HORA_FINAL = 22
-const ALTURA_HORA = 48 // px
+/**
+ * Faixa de horas da visão Dia: só o expediente.
+ * Fora dele quase não há tarefa, e cortar sobra espaço para o texto caber.
+ */
+const HORA_INICIAL = 8
+const HORA_FINAL = 18
+const ALTURA_HORA = 64 // px
 
 /** "09:30:00" -> 9.5 */
 function emHoras(h: string | null): number | null {
@@ -177,7 +180,7 @@ export default function TaskCalendar({
       )}
 
       {visao === 'dia' && diaAmpliado && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40 p-4">
           <div className="w-full max-w-6xl h-[92vh] bg-white rounded-2xl shadow-lg border border-slate-200 flex flex-col overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
               <h3 className="text-sm font-semibold text-slate-800 capitalize">{titulo}</h3>
@@ -599,7 +602,9 @@ function VisaoDia({
                   const inicio = emHoras(t.hora_inicio) ?? HORA_INICIAL
                   const fim = emHoras(t.hora_fim) ?? inicio + 1
                   const topo = (inicio - HORA_INICIAL) * ALTURA_HORA
-                  const altura = Math.max(22, (fim - inicio) * ALTURA_HORA - 2)
+                  // Reunião de 15 min ficaria com 16px e cortaria o nome;
+                  // o piso garante uma linha de hora e uma de texto.
+                  const altura = Math.max(40, (fim - inicio) * ALTURA_HORA - 2)
                   const atrasada = isTaskLate(t)
                   const concluida = t.status === 'Concluído'
                   const cor = t.task_categories?.cor || corDoResponsavel(t.responsavel)
@@ -629,7 +634,17 @@ function VisaoDia({
                           {faixaHoraria(t.hora_inicio, t.hora_fim)}
                         </span>
                       </div>
-                      <span className={`block truncate ${concluida ? 'line-through' : ''}`}>{t.nome}</span>
+                      <span
+                        className={`block leading-tight ${concluida ? 'line-through' : ''}`}
+                        style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {t.nome}
+                      </span>
                     </div>
                   )
                 })}

@@ -401,21 +401,14 @@ export default function AgendaView({
 
       {aba === 'calendario' && (
         <>
-          {novoHorario && (
-            <NovaTarefaGeral
-              categorias={categorias}
-              responsaveis={responsaveis}
-              inicial={novoHorario}
-              onCancelar={() => setNovoHorario(null)}
-              onCriada={() => {
-                setNovoHorario(null)
-                recarregar()
-              }}
-            />
-          )}
           <TaskCalendar
             tarefas={filtradas}
-            onNovoHorario={(dados) => setNovoHorario(dados)}
+            onNovoHorario={(dados) => {
+              // Abre o formulário completo por cima da agenda do dia, com
+              // dia, hora e responsável da coluna já preenchidos.
+              setNovoHorario(dados)
+              setCriando(true)
+            }}
             onTarefaClick={(t) => setTarefaNoCalendario(t)}
             onConcluir={(t, concluir) => mudarStatus(t, concluir ? 'Concluído' : 'Pendente')}
           />
@@ -516,148 +509,25 @@ export default function AgendaView({
           categorias={categorias}
           responsaveis={responsaveis}
           projetos={projetos || []}
-          responsavelPadrao={responsavelFiltro}
-          onFechar={() => setCriando(false)}
+          responsavelPadrao={
+            novoHorario && novoHorario.responsavel !== 'Sem responsável'
+              ? novoHorario.responsavel
+              : responsavelFiltro
+          }
+          horarioInicial={novoHorario}
+          onFechar={() => {
+            setCriando(false)
+            setNovoHorario(null)
+          }}
           onCriada={async () => {
             setCriando(false)
+            setNovoHorario(null)
             await gerarOcorrencias(60)
             recarregar()
           }}
         />
       )}
 
-      <datalist id="agenda-resp">
-        {responsaveis.map((r) => (
-          <option key={r} value={r} />
-        ))}
-      </datalist>
-    </div>
-  )
-}
-
-/** Formulário compacto para lançar uma tarefa sem vínculo com projeto. */
-function NovaTarefaGeral({
-  categorias,
-  responsaveis,
-  onCriada,
-  inicial,
-  onCancelar,
-}: {
-  categorias: TaskCategory[]
-  responsaveis: string[]
-  onCriada: () => void
-  /** Vindo do clique num horário do calendário. */
-  inicial?: { data: string; hora: string; responsavel: string }
-  onCancelar?: () => void
-}) {
-  const [nome, setNome] = useState('')
-  const [responsavel, setResponsavel] = useState(
-    inicial?.responsavel === 'Sem responsável' ? '' : inicial?.responsavel || ''
-  )
-  const [categoriaId, setCategoriaId] = useState('')
-  const [prazo, setPrazo] = useState(inicial?.data || hojeStr())
-  const [horaInicio, setHoraInicio] = useState(inicial?.hora || '')
-  const [horaFim, setHoraFim] = useState(
-    inicial?.hora ? `${String(Number(inicial.hora.slice(0, 2)) + 1).padStart(2, '0')}:00` : ''
-  )
-  const [salvando, setSalvando] = useState(false)
-
-  async function criar() {
-    if (!nome.trim() || !prazo) return
-    setSalvando(true)
-    const { error } = await supabase.from('project_tasks').insert({
-      project_id: null,
-      nome: nome.trim(),
-      responsavel: responsavel.trim() || null,
-      categoria_id: categoriaId || null,
-      data_inicio: prazo,
-      data_prazo: prazo,
-      hora_inicio: horaInicio || null,
-      hora_fim: horaFim || null,
-      status: 'Pendente',
-      ordem: 0,
-    })
-    setSalvando(false)
-    if (error) {
-      alert(error.message)
-      return
-    }
-    setNome('')
-    onCriada()
-  }
-
-  return (
-    <div
-      className={`border rounded-xl p-3 flex flex-wrap items-center gap-2 ${
-        inicial
-          ? 'border-indigo-300 bg-indigo-50'
-          : 'border-dashed border-slate-300 bg-slate-50'
-      }`}
-    >
-      <input
-        className="flex-1 min-w-[180px] border border-slate-300 rounded-md px-2 py-1.5 text-xs"
-        placeholder="Nova tarefa geral (ex.: enviar relatório para o Emanuel)"
-        value={nome}
-        onChange={(e) => setNome(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && criar()}
-      />
-      <input
-        className="w-32 border border-slate-300 rounded-md px-2 py-1.5 text-xs"
-        placeholder="Responsável"
-        list="agenda-resp"
-        value={responsavel}
-        onChange={(e) => setResponsavel(e.target.value)}
-      />
-      <select
-        value={categoriaId}
-        onChange={(e) => setCategoriaId(e.target.value)}
-        className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
-      >
-        <option value="">Sem categoria</option>
-        {categorias.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.nome}
-          </option>
-        ))}
-      </select>
-      <input
-        type="date"
-        value={prazo}
-        onChange={(e) => setPrazo(e.target.value)}
-        className="text-xs border border-slate-300 rounded-md px-2 py-1.5"
-      />
-      <label className="flex items-center gap-1 text-[10px] text-slate-500">
-        das
-        <input
-          type="time"
-          value={horaInicio}
-          onChange={(e) => setHoraInicio(e.target.value)}
-          className="text-xs border border-slate-300 rounded-md px-1.5 py-1.5"
-          title="Deixe vazio para tarefa do dia inteiro"
-        />
-        às
-        <input
-          type="time"
-          value={horaFim}
-          onChange={(e) => setHoraFim(e.target.value)}
-          className="text-xs border border-slate-300 rounded-md px-1.5 py-1.5"
-        />
-      </label>
-      <button
-        onClick={criar}
-        disabled={salvando || !nome.trim()}
-        className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md font-medium"
-      >
-        {salvando ? 'Salvando...' : '+ Adicionar'}
-      </button>
-      {onCancelar && (
-        <button
-          onClick={onCancelar}
-          className="px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-200 rounded-md"
-        >
-          Cancelar
-        </button>
-      )}
       <datalist id="agenda-resp">
         {responsaveis.map((r) => (
           <option key={r} value={r} />
@@ -1439,6 +1309,7 @@ function NovaTarefa({
   responsaveis,
   projetos,
   responsavelPadrao,
+  horarioInicial,
   onCriada,
   onFechar,
 }: {
@@ -1446,6 +1317,8 @@ function NovaTarefa({
   responsaveis: string[]
   projetos: { id: string; nome: string; numero: number | null }[]
   responsavelPadrao?: string
+  /** Veio de um clique num horário do calendário. */
+  horarioInicial?: { data: string; hora: string } | null
   onCriada: () => void
   onFechar: () => void
 }) {
@@ -1456,9 +1329,13 @@ function NovaTarefa({
   const [responsavel, setResponsavel] = useState(responsavelPadrao || '')
   const [categoriaId, setCategoriaId] = useState('')
   const [projectId, setProjectId] = useState('')
-  const [prazo, setPrazo] = useState(hojeStr())
-  const [horaInicio, setHoraInicio] = useState('')
-  const [horaFim, setHoraFim] = useState('')
+  const [prazo, setPrazo] = useState(horarioInicial?.data || hojeStr())
+  const [horaInicio, setHoraInicio] = useState(horarioInicial?.hora || '')
+  const [horaFim, setHoraFim] = useState(
+    horarioInicial?.hora
+      ? `${String(Number(horarioInicial.hora.slice(0, 2)) + 1).padStart(2, '0')}:00`
+      : ''
+  )
 
   const [frequencia, setFrequencia] = useState<TaskRecurrence['frequencia']>('semanal')
   const [dias, setDias] = useState<number[]>([1])
@@ -1525,8 +1402,8 @@ function NovaTarefa({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="w-full max-w-xl bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+      <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800">Nova tarefa</h3>
           <button onClick={onFechar} className="text-slate-400 hover:text-slate-700 text-lg leading-none px-1">
