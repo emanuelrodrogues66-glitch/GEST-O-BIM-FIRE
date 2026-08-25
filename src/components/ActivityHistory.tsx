@@ -12,6 +12,17 @@ type AnexoDaAtividade = {
   activity_id: string
   nome: string
   drive_link: string | null
+  drive_file_id: string | null
+  mime_type: string | null
+}
+
+/**
+ * Miniatura servida pelo próprio Drive.
+ * Funciona porque o usuário já está logado no Google no navegador; se o
+ * Google recusar, a imagem cai para um link, sem quebrar o histórico.
+ */
+function urlMiniatura(driveFileId: string, largura = 320): string {
+  return `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w${largura}`
 }
 
 function todayStr() {
@@ -53,6 +64,9 @@ export default function ActivityHistory({
   const [anexos, setAnexos] = useState<AnexoDaAtividade[]>([])
   const [enviando, setEnviando] = useState('')
 
+  // Imagem aberta em tamanho grande.
+  const [ampliada, setAmpliada] = useState<AnexoDaAtividade | null>(null)
+
   // Edição de um registro já gravado do histórico.
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [rascunho, setRascunho] = useState({ responsavel: '', data: '', descricao: '' })
@@ -91,7 +105,7 @@ export default function ActivityHistory({
 
     const { data: arquivos } = await supabase
       .from('project_files')
-      .select('id, activity_id, nome, drive_link')
+      .select('id, activity_id, nome, drive_link, drive_file_id, mime_type')
       .eq('project_id', projectId)
       .not('activity_id', 'is', null)
     setAnexos((arquivos as AnexoDaAtividade[]) || [])
@@ -163,7 +177,7 @@ export default function ActivityHistory({
             mime_type: enviado.mimeType || imagens[i].file.type,
             tamanho: Number(enviado.size) || imagens[i].file.size,
           })
-          .select('id, activity_id, nome, drive_link')
+          .select('id, activity_id, nome, drive_link, drive_file_id, mime_type')
           .single()
         if (data) setAnexos((prev) => [...prev, data as AnexoDaAtividade])
       }
@@ -333,6 +347,37 @@ export default function ActivityHistory({
         </div>
       )}
 
+      {ampliada && ampliada.drive_file_id && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70] p-6"
+          onClick={() => setAmpliada(null)}
+        >
+          <div className="max-w-5xl max-h-full flex flex-col items-center gap-2">
+            <img
+              src={urlMiniatura(ampliada.drive_file_id, 1600)}
+              alt={ampliada.nome}
+              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl bg-white"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className="flex items-center gap-3 text-xs text-white">
+              <span className="opacity-80">{ampliada.nome}</span>
+              <a
+                href={ampliada.drive_link || '#'}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="underline hover:text-indigo-200"
+              >
+                Abrir no Drive
+              </a>
+              <button onClick={() => setAmpliada(null)} className="underline hover:text-indigo-200">
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-xs text-slate-400">Carregando histórico...</p>
       ) : activities.length === 0 ? (
@@ -400,20 +445,11 @@ export default function ActivityHistory({
                   )}
 
                   {anexos.filter((x) => x.activity_id === a.id).length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-1">
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {anexos
                         .filter((x) => x.activity_id === a.id)
                         .map((x) => (
-                          <a
-                            key={x.id}
-                            href={x.drive_link || '#'}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-[10px] text-indigo-600 hover:underline border border-indigo-200 bg-indigo-50 rounded px-1.5 py-0.5"
-                            title="Abrir no Google Drive"
-                          >
-                            🖼 {x.nome}
-                          </a>
+                          <Miniatura key={x.id} anexo={x} onAmpliar={() => setAmpliada(x)} />
                         ))}
                     </div>
                   )}
@@ -445,5 +481,56 @@ export default function ActivityHistory({
         </div>
       )}
     </div>
+  )
+}
+
+
+/**
+ * Miniatura de um anexo do Drive.
+ *
+ * O Google às vezes recusa servir a miniatura (arquivo privado, sessão sem
+ * cookie do Drive). Quando isso acontece, cai para um link em vez de deixar
+ * um quadrado quebrado na tela.
+ */
+function Miniatura({
+  anexo,
+  onAmpliar,
+}: {
+  anexo: AnexoDaAtividade
+  onAmpliar: () => void
+}) {
+  const [falhou, setFalhou] = useState(false)
+  const ehImagem = (anexo.mime_type || '').startsWith('image/')
+
+  if (!anexo.drive_file_id || !ehImagem || falhou) {
+    return (
+      <a
+        href={anexo.drive_link || '#'}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1 text-[10px] text-indigo-600 hover:underline border border-indigo-200 bg-indigo-50 rounded px-1.5 py-0.5"
+        title="Abrir no Google Drive"
+      >
+        🖼 {anexo.nome}
+      </a>
+    )
+  }
+
+  return (
+    <button
+      onClick={onAmpliar}
+      className="group relative rounded-md overflow-hidden border border-slate-200 hover:border-indigo-400 transition"
+      title={`${anexo.nome} — clique para ampliar`}
+    >
+      <img
+        src={urlMiniatura(anexo.drive_file_id)}
+        alt={anexo.nome}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFalhou(true)}
+        className="h-24 w-32 object-cover bg-slate-50"
+      />
+      <span className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition" />
+    </button>
   )
 }
