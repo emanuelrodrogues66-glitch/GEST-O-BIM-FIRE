@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { ProjectActivity } from '../types'
+import { driveConfigError, encontrarOuCriarPasta, enviarArquivo, obterToken } from '../lib/googleDrive'
+
+/** Print anexado ao registro, ainda só na memória do navegador. */
+type ImagemColada = { file: File; previa: string }
+
+/** Imagem já salva no Drive e ligada a uma atividade. */
+type AnexoDaAtividade = {
+  id: string
+  activity_id: string
+  nome: string
+  drive_link: string | null
+}
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -35,6 +47,11 @@ export default function ActivityHistory({
     }
     return lista
   }, [responsaveis, responsavelDoProjeto])
+
+  // Prints colados com Ctrl+V, enviados ao Drive junto com o registro.
+  const [imagens, setImagens] = useState<ImagemColada[]>([])
+  const [anexos, setAnexos] = useState<AnexoDaAtividade[]>([])
+  const [enviando, setEnviando] = useState('')
 
   // Edição de um registro já gravado do histórico.
   const [editandoId, setEditandoId] = useState<string | null>(null)
@@ -71,7 +88,90 @@ export default function ActivityHistory({
       .order('data', { ascending: false })
       .order('created_at', { ascending: false })
     setActivities((data as ProjectActivity[]) || [])
+
+    const { data: arquivos } = await supabase
+      .from('project_files')
+      .select('id, activity_id, nome, drive_link')
+      .eq('project_id', projectId)
+      .not('activity_id', 'is', null)
+    setAnexos((arquivos as AnexoDaAtividade[]) || [])
+
     setLoading(false)
+  }
+
+  /**
+   * Ctrl+V com um print na área de transferência.
+   * O navegador entrega a imagem como arquivo; guardamos até o registro ser
+   * salvo, porque o anexo precisa do id da atividade para se amarrar a ela.
+   */
+  function colar(e: React.ClipboardEvent) {
+    const itens = Array.from(e.clipboardData?.items || [])
+    const novas: ImagemColada[] = []
+    for (const item of itens) {
+      if (!item.type.startsWith('image/')) continue
+      const arquivo = item.getAsFile()
+      if (!arquivo) continue
+      const ext = (item.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+      const carimbo = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      novas.push({
+        file: new File([arquivo], `print-${carimbo}.${ext}`, { type: item.type }),
+        previa: URL.createObjectURL(arquivo),
+      })
+    }
+    if (novas.length) {
+      e.preventDefault()
+      setImagens((prev) => [...prev, ...novas])
+    }
+  }
+
+  /** Sobe os prints para o Drive e liga cada um à atividade recém-criada. */
+  async function enviarImagens(atividade: ProjectActivity) {
+    if (imagens.length === 0) return
+
+    const erroConfig = driveConfigError()
+    if (erroConfig) {
+      alert(`Atividade salva, mas a imagem não subiu: ${erroConfig}`)
+      return
+    }
+
+    try {
+      const token = await obterToken(true)
+      const { data: cliente } = await supabase
+        .from('project_clients')
+        .select('nome_pasta')
+        .eq('project_id', projectId)
+        .maybeSingle()
+
+      const pastaProjeto = await encontrarOuCriarPasta(
+        token,
+        (cliente as any)?.nome_pasta || 'Projeto sem pasta'
+      )
+      const destino = await encontrarOuCriarPasta(token, 'Atividades', pastaProjeto)
+
+      for (let i = 0; i < imagens.length; i++) {
+        setEnviando(`Enviando imagem ${i + 1} de ${imagens.length}...`)
+        const enviado = await enviarArquivo(token, destino, imagens[i].file)
+        const { data } = await supabase
+          .from('project_files')
+          .insert({
+            project_id: projectId,
+            activity_id: atividade.id,
+            categoria: 'outros',
+            nome: enviado.name || imagens[i].file.name,
+            drive_file_id: enviado.id,
+            drive_link: enviado.webViewLink || `https://drive.google.com/file/d/${enviado.id}/view`,
+            mime_type: enviado.mimeType || imagens[i].file.type,
+            tamanho: Number(enviado.size) || imagens[i].file.size,
+          })
+          .select('id, activity_id, nome, drive_link')
+          .single()
+        if (data) setAnexos((prev) => [...prev, data as AnexoDaAtividade])
+      }
+    } catch (err: any) {
+      alert(`Atividade salva, mas a imagem não subiu: ${err.message}`)
+    } finally {
+      setEnviando('')
+    }
   }
 
   async function handleAssumir() {
@@ -86,8 +186,13 @@ export default function ActivityHistory({
       }
       const { data, error } = await supabase.from('project_activities').insert(payload).select().single()
       if (error) throw error
+
+      await enviarImagens(data as ProjectActivity)
+
       setActivities((prev) => [data as ProjectActivity, ...prev])
       setForm((f) => ({ ...f, descricao: '' }))
+      imagens.forEach((i) => URL.revokeObjectURL(i.previa))
+      setImagens([])
       setShowForm(false)
     } catch (err: any) {
       alert(err.message || 'Erro ao registrar atividade')
@@ -168,10 +273,43 @@ export default function ActivityHistory({
           <textarea
             className="w-full border border-slate-300 rounded-md px-2 py-1 text-xs"
             rows={2}
-            placeholder="O que foi feito no projeto neste dia?"
+            placeholder="O que foi feito no projeto neste dia? (Ctrl+V cola um print aqui)"
             value={form.descricao}
             onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
+            onPaste={colar}
           />
+
+          {/* Prints colados, ainda no navegador: sobem ao salvar o registro */}
+          {imagens.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {imagens.map((img, i) => (
+                <div key={img.previa} className="relative">
+                  <img
+                    src={img.previa}
+                    alt={img.file.name}
+                    className="h-20 w-28 object-cover rounded-md border border-slate-300"
+                  />
+                  <button
+                    onClick={() => {
+                      URL.revokeObjectURL(img.previa)
+                      setImagens((prev) => prev.filter((_, k) => k !== i))
+                    }}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white border border-slate-300 text-slate-500 hover:text-red-600 text-xs leading-none shadow-sm"
+                    title="Tirar esta imagem"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="text-[10px] text-slate-400">
+            Cole um print com <b>Ctrl+V</b> na caixa acima. Ele vai para a pasta do projeto no
+            Drive, em "Atividades", quando você registrar.
+          </p>
+
+          {enviando && <p className="text-[10px] text-indigo-600">{enviando}</p>}
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setShowForm(false)}
@@ -184,7 +322,7 @@ export default function ActivityHistory({
               disabled={saving || !form.responsavel.trim()}
               className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md font-medium"
             >
-              {saving ? 'Salvando...' : 'Registrar'}
+              {saving ? (imagens.length ? 'Enviando...' : 'Salvando...') : 'Registrar'}
             </button>
           </div>
           <datalist id="activity-resp-suggestions">
@@ -259,6 +397,25 @@ export default function ActivityHistory({
                     <p className="text-slate-500 mt-0.5 whitespace-pre-wrap">{a.descricao}</p>
                   ) : (
                     <p className="text-slate-300 mt-0.5 italic">Sem descrição</p>
+                  )}
+
+                  {anexos.filter((x) => x.activity_id === a.id).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {anexos
+                        .filter((x) => x.activity_id === a.id)
+                        .map((x) => (
+                          <a
+                            key={x.id}
+                            href={x.drive_link || '#'}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[10px] text-indigo-600 hover:underline border border-indigo-200 bg-indigo-50 rounded px-1.5 py-0.5"
+                            title="Abrir no Google Drive"
+                          >
+                            🖼 {x.nome}
+                          </a>
+                        ))}
+                    </div>
                   )}
                 </div>
                 <button
