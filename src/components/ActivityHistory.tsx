@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { ProjectActivity } from '../types'
 
@@ -14,15 +14,27 @@ function formatDate(d: string) {
 export default function ActivityHistory({
   projectId,
   responsaveis,
+  responsavelDoProjeto,
 }: {
   projectId: string
   responsaveis: string[]
+  /** Projetista dos Dados gerais: entra pré-selecionado ao assumir. */
+  responsavelDoProjeto?: string | null
 }) {
   const [activities, setActivities] = useState<ProjectActivity[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ responsavel: '', data: todayStr(), descricao: '' })
+
+  /** Responsável do projeto primeiro; depois os demais nomes conhecidos. */
+  const opcoesResponsavel = useMemo(() => {
+    const lista = responsavelDoProjeto ? [responsavelDoProjeto] : []
+    for (const r of responsaveis) {
+      if (!lista.some((x) => x.toLowerCase() === r.toLowerCase())) lista.push(r)
+    }
+    return lista
+  }, [responsaveis, responsavelDoProjeto])
 
   // Edição de um registro já gravado do histórico.
   const [editandoId, setEditandoId] = useState<string | null>(null)
@@ -32,9 +44,18 @@ export default function ActivityHistory({
     load()
     prefillResponsavel()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [projectId, responsavelDoProjeto])
 
+  /**
+   * O login é compartilhado, então o usuário da sessão não diz quem está
+   * trabalhando. O responsável cadastrado no projeto é o palpite certo,
+   * e a lista ao lado permite trocar quando outra pessoa assumir.
+   */
   async function prefillResponsavel() {
+    if (responsavelDoProjeto) {
+      setForm((f) => ({ ...f, responsavel: responsavelDoProjeto }))
+      return
+    }
     const { data } = await supabase.auth.getSession()
     const meta = data.session?.user.user_metadata as any
     const nome = meta?.nome || data.session?.user.email?.split('@')[0] || ''
@@ -108,13 +129,35 @@ export default function ActivityHistory({
       {showForm && (
         <div className="border border-indigo-200 bg-indigo-50/40 rounded-lg p-3 mb-3 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <input
-              className="flex-1 min-w-[140px] border border-slate-300 rounded-md px-2 py-1 text-xs"
-              placeholder="Responsável"
-              list="activity-resp-suggestions"
-              value={form.responsavel}
-              onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))}
-            />
+            <select
+              className="flex-1 min-w-[140px] border border-slate-300 rounded-md px-2 py-1 text-xs bg-white"
+              value={opcoesResponsavel.includes(form.responsavel) ? form.responsavel : '__outro'}
+              onChange={(e) => {
+                const v = e.target.value
+                setForm((f) => ({ ...f, responsavel: v === '__outro' ? '' : v }))
+              }}
+            >
+              <option value="" disabled>
+                Quem assumiu?
+              </option>
+              {opcoesResponsavel.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                  {r === responsavelDoProjeto ? ' (responsável do projeto)' : ''}
+                </option>
+              ))}
+              <option value="__outro">Outro...</option>
+            </select>
+
+            {!opcoesResponsavel.includes(form.responsavel) && (
+              <input
+                className="flex-1 min-w-[120px] border border-slate-300 rounded-md px-2 py-1 text-xs"
+                placeholder="Nome de quem assumiu"
+                value={form.responsavel}
+                onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))}
+                autoFocus
+              />
+            )}
             <input
               type="date"
               className="border border-slate-300 rounded-md px-2 py-1 text-xs"

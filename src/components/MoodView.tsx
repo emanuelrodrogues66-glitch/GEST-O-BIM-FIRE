@@ -17,7 +17,7 @@ import { usePerfil } from '../lib/perfil'
 /** Escala de humor. A nota existe para permitir média; o emoji é a interface. */
 export const HUMORES = [
   { valor: 'bravo', rotulo: 'Bravo', emoji: '😠', nota: 1, cor: '#dc2626' },
-  { valor: 'irritado', rotulo: 'Irritado', emoji: '😤', nota: 2, cor: '#f97316' },
+  { valor: 'cansado', rotulo: 'Cansado', emoji: '😫', nota: 2, cor: '#f97316' },
   { valor: 'triste', rotulo: 'Triste', emoji: '😢', nota: 3, cor: '#6366f1' },
   { valor: 'normal', rotulo: 'Normal', emoji: '😐', nota: 4, cor: '#64748b' },
   { valor: 'feliz', rotulo: 'Feliz', emoji: '😄', nota: 5, cor: '#16a34a' },

@@ -73,7 +73,9 @@ export default function App() {
   const [dragOverCategoria, setDragOverCategoria] = useState<string | null>(null)
   // No Kanban, permite ver projetos de todos os meses (trabalho em andamento
   // nao se encerra na virada do mes).
-  const [verTodosMeses, setVerTodosMeses] = useState(false)
+  // Trabalho em andamento atravessa a virada do mês, então a visão padrão
+  // é a de todos os meses; o filtro mensal continua a um clique.
+  const [verTodosMeses, setVerTodosMeses] = useState(true)
   // Projeto que está indo para Pendente e precisa de justificativa.
   const [pedirPendencia, setPedirPendencia] = useState<{ projeto: Project; status: string } | null>(null)
 

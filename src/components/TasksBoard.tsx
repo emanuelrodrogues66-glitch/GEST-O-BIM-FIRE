@@ -33,7 +33,7 @@ export default function TasksBoard({
   const [mostrarConcluidas, setMostrarConcluidas] = useState(false)
   // Tarefas gerais (café, cobrança, rotina) poluem a leitura de produção
   // por projeto, então dá para tirá-las do gráfico e da lista de uma vez.
-  const [ocultarGerais, setOcultarGerais] = useState(false)
+  const [ocultarGerais, setOcultarGerais] = useState(true)
 
   useEffect(() => {
     load()

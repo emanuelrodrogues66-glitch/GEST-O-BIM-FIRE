@@ -783,7 +783,11 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
 
               {!isNew && project && (
                 <div className="border-t border-slate-100 pt-4">
-                  <ActivityHistory projectId={project.id} responsaveis={responsaveis} />
+                  <ActivityHistory
+                    projectId={project.id}
+                    responsaveis={responsaveis}
+                    responsavelDoProjeto={form.responsavel || project.responsavel}
+                  />
                 </div>
               )}
             </>
