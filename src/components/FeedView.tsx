@@ -65,12 +65,19 @@ function rotuloDoDia(d: string): string {
  * Feed geral: tudo que aconteceu no escritório, de todos os projetos e das
  * tarefas gerais, numa linha do tempo só.
  */
-export default function FeedView({ onProjectClick }: { onProjectClick?: (projectId: string) => void }) {
+export default function FeedView({
+  onProjectClick,
+  responsavelFiltro: filtroDoTopo,
+}: {
+  onProjectClick?: (projectId: string) => void
+  /** Filtro único de responsável, vindo do topo do app. */
+  responsavelFiltro?: string
+}) {
   const [eventos, setEventos] = useState<Evento[]>([])
   const [carregando, setCarregando] = useState(true)
   const [periodo, setPeriodo] = useState(30)
   const [filtros, setFiltros] = useState<Set<Tipo>>(new Set())
-  const [responsavelFiltro, setResponsavelFiltro] = useState('')
+  const responsavelFiltro = filtroDoTopo || ''
   const [busca, setBusca] = useState('')
 
   useEffect(() => {
@@ -295,12 +302,6 @@ export default function FeedView({ onProjectClick }: { onProjectClick?: (project
     return (data as { project_id: string; data: string; letra: string }[]) || []
   }
 
-  const responsaveis = useMemo(() => {
-    const nomes = new Set<string>()
-    eventos.forEach((e) => e.autor && nomes.add(e.autor.trim()))
-    return Array.from(nomes).sort((a, b) => a.localeCompare(b))
-  }, [eventos])
-
   const visiveis = useMemo(
     () =>
       eventos.filter((e) => {
@@ -349,19 +350,6 @@ export default function FeedView({ onProjectClick }: { onProjectClick?: (project
             </button>
           ))}
         </div>
-
-        <select
-          value={responsavelFiltro}
-          onChange={(e) => setResponsavelFiltro(e.target.value)}
-          className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white"
-        >
-          <option value="">Todos</option>
-          {responsaveis.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
 
         <input
           placeholder="Buscar no feed..."

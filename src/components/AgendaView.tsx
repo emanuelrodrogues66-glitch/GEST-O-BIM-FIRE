@@ -26,8 +26,9 @@ import {
 import GanttChart from './GanttChart'
 import type { GanttItem } from './GanttChart'
 import TaskCalendar from './TaskCalendar'
+import TasksBoard from './TasksBoard'
 
-type Aba = 'lista' | 'calendario' | 'gantt' | 'recorrentes'
+type Aba = 'lista' | 'calendario' | 'gantt' | 'pessoa' | 'recorrentes'
 type Escopo = 'todas' | 'gerais' | 'projeto'
 
 function formatarData(d: string | null) {
@@ -38,9 +39,14 @@ function formatarData(d: string | null) {
 
 export default function AgendaView({
   responsaveis,
+  responsavelFiltro,
+  projetos,
   onProjectClick,
 }: {
   responsaveis: string[]
+  /** Vem do filtro único do topo do app; vale para todas as abas daqui. */
+  responsavelFiltro?: string
+  projetos?: { id: string; nome: string; numero: number | null }[]
   onProjectClick?: (projectId: string) => void
 }) {
   const { ehAdmin } = usePerfil()
@@ -62,6 +68,9 @@ export default function AgendaView({
 
   // Tarefa aberta em janela, vinda de um clique no calendário.
   const [tarefaNoCalendario, setTarefaNoCalendario] = useState<TarefaDaAgenda | null>(null)
+
+  // Criação centralizada: um botão só, com os três tipos de tarefa.
+  const [criando, setCriando] = useState(false)
 
   const [escopo, setEscopo] = useState<Escopo>('gerais')
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
@@ -92,6 +101,7 @@ export default function AgendaView({
       if (escopo === 'gerais' && t.project_id) return false
       if (escopo === 'projeto' && !t.project_id) return false
       if (categoriaFiltro && t.categoria_id !== categoriaFiltro) return false
+      if (responsavelFiltro && (t.responsavel || '').trim() !== responsavelFiltro) return false
       if (!mostrarConcluidas && t.status === 'Concluído') return false
       if (busca) {
         const alvo = `${t.nome} ${t.responsavel || ''} ${t.projects?.nome || ''}`.toLowerCase()
@@ -99,7 +109,7 @@ export default function AgendaView({
       }
       return true
     })
-  }, [tarefas, escopo, categoriaFiltro, mostrarConcluidas, busca])
+  }, [tarefas, escopo, categoriaFiltro, mostrarConcluidas, busca, responsavelFiltro])
 
   const porCategoria = useMemo(() => {
     const mapa = new Map<string, { categoria: TaskCategory | null; items: TarefaDaAgenda[] }>()
@@ -186,6 +196,7 @@ export default function AgendaView({
               ['lista', 'Lista'],
               ['calendario', 'Calendário'],
               ['gantt', 'Gantt'],
+              ['pessoa', 'Por pessoa'],
               ['recorrentes', 'Recorrentes'],
             ] as [Aba, string][]
           ).map(([v, rotulo]) => (
@@ -201,7 +212,7 @@ export default function AgendaView({
           ))}
         </div>
 
-        {aba !== 'recorrentes' && (
+        {aba !== 'recorrentes' && aba !== 'pessoa' && (
           <>
             <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1">
               {(
@@ -255,15 +266,20 @@ export default function AgendaView({
               )}
             </label>
 
-            <span className="text-xs text-slate-400 ml-auto">{filtradas.length} tarefa(s)</span>
+            <span className="text-xs text-slate-400">{filtradas.length} tarefa(s)</span>
           </>
         )}
+
+        <button
+          onClick={() => setCriando(true)}
+          className="ml-auto bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg"
+        >
+          + Nova tarefa
+        </button>
       </div>
 
       {aba === 'lista' && (
         <>
-          <NovaTarefaGeral categorias={categorias} responsaveis={responsaveis} onCriada={recarregar} />
-
           {porCategoria.length === 0 && (
             <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl">
               Nenhuma tarefa com os filtros atuais.
@@ -468,6 +484,10 @@ export default function AgendaView({
         </>
       )}
 
+      {aba === 'pessoa' && (
+        <TasksBoard responsavelFiltro={responsavelFiltro} onProjectClick={onProjectClick} />
+      )}
+
       {aba === 'gantt' && (
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           {ganttItems.length === 0 ? (
@@ -486,6 +506,21 @@ export default function AgendaView({
           onMudou={async () => {
             await gerarOcorrencias(60)
             await recarregar()
+          }}
+        />
+      )}
+
+      {criando && (
+        <NovaTarefa
+          categorias={categorias}
+          responsaveis={responsaveis}
+          projetos={projetos || []}
+          responsavelPadrao={responsavelFiltro}
+          onFechar={() => setCriando(false)}
+          onCriada={async () => {
+            setCriando(false)
+            await gerarOcorrencias(60)
+            recarregar()
           }}
         />
       )}
@@ -1384,6 +1419,333 @@ function EditarRecorrencia({
             className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md font-medium"
           >
             {salvando ? 'Salvando...' : 'Salvar e reaplicar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+/**
+ * Criação centralizada de tarefas.
+ *
+ * Os três casos que existiam espalhados pelo app — tarefa geral, tarefa de
+ * projeto e rotina que se repete — ficam aqui, num formulário só.
+ */
+function NovaTarefa({
+  categorias,
+  responsaveis,
+  projetos,
+  responsavelPadrao,
+  onCriada,
+  onFechar,
+}: {
+  categorias: TaskCategory[]
+  responsaveis: string[]
+  projetos: { id: string; nome: string; numero: number | null }[]
+  responsavelPadrao?: string
+  onCriada: () => void
+  onFechar: () => void
+}) {
+  type Tipo = 'geral' | 'projeto' | 'recorrente'
+  const [tipo, setTipo] = useState<Tipo>('geral')
+
+  const [nome, setNome] = useState('')
+  const [responsavel, setResponsavel] = useState(responsavelPadrao || '')
+  const [categoriaId, setCategoriaId] = useState('')
+  const [projectId, setProjectId] = useState('')
+  const [prazo, setPrazo] = useState(hojeStr())
+  const [horaInicio, setHoraInicio] = useState('')
+  const [horaFim, setHoraFim] = useState('')
+
+  const [frequencia, setFrequencia] = useState<TaskRecurrence['frequencia']>('semanal')
+  const [dias, setDias] = useState<number[]>([1])
+  const [diaMes, setDiaMes] = useState(1)
+  const [semanaDoMes, setSemanaDoMes] = useState(1)
+  const [terminaEm, setTerminaEm] = useState('')
+
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function salvar() {
+    if (!nome.trim()) return
+    if (tipo === 'projeto' && !projectId) {
+      setErro('Escolha o projeto ao qual a tarefa pertence.')
+      return
+    }
+    setSalvando(true)
+    setErro(null)
+
+    if (tipo === 'recorrente') {
+      const { error } = await supabase.from('task_recurrences').insert({
+        nome: nome.trim(),
+        responsavel: responsavel.trim() || null,
+        categoria_id: categoriaId || null,
+        project_id: projectId || null,
+        frequencia,
+        dias_semana:
+          frequencia === 'semanal' || frequencia === 'quinzenal' || frequencia === 'mensal_semana'
+            ? dias
+            : [],
+        dia_mes: frequencia === 'mensal' ? diaMes : null,
+        semana_do_mes: frequencia === 'mensal_semana' ? semanaDoMes : null,
+        data_inicio: prazo || hojeStr(),
+        data_fim: terminaEm || null,
+        hora_inicio: horaInicio || null,
+        hora_fim: horaFim || null,
+      })
+      setSalvando(false)
+      if (error) {
+        setErro(error.message)
+        return
+      }
+    } else {
+      const { error } = await supabase.from('project_tasks').insert({
+        project_id: tipo === 'projeto' ? projectId : null,
+        nome: nome.trim(),
+        responsavel: responsavel.trim() || null,
+        categoria_id: categoriaId || null,
+        data_inicio: prazo,
+        data_prazo: prazo,
+        hora_inicio: horaInicio || null,
+        hora_fim: horaFim || null,
+        status: 'Pendente',
+        ordem: 0,
+      })
+      setSalvando(false)
+      if (error) {
+        setErro(error.message)
+        return
+      }
+    }
+
+    onCriada()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="w-full max-w-xl bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-800">Nova tarefa</h3>
+          <button onClick={onFechar} className="text-slate-400 hover:text-slate-700 text-lg leading-none px-1">
+            ×
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          {/* Que tipo de tarefa é */}
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                ['geral', 'Geral', 'Rotina do escritório, sem projeto'],
+                ['projeto', 'De projeto', 'Vinculada a um projeto'],
+                ['recorrente', 'Recorrente', 'Repete sozinha'],
+              ] as [Tipo, string, string][]
+            ).map(([v, rotulo, ajuda]) => (
+              <button
+                key={v}
+                onClick={() => setTipo(v)}
+                className={`text-left px-3 py-2 rounded-lg border-2 transition ${
+                  tipo === v ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <span className="block text-xs font-semibold text-slate-800">{rotulo}</span>
+                <span className="block text-[10px] text-slate-500 leading-tight">{ajuda}</span>
+              </button>
+            ))}
+          </div>
+
+          <input
+            className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
+            placeholder="O que precisa ser feito?"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            autoFocus
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={responsavel}
+              onChange={(e) => setResponsavel(e.target.value)}
+              className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white min-w-[130px]"
+            >
+              <option value="">Sem responsável</option>
+              {responsaveis.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={categoriaId}
+              onChange={(e) => setCategoriaId(e.target.value)}
+              className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+            >
+              <option value="">Sem categoria</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+
+            {(tipo === 'projeto' || tipo === 'recorrente') && (
+              <select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white flex-1 min-w-[180px]"
+              >
+                <option value="">
+                  {tipo === 'projeto' ? 'Escolha o projeto' : 'Sem projeto (rotina do escritório)'}
+                </option>
+                {projetos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.numero ? `${p.numero} · ` : ''}
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            <label className="flex items-center gap-1">
+              {tipo === 'recorrente' ? 'começa em' : 'prazo'}
+              <input
+                type="date"
+                value={prazo}
+                onChange={(e) => setPrazo(e.target.value)}
+                className="border border-slate-300 rounded-md px-2 py-1.5"
+              />
+            </label>
+            <label className="flex items-center gap-1">
+              das
+              <input
+                type="time"
+                value={horaInicio}
+                onChange={(e) => setHoraInicio(e.target.value)}
+                className="border border-slate-300 rounded-md px-1.5 py-1.5"
+                title="Vazio = tarefa do dia inteiro"
+              />
+              às
+              <input
+                type="time"
+                value={horaFim}
+                onChange={(e) => setHoraFim(e.target.value)}
+                className="border border-slate-300 rounded-md px-1.5 py-1.5"
+              />
+            </label>
+          </div>
+
+          {/* Só a recorrente precisa da regra de repetição */}
+          {tipo === 'recorrente' && (
+            <div className="border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={frequencia}
+                  onChange={(e) => setFrequencia(e.target.value as TaskRecurrence['frequencia'])}
+                  className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+                >
+                  {FREQUENCIAS.map((f) => (
+                    <option key={f.valor} value={f.valor}>
+                      {f.rotulo}
+                    </option>
+                  ))}
+                </select>
+
+                {frequencia === 'mensal_semana' && (
+                  <select
+                    value={semanaDoMes}
+                    onChange={(e) => setSemanaDoMes(Number(e.target.value))}
+                    className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+                  >
+                    {SEMANAS_DO_MES.map((sm) => (
+                      <option key={sm.valor} value={sm.valor}>
+                        {sm.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {(frequencia === 'semanal' ||
+                  frequencia === 'quinzenal' ||
+                  frequencia === 'mensal_semana') && (
+                  <div className="flex gap-1">
+                    {DIAS_SEMANA.map((d) => {
+                      const ativo = dias.includes(d.valor)
+                      return (
+                        <button
+                          key={d.valor}
+                          title={d.rotulo}
+                          onClick={() =>
+                            setDias((prev) =>
+                              frequencia === 'mensal_semana'
+                                ? [d.valor]
+                                : prev.includes(d.valor)
+                                  ? prev.filter((x) => x !== d.valor)
+                                  : [...prev, d.valor]
+                            )
+                          }
+                          className={`w-7 h-7 rounded-md text-[11px] font-medium border transition ${
+                            ativo
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'bg-white text-slate-500 border-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          {d.curto}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {frequencia === 'mensal' && (
+                  <label className="flex items-center gap-1 text-xs text-slate-600">
+                    Dia do mês
+                    <input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={diaMes}
+                      onChange={(e) => setDiaMes(Number(e.target.value))}
+                      className="w-16 border border-slate-300 rounded-md px-2 py-1 text-xs"
+                    />
+                  </label>
+                )}
+
+                <label className="flex items-center gap-1 text-[10px] text-slate-500">
+                  termina em
+                  <input
+                    type="date"
+                    value={terminaEm}
+                    onChange={(e) => setTerminaEm(e.target.value)}
+                    className="text-xs border border-slate-300 rounded-md px-1.5 py-1"
+                    title="Vazio = repete sem data para acabar"
+                  />
+                </label>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Cada repetição vira uma tarefa que precisa ser concluída, e entra nos atrasos como
+                qualquer outra.
+              </p>
+            </div>
+          )}
+
+          {erro && <p className="text-xs text-red-600">{erro}</p>}
+        </div>
+
+        <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+          <button onClick={onFechar} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded-lg">
+            Cancelar
+          </button>
+          <button
+            onClick={salvar}
+            disabled={salvando || !nome.trim()}
+            className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium"
+          >
+            {salvando ? 'Criando...' : 'Criar tarefa'}
           </button>
         </div>
       </div>

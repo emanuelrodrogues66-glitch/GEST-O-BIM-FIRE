@@ -20,7 +20,6 @@ import AvisoAtrasadas from './components/AvisoAtrasadas'
 import AgendaView from './components/AgendaView'
 import FeedView from './components/FeedView'
 import MoodView from './components/MoodView'
-import TasksBoard from './components/TasksBoard'
 import ActivitiesReport from './components/ActivitiesReport'
 import PendencyDialog from './components/PendencyDialog'
 import CelebrationSettings from './components/CelebrationSettings'
@@ -33,7 +32,6 @@ type ViewMode =
   | 'dashboard'
   | 'gantt'
   | 'relatorio'
-  | 'tarefas'
   | 'agenda'
   | 'feed'
   | 'humor'
@@ -409,8 +407,7 @@ export default function App() {
                 ['lista', 'Lista'],
                 ['dashboard', 'Dashboard'],
                 ['gantt', 'Gantt'],
-                ['tarefas', 'Tarefas'],
-                ['agenda', 'Agenda'],
+                ['agenda', 'Tarefas e agenda'],
                 ['feed', 'Feed'],
                 ['humor', 'Humor da equipe'],
                 ['atividades', 'Atividades'],
@@ -464,14 +461,17 @@ export default function App() {
           <Dashboard projects={projects} month={month} />
         ) : viewMode === 'gantt' ? (
           <GanttGlobal projects={projects} onProjectClick={openEdit} />
-        ) : viewMode === 'tarefas' ? (
-          <TasksBoard onProjectClick={openEditById} />
         ) : viewMode === 'humor' ? (
           <MoodView />
         ) : viewMode === 'feed' ? (
-          <FeedView onProjectClick={openEditById} />
+          <FeedView responsavelFiltro={responsavelFiltro} onProjectClick={openEditById} />
         ) : viewMode === 'agenda' ? (
-          <AgendaView responsaveis={responsaveis} onProjectClick={openEditById} />
+          <AgendaView
+            responsaveis={responsaveis}
+            responsavelFiltro={responsavelFiltro}
+            projetos={projects}
+            onProjectClick={openEditById}
+          />
         ) : viewMode === 'atividades' ? (
           <ActivitiesReport />
         ) : (

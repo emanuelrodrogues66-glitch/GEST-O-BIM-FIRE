@@ -39,7 +39,9 @@ export default function TaskCalendar({
 }) {
   const [visao, setVisao] = useState<Visao>('mes')
   const [ancora, setAncora] = useState<Date>(() => paraData(hojeStr()))
-  const [responsavelFiltro, setResponsavelFiltro] = useState('')
+  // O filtro de responsável é único e fica no topo do app; aqui só se lê
+  // o que já veio filtrado.
+  const responsavelFiltro = ''
 
   const responsaveis = useMemo(() => {
     const nomes = new Set<string>()
@@ -134,19 +136,6 @@ export default function TaskCalendar({
             </button>
           ))}
         </div>
-
-        <select
-          value={responsavelFiltro}
-          onChange={(e) => setResponsavelFiltro(e.target.value)}
-          className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white"
-        >
-          <option value="">Todos os responsáveis</option>
-          {responsaveis.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
 
         <div className="flex flex-wrap items-center gap-2 ml-auto">
           {responsaveis.slice(0, 8).map((r) => (

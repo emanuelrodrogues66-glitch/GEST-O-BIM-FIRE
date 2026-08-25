@@ -22,9 +22,12 @@ const STATUS_BAR_COLORS: Record<string, string> = {
 
 export default function TasksBoard({
   onProjectClick,
+  responsavelFiltro,
 }: {
   /** Abre o cartão do projeto ao qual a tarefa pertence. */
   onProjectClick?: (projectId: string) => void
+  /** Filtro único de responsável, vindo do topo do app. */
+  responsavelFiltro?: string
 } = {}) {
   const [rows, setRows] = useState<TaskRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -90,10 +93,13 @@ export default function TasksBoard({
   }
 
   // Base única do gráfico e da lista, para os dois nunca divergirem.
-  const base = useMemo(
-    () => (ocultarGerais ? rows.filter((r) => r.project_id) : rows),
-    [rows, ocultarGerais]
-  )
+  const base = useMemo(() => {
+    let lista = ocultarGerais ? rows.filter((r) => r.project_id) : rows
+    if (responsavelFiltro) {
+      lista = lista.filter((r) => (r.responsavel || '').trim() === responsavelFiltro)
+    }
+    return lista
+  }, [rows, ocultarGerais, responsavelFiltro])
 
   const visiveis = useMemo(
     () => (mostrarConcluidas ? base : base.filter((r) => r.status !== 'Concluído')),
