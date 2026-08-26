@@ -161,6 +161,43 @@ export async function encontrarOuCriarPasta(
   return criado.id
 }
 
+/**
+ * Troca o arquivo de pasta no Drive.
+ *
+ * O Google não tem "mover": troca-se o pai. Por isso lemos os pais atuais
+ * primeiro — sem removê-los, o arquivo passaria a existir nos dois lugares.
+ */
+export async function moverArquivo(token: string, fileId: string, novoPaiId: string): Promise<void> {
+  const atual = await fetch(
+    `${DRIVE_API}/files/${fileId}?fields=parents&supportsAllDrives=true`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+  const dados = await atual.json()
+  if (!atual.ok) {
+    throw new Error(`Erro ao ler a pasta atual do arquivo: ${dados.error?.message || atual.status}`)
+  }
+
+  const paisAtuais: string[] = dados.parents || []
+  if (paisAtuais.length === 1 && paisAtuais[0] === novoPaiId) return
+
+  const params = new URLSearchParams({
+    addParents: novoPaiId,
+    fields: 'id',
+    supportsAllDrives: 'true',
+  })
+  if (paisAtuais.length) params.set('removeParents', paisAtuais.join(','))
+
+  const res = await fetch(`${DRIVE_API}/files/${fileId}?${params}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  if (!res.ok) {
+    const erro = await res.json().catch(() => ({}))
+    throw new Error(`Erro ao mover o arquivo no Drive: ${erro.error?.message || res.status}`)
+  }
+}
+
 /** Envia o arquivo em sessão resumable, direto do navegador para o Google. */
 export async function enviarArquivo(
   token: string,

@@ -1,66 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { driveConfigError, encontrarOuCriarPasta, enviarArquivo, obterToken } from '../lib/googleDrive'
-
-/** Onde ficam os anexos das tarefas que não pertencem a nenhum projeto. */
-const PASTA_TAREFAS_GERAIS = 'Tarefas Gerais'
-/** Subpasta dentro da pasta do projeto. */
-const PASTA_TAREFAS_DO_PROJETO = 'Tarefas'
-
-export type AnexoDaTarefa = {
-  id: string
-  nome: string
-  drive_link: string | null
-  drive_file_id: string | null
-  mime_type: string | null
-}
-
-function ehImagem(mime: string | null | undefined): boolean {
-  return !!mime && mime.startsWith('image/')
-}
-
-function urlMiniatura(driveFileId: string, largura = 320): string {
-  return `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w${largura}`
-}
-
-/** Nome de arquivo para print colado, com carimbo de data para não repetir. */
-function nomeDoPrint(mime: string): string {
-  const ext = (mime.split('/')[1] || 'png').replace('jpeg', 'jpg')
-  const carimbo = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-  return `print-${carimbo}.${ext}`
-}
-
-/**
- * Descobre a pasta de destino no Drive.
- *
- * Tarefa de projeto vai para <pasta do projeto>/Tarefas — e a pasta do projeto
- * tem o nome do cartão. Tarefa geral vai toda para a mesma pasta, porque não
- * há projeto a que se prender.
- */
-async function pastaDeDestino(token: string, projectId: string | null): Promise<string> {
-  if (!projectId) return encontrarOuCriarPasta(token, PASTA_TAREFAS_GERAIS)
-
-  const { data: cliente } = await supabase
-    .from('project_clients')
-    .select('nome_pasta')
-    .eq('project_id', projectId)
-    .maybeSingle()
-
-  let nomePasta = ((cliente as any)?.nome_pasta || '').trim()
-
-  // Sem linha de cliente ainda, o nome do cartão serve de pasta do mesmo jeito.
-  if (!nomePasta) {
-    const { data: projeto } = await supabase
-      .from('projects')
-      .select('nome')
-      .eq('id', projectId)
-      .maybeSingle()
-    nomePasta = ((projeto as any)?.nome || '').trim() || 'Projeto sem nome'
-  }
-
-  const pastaProjeto = await encontrarOuCriarPasta(token, nomePasta)
-  return encontrarOuCriarPasta(token, PASTA_TAREFAS_DO_PROJETO, pastaProjeto)
-}
+import { driveConfigError } from '../lib/googleDrive'
+import type { AnexoDaTarefa } from '../lib/anexosTarefa'
+import {
+  PASTA_TAREFAS_GERAIS,
+  ehImagem,
+  imagensDaAreaDeTransferencia,
+  subirAnexos,
+  urlMiniatura,
+} from '../lib/anexosTarefa'
 
 /**
  * Observações e anexos de uma tarefa.
@@ -118,12 +66,7 @@ export default function TaskAttachments({
 
   /** Ctrl+V com print na área de transferência: sobe direto, sem passo extra. */
   function colar(e: React.ClipboardEvent) {
-    const arquivos: File[] = []
-    for (const item of Array.from(e.clipboardData?.items || [])) {
-      if (!item.type.startsWith('image/')) continue
-      const bruto = item.getAsFile()
-      if (bruto) arquivos.push(new File([bruto], nomeDoPrint(item.type), { type: item.type }))
-    }
+    const arquivos = imagensDaAreaDeTransferencia(e)
     if (arquivos.length) {
       e.preventDefault()
       subir(arquivos)
@@ -141,33 +84,8 @@ export default function TaskAttachments({
     }
 
     try {
-      const token = await obterToken(true)
-      const destino = await pastaDeDestino(token, projectId)
-
-      for (let i = 0; i < arquivos.length; i++) {
-        setEnviando(
-          arquivos.length === 1
-            ? `Enviando ${arquivos[i].name}...`
-            : `Enviando ${i + 1} de ${arquivos.length}...`
-        )
-        const enviado = await enviarArquivo(token, destino, arquivos[i])
-        const { data, error } = await supabase
-          .from('project_files')
-          .insert({
-            project_id: projectId,
-            task_id: taskId,
-            categoria: 'outros',
-            nome: enviado.name || arquivos[i].name,
-            drive_file_id: enviado.id,
-            drive_link: enviado.webViewLink || `https://drive.google.com/file/d/${enviado.id}/view`,
-            mime_type: enviado.mimeType || arquivos[i].type,
-            tamanho: Number(enviado.size) || arquivos[i].size,
-          })
-          .select('id, nome, drive_link, drive_file_id, mime_type')
-          .single()
-        if (error) throw new Error(error.message)
-        if (data) setAnexos((prev) => [...prev, data as AnexoDaTarefa])
-      }
+      const novos = await subirAnexos(taskId, projectId, arquivos, setEnviando)
+      setAnexos((prev) => [...prev, ...novos])
     } catch (e: any) {
       setErro(e.message || 'Não foi possível enviar o arquivo.')
     } finally {
@@ -193,9 +111,7 @@ export default function TaskAttachments({
   return (
     <div className="space-y-2" onPaste={colar}>
       <div>
-        <label className="block text-[10px] font-medium text-slate-500 mb-1">
-          Observações
-        </label>
+        <label className="block text-[10px] font-medium text-slate-500 mb-1">Observações</label>
         <textarea
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}

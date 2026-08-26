@@ -1,7 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePerfil } from '../lib/perfil'
 import TaskAttachments from './TaskAttachments'
+import {
+  PASTA_TAREFAS_GERAIS,
+  imagensDaAreaDeTransferencia,
+  moverAnexos,
+  subirAnexos,
+} from '../lib/anexosTarefa'
 import type { TarefaDaAgenda } from '../lib/agenda'
 import {
   carregarCategorias,
@@ -322,6 +328,7 @@ export default function AgendaView({
                         tarefa={t}
                         categorias={categorias}
                         responsaveis={responsaveis}
+                        projetos={projetos || []}
                         onCancelar={() => setEditandoId(null)}
                         onSalvo={async (patch) => {
                           await atualizarTarefa(t.id, patch)
@@ -492,6 +499,7 @@ export default function AgendaView({
                   tarefa={tarefaNoCalendario}
                   categorias={categorias}
                   responsaveis={responsaveis}
+                  projetos={projetos || []}
                   onCancelar={() => setTarefaNoCalendario(null)}
                   onSalvo={async (patch) => {
                     await atualizarTarefa(tarefaNoCalendario.id, patch)
@@ -968,30 +976,65 @@ function EditarTarefa({
   tarefa,
   categorias,
   responsaveis,
+  projetos,
   onSalvo,
   onCancelar,
 }: {
   tarefa: TarefaDaAgenda
   categorias: TaskCategory[]
   responsaveis: string[]
+  projetos: { id: string; nome: string; numero: number | null }[]
   onSalvo: (patch: Partial<ProjectTask>) => void
   onCancelar: () => void
 }) {
   const [nome, setNome] = useState(tarefa.nome)
   const [responsavel, setResponsavel] = useState(tarefa.responsavel || '')
   const [categoriaId, setCategoriaId] = useState(tarefa.categoria_id || '')
+  const [projectId, setProjectId] = useState(tarefa.project_id || '')
   const [prazo, setPrazo] = useState(tarefa.data_prazo)
   const [horaInicio, setHoraInicio] = useState(horaCurta(tarefa.hora_inicio))
   const [horaFim, setHoraFim] = useState(horaCurta(tarefa.hora_fim))
   const [salvando, setSalvando] = useState(false)
 
+  // Trocar de projeto muda a pasta de destino no Drive. Os arquivos que já
+  // subiram continuam na pasta antiga, então perguntamos antes de mexer neles.
+  const [temAnexos, setTemAnexos] = useState(0)
+  const [movendo, setMovendo] = useState('')
+
+  const trocaDeProjeto = projectId !== (tarefa.project_id || '')
+
+  useEffect(() => {
+    supabase
+      .from('project_files')
+      .select('id', { count: 'exact', head: true })
+      .eq('task_id', tarefa.id)
+      .then(({ count }) => setTemAnexos(count || 0))
+  }, [tarefa.id])
+
   async function salvar() {
     if (!nome.trim()) return
     setSalvando(true)
+
+    if (trocaDeProjeto && temAnexos > 0) {
+      const destino = projectId
+        ? 'a pasta do novo projeto'
+        : `a pasta "${PASTA_TAREFAS_GERAIS}"`
+      if (confirm(`Levar também ${temAnexos} arquivo(s) desta tarefa para ${destino} no Drive?`)) {
+        try {
+          await moverAnexos(tarefa.id, projectId || null, setMovendo)
+        } catch (e: any) {
+          alert(`A tarefa vai ser salva, mas os arquivos não foram movidos: ${e.message}`)
+        } finally {
+          setMovendo('')
+        }
+      }
+    }
+
     onSalvo({
       nome: nome.trim(),
       responsavel: responsavel.trim() || null,
       categoria_id: categoriaId || null,
+      project_id: projectId || null,
       data_prazo: prazo,
       data_inicio: prazo,
       hora_inicio: horaInicio || null,
@@ -1028,6 +1071,30 @@ function EditarTarefa({
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Tarefa geral vira de projeto (e vice-versa) trocando aqui. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="text-[10px] text-slate-500 shrink-0">Projeto</label>
+        <select
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
+          className="flex-1 min-w-[200px] text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white"
+        >
+          <option value="">Sem projeto (tarefa geral)</option>
+          {projetos.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.numero ? `${p.numero} · ` : ''}
+              {p.nome}
+            </option>
+          ))}
+        </select>
+        {trocaDeProjeto && temAnexos > 0 && (
+          <span className="text-[10px] text-amber-700">
+            {temAnexos} anexo(s) — vou perguntar se movo no Drive ao salvar.
+          </span>
+        )}
+        {movendo && <span className="text-[10px] text-indigo-600">{movendo}</span>}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -1381,8 +1448,24 @@ function NovaTarefa({
   const [semanaDoMes, setSemanaDoMes] = useState(1)
   const [terminaEm, setTerminaEm] = useState('')
 
+  const [observacoes, setObservacoes] = useState('')
+
+  // Arquivos ficam em espera: o anexo precisa do id da tarefa para se amarrar
+  // a ela, e esse id só existe depois que a tarefa é criada.
+  const [pendentes, setPendentes] = useState<File[]>([])
+  const inputArquivo = useRef<HTMLInputElement>(null)
+
   const [salvando, setSalvando] = useState(false)
+  const [enviando, setEnviando] = useState('')
   const [erro, setErro] = useState<string | null>(null)
+
+  function colar(e: React.ClipboardEvent) {
+    const arquivos = imagensDaAreaDeTransferencia(e)
+    if (arquivos.length) {
+      e.preventDefault()
+      setPendentes((prev) => [...prev, ...arquivos])
+    }
+  }
 
   async function salvar() {
     if (!nome.trim()) return
@@ -1417,23 +1500,44 @@ function NovaTarefa({
         return
       }
     } else {
-      const { error } = await supabase.from('project_tasks').insert({
-        project_id: tipo === 'projeto' ? projectId : null,
-        nome: nome.trim(),
-        responsavel: responsavel.trim() || null,
-        categoria_id: categoriaId || null,
-        data_inicio: prazo,
-        data_prazo: prazo,
-        hora_inicio: horaInicio || null,
-        hora_fim: horaFim || null,
-        status: 'Pendente',
-        ordem: 0,
-      })
-      setSalvando(false)
+      const alvo = tipo === 'projeto' ? projectId : null
+      const { data: criada, error } = await supabase
+        .from('project_tasks')
+        .insert({
+          project_id: alvo,
+          nome: nome.trim(),
+          responsavel: responsavel.trim() || null,
+          categoria_id: categoriaId || null,
+          data_inicio: prazo,
+          data_prazo: prazo,
+          hora_inicio: horaInicio || null,
+          hora_fim: horaFim || null,
+          observacoes: observacoes.trim() || null,
+          status: 'Pendente',
+          ordem: 0,
+        })
+        .select('id')
+        .single()
+
       if (error) {
+        setSalvando(false)
         setErro(error.message)
         return
       }
+
+      // Anexo que falha não desfaz a tarefa: ela já vale por si.
+      if (pendentes.length > 0 && criada) {
+        try {
+          await subirAnexos((criada as any).id, alvo, pendentes, setEnviando)
+        } catch (e: any) {
+          setSalvando(false)
+          setEnviando('')
+          setErro(`Tarefa criada, mas os anexos não subiram: ${e.message}`)
+          return
+        }
+      }
+      setSalvando(false)
+      setEnviando('')
     }
 
     onCriada()
@@ -1649,6 +1753,66 @@ function NovaTarefa({
             </div>
           )}
 
+          {/* Observação e anexo já na criação. A recorrente fica de fora:
+              ela é uma regra, não uma tarefa — cada ocorrência recebe os seus. */}
+          {tipo !== 'recorrente' && (
+            <div className="border-t border-slate-200 pt-3 space-y-2" onPaste={colar}>
+              <textarea
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                rows={2}
+                placeholder="Observações (opcional): o que foi combinado, o que precisa saber..."
+                className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs resize-y"
+              />
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => inputArquivo.current?.click()}
+                  className="text-[11px] font-medium px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-slate-600 hover:border-indigo-400 hover:text-indigo-600"
+                >
+                  📎 Anexar arquivo
+                </button>
+                <input
+                  ref={inputArquivo}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    setPendentes((prev) => [...prev, ...Array.from(e.target.files || [])])
+                    e.target.value = ''
+                  }}
+                />
+                <span className="text-[10px] text-slate-400">
+                  ou cole um print com Ctrl+V &middot; sobe para{' '}
+                  {tipo === 'projeto' ? 'a pasta do projeto' : `a pasta "${PASTA_TAREFAS_GERAIS}"`} ao criar
+                </span>
+                {enviando && <span className="text-[10px] text-indigo-600">{enviando}</span>}
+              </div>
+
+              {pendentes.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {pendentes.map((f, i) => (
+                    <span
+                      key={i}
+                      className="flex items-center gap-1 text-[10px] bg-slate-100 border border-slate-200 rounded-md px-1.5 py-0.5 text-slate-600"
+                    >
+                      {f.type.startsWith('image/') ? '🖼' : '📄'}
+                      <span className="max-w-[140px] truncate">{f.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setPendentes((prev) => prev.filter((_, x) => x !== i))}
+                        className="text-slate-400 hover:text-red-600"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {erro && <p className="text-xs text-red-600">{erro}</p>}
         </div>
 
@@ -1661,7 +1825,7 @@ function NovaTarefa({
             disabled={salvando || !nome.trim()}
             className="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium"
           >
-            {salvando ? 'Criando...' : 'Criar tarefa'}
+            {salvando ? enviando || 'Criando...' : 'Criar tarefa'}
           </button>
         </div>
       </div>
