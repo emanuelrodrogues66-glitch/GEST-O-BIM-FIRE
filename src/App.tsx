@@ -17,6 +17,7 @@ import PdfExportAllModal from './components/PdfExportAllModal'
 import GanttGlobal from './components/GanttGlobal'
 import ReportsView from './components/ReportsView'
 import AvisoAtrasadas from './components/AvisoAtrasadas'
+import AvisoAprovacoes from './components/AvisoAprovacoes'
 import AgendaView from './components/AgendaView'
 import FeedView from './components/FeedView'
 import MoodView from './components/MoodView'
@@ -65,6 +66,8 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false)
   const [isNew, setIsNew] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
+  // O aviso de atrasadas espera a comemoração das aprovações terminar.
+  const [comemoracaoPassou, setComemoracaoPassou] = useState(false)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
   const [pdfAllModalOpen, setPdfAllModalOpen] = useState(false)
   const [month, setMonth] = useState<MonthRef>({ year: 2026, month: 8 })
@@ -479,8 +482,12 @@ export default function App() {
         )}
       </div>
 
+      {/* Elogio antes da cobrança: quem aprovou nesta semana ganha o confete
+          primeiro, e só depois entra o aviso de tarefas atrasadas. */}
+      <AvisoAprovacoes onFim={() => setComemoracaoPassou(true)} />
+
       {/* Cobrança das tarefas vencidas, uma vez por abertura do sistema. */}
-      <AvisoAtrasadas onVerRelatorio={() => setViewMode('relatorio')} />
+      {comemoracaoPassou && <AvisoAtrasadas onVerRelatorio={() => setViewMode('relatorio')} />}
 
       {pdfModalOpen && (
         <PdfExportModal categoria={categoria} projects={filtered} month={month} onClose={() => setPdfModalOpen(false)} />
