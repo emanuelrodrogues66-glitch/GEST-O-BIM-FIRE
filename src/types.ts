@@ -282,6 +282,10 @@ export type ProjectClient = {
   nome_pasta: string | null
   // Campos vindos do formulário "Cadastro de Projetos Aprovados"
   data_aprovacao: string | null
+  /** Assinatura do contrato — libera a parcela de entrada. */
+  data_contrato: string | null
+  /** Data em que o processo foi protocolado — libera a parcela de protocolo. */
+  data_protocolo: string | null
   link_localizacao: string | null
   cidade: string | null
   estado: string | null
@@ -480,6 +484,8 @@ export const CLIENT_FIELDS: ClientField[] = [
   { key: 'numero_processo', label: 'Nº do processo', placeholder: 'Se for memorial, colocar S/N', secao: 'Projeto' },
   { key: 'numero_re', label: 'Nº do NIB / RE', placeholder: 'Se for memorial, colocar S/N', secao: 'Projeto' },
   { key: 'protocolo', label: 'Protocolo', secao: 'Projeto' },
+  { key: 'data_protocolo', label: 'Data do protocolo', secao: 'Projeto', tipo: 'data', opcional: true },
+  { key: 'data_contrato', label: 'Data do contrato', secao: 'Projeto', tipo: 'data', opcional: true },
   { key: 'nome_pasta', label: 'Nome da pasta', placeholder: 'Define a pasta no Drive', secao: 'Projeto' },
 
   // --- Cliente ---

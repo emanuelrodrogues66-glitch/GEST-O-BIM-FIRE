@@ -25,6 +25,7 @@ import PlanningForm from './PlanningForm'
 import CorrectionsTab from './CorrectionsTab'
 import PendenciesTab from './PendenciesTab'
 import HistoryTab from './HistoryTab'
+import ProjectFinanceTab from './ProjectFinanceTab'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -100,7 +101,7 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
   const [mesesComRegistro, setMesesComRegistro] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<
-    'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico'
+    'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico' | 'financeiro'
   >('geral')
   const [clientData, setClientData] = useState<Partial<ProjectClient>>({})
   const [showMissingClientData, setShowMissingClientData] = useState(false)
@@ -397,8 +398,10 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                 ['correcoes', 'Correções'],
                 ['pendencias', 'Pendências'],
                 ['historico', 'Histórico'],
+                // Valor e custo são do ADM; a aba nem aparece para os demais.
+                ...(ehAdmin ? ([['financeiro', 'Financeiro']] as const) : []),
               ] as [
-                'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico',
+                'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico' | 'financeiro',
                 string,
               ][]
             ).map(([tab, label]) => (
@@ -418,7 +421,9 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
         )}
 
         <div className="p-6 space-y-4">
-          {activeTab === 'historico' && !isNew && project ? (
+          {activeTab === 'financeiro' && !isNew && project ? (
+            <ProjectFinanceTab projectId={project.id} />
+          ) : activeTab === 'historico' && !isNew && project ? (
             <HistoryTab projectId={project.id} />
           ) : activeTab === 'pendencias' && !isNew && project ? (
             <PendenciesTab projectId={project.id} />

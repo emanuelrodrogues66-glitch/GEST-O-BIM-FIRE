@@ -18,6 +18,8 @@ import GanttGlobal from './components/GanttGlobal'
 import ReportsView from './components/ReportsView'
 import AvisoAtrasadas from './components/AvisoAtrasadas'
 import AvisoAprovacoes from './components/AvisoAprovacoes'
+import TeamCostsView from './components/TeamCostsView'
+import { usePerfil } from './lib/perfil'
 import AgendaView from './components/AgendaView'
 import FeedView from './components/FeedView'
 import MoodView from './components/MoodView'
@@ -37,6 +39,7 @@ type ViewMode =
   | 'feed'
   | 'humor'
   | 'atividades'
+  | 'custos'
 
 /**
  * O link de recuperação chega com `type=recovery` na URL. O supabase-js
@@ -66,6 +69,8 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false)
   const [isNew, setIsNew] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
+  // Custo da equipe é do ADM; a aba nem aparece para os demais.
+  const { ehAdmin } = usePerfil()
   // O aviso de atrasadas espera a comemoração das aprovações terminar.
   const [comemoracaoPassou, setComemoracaoPassou] = useState(false)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
@@ -415,6 +420,7 @@ export default function App() {
                 ['humor', 'Humor da equipe'],
                 ['atividades', 'Atividades'],
                 ['relatorio', 'Relatório'],
+                ...(ehAdmin ? ([['custos', 'Custo da equipe']] as [ViewMode, string][]) : []),
               ] as [ViewMode, string][]
             ).map(([mode, label]) => (
               <button
@@ -475,6 +481,8 @@ export default function App() {
             projetos={projects}
             onProjectClick={openEditById}
           />
+        ) : viewMode === 'custos' ? (
+          <TeamCostsView />
         ) : viewMode === 'atividades' ? (
           <ActivitiesReport />
         ) : (
