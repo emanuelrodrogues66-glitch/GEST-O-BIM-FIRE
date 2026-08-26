@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePerfil } from '../lib/perfil'
+import TaskAttachments from './TaskAttachments'
 import type { TarefaDaAgenda } from '../lib/agenda'
 import {
   carregarCategorias,
@@ -55,6 +56,8 @@ export default function AgendaView({
   const [categorias, setCategorias] = useState<TaskCategory[]>([])
   const [recorrencias, setRecorrencias] = useState<TaskRecurrence[]>([])
   const [carregando, setCarregando] = useState(true)
+  /** Quantos anexos cada tarefa tem, para marcar o clipe na lista. */
+  const [anexosPorTarefa, setAnexosPorTarefa] = useState<Record<string, number>>({})
 
   // Pré-preenchimento vindo do clique num horário do calendário.
   const [novoHorario, setNovoHorario] = useState<{
@@ -95,6 +98,17 @@ export default function AgendaView({
     setTarefas(t)
     setCategorias(c)
     setRecorrencias(r)
+
+    // Só a contagem: serve para o clipe aparecer na lista sem abrir a tarefa.
+    const { data: arquivos } = await supabase
+      .from('project_files')
+      .select('task_id')
+      .not('task_id', 'is', null)
+    const contagem: Record<string, number> = {}
+    ;((arquivos as { task_id: string }[]) || []).forEach((a) => {
+      contagem[a.task_id] = (contagem[a.task_id] || 0) + 1
+    })
+    setAnexosPorTarefa(contagem)
   }
 
   const filtradas = useMemo(() => {
@@ -341,6 +355,19 @@ export default function AgendaView({
                         {t.recurrence_id && (
                           <span className="text-[10px] text-indigo-500" title="Gerada por uma regra recorrente">
                             ↻
+                          </span>
+                        )}
+                        {t.observacoes && (
+                          <span className="text-[10px] text-slate-400" title={t.observacoes}>
+                            📝
+                          </span>
+                        )}
+                        {anexosPorTarefa[t.id] > 0 && (
+                          <span
+                            className="text-[10px] text-slate-400"
+                            title={`${anexosPorTarefa[t.id]} anexo(s)`}
+                          >
+                            📎{anexosPorTarefa[t.id]}
                           </span>
                         )}
                         {t.projects ? (
@@ -1034,6 +1061,7 @@ function EditarTarefa({
           </span>
         )}
 
+
         <div className="ml-auto flex gap-2">
           <button
             onClick={onCancelar}
@@ -1049,6 +1077,16 @@ function EditarTarefa({
             {salvando ? 'Salvando...' : 'Salvar'}
           </button>
         </div>
+      </div>
+
+      {/* Observações e anexos gravam sozinhos, sem depender do botão Salvar:
+          o arquivo já subiu para o Drive quando a pessoa escolheu. */}
+      <div className="border-t border-indigo-200 pt-2">
+        <TaskAttachments
+          taskId={tarefa.id}
+          projectId={tarefa.project_id}
+          observacoesIniciais={tarefa.observacoes}
+        />
       </div>
 
       <datalist id="agenda-resp">

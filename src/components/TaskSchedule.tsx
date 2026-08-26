@@ -5,6 +5,7 @@ import { TASK_STATUS, TASK_STATUS_COLORS, taskNeedsJustificativa } from '../type
 import { usePerfil } from '../lib/perfil'
 import GanttChart from './GanttChart'
 import type { GanttItem } from './GanttChart'
+import TaskAttachments from './TaskAttachments'
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -29,6 +30,9 @@ export default function TaskSchedule({
 
   // Tarefa recém-concluída: destaca o campo de data para confirmar ou ajustar.
   const [confirmandoConclusao, setConfirmandoConclusao] = useState<string | null>(null)
+
+  // Observações e anexos ficam recolhidos: a maioria das tarefas não usa.
+  const [anexosAbertos, setAnexosAbertos] = useState<string | null>(null)
 
   // Reordenação manual por arrastar.
   const [arrastandoId, setArrastandoId] = useState<string | null>(null)
@@ -388,6 +392,24 @@ export default function TaskSchedule({
                     {!t.justificativa && (
                       <p className="text-[10px] text-red-500 mt-0.5">Preencha a justificativa desta tarefa atrasada.</p>
                     )}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setAnexosAbertos((v) => (v === t.id ? null : t.id))}
+                  className="text-[10px] font-medium text-slate-400 hover:text-indigo-600"
+                >
+                  {anexosAbertos === t.id ? '▾' : '▸'} Observações e anexos
+                  {t.observacoes && anexosAbertos !== t.id && ' 📝'}
+                </button>
+
+                {anexosAbertos === t.id && (
+                  <div className="border-t border-slate-200 pt-2">
+                    <TaskAttachments
+                      taskId={t.id}
+                      projectId={projectId}
+                      observacoesIniciais={t.observacoes}
+                    />
                   </div>
                 )}
               </div>

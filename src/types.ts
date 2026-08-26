@@ -125,6 +125,8 @@ export type ProjectTask = {
   status: string
   data_conclusao: string | null
   justificativa: string | null
+  /** Anotações livres: o que foi combinado, onde parou, o que falta. */
+  observacoes: string | null
   ordem: number
   created_at: string
   updated_at: string
