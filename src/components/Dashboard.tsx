@@ -19,7 +19,6 @@ import {
   RANKING_COLORS,
   STATUS_CHART_COLORS,
   METAS_PONTOS,
-  rankingPorResponsavel,
   statusDistribution,
 } from '../lib/stats'
 import type { MonthRef } from '../lib/month'
@@ -313,7 +312,56 @@ export default function Dashboard({
     return { projecao: linhas, diagnostico: diag }
   }, [todosProjetos, planos, aprovacoes, statusSel, month])
 
-  const ranking = rankingPorResponsavel(projects)
+  /**
+   * Ranking de pontos: mesma base da Meta Pontos — projetos aprovados
+   * (Concluído) com aprovação no mês selecionado.
+   *
+   * Antes contava por mês de início e incluía projeto em andamento, o que
+   * inflava o número: ponto só existe quando o projeto é aprovado.
+   */
+  const { ranking, projetosPorResponsavel } = useMemo(() => {
+    const mapa = new Map<
+      string,
+      { responsavel: string; pontos: number; m2: number; projetos: number }
+    >()
+    const detalhe = new Map<
+      string,
+      { nome: string; numero: number | null; pts: number; aprovacao: string }[]
+    >()
+
+    for (const p of todosProjetos) {
+      if (normalizeStatus(p.status) !== 'Concluído') continue
+      const aprovacao = aprovacoes[p.id] || p.data_prazo
+      if (!aprovacao) continue
+      if (mesSel && !dateInMonth(aprovacao, mesSel)) continue
+
+      const nome = (p.responsavel || 'Sem responsável').trim()
+      if (!mapa.has(nome)) {
+        mapa.set(nome, { responsavel: nome, pontos: 0, m2: 0, projetos: 0 })
+        detalhe.set(nome, [])
+      }
+      const linha = mapa.get(nome)!
+      linha.pontos += p.pts || 0
+      linha.m2 += p.m2 || 0
+      linha.projetos += 1
+
+      detalhe.get(nome)!.push({
+        nome: p.nome,
+        numero: p.numero,
+        pts: p.pts || 0,
+        aprovacao,
+      })
+    }
+
+    for (const lista of detalhe.values()) {
+      lista.sort((a, b) => a.aprovacao.localeCompare(b.aprovacao))
+    }
+
+    return {
+      ranking: Array.from(mapa.values()).sort((a, b) => b.pontos - a.pontos),
+      projetosPorResponsavel: detalhe,
+    }
+  }, [todosProjetos, aprovacoes, mesSel])
   const statusRows = statusDistribution(projects)
 
   const totalPontos = projects.reduce((s, p) => s + (p.pts || 0), 0)
@@ -606,7 +654,10 @@ export default function Dashboard({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Ranking de pontos */}
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">Ranking de pontos por responsável</h3>
+          <h3 className="text-sm font-semibold text-slate-700 mb-1">Ranking de pontos por responsável</h3>
+          <p className="text-[11px] text-slate-400 mb-2">
+            Conta só o que foi aprovado no mês — é o que vale para a meta.
+          </p>
           <div className="space-y-2">
             {ranking.map((r, i) => {
               const max = ranking[0]?.pontos || 1
@@ -630,13 +681,20 @@ export default function Dashboard({
 
         {/* Gráfico de barras - pontos por responsável */}
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">Pontos por responsável</h3>
+          <h3 className="text-sm font-semibold text-slate-700 mb-1">Pontos por responsável</h3>
+          <p className="text-[11px] text-slate-400 mb-2">
+            Projetos aprovados {mesSel ? `em ${monthLabel(mesSel).toLowerCase()}` : 'em qualquer mês'}.
+            Passe o mouse na barra para ver quais são.
+          </p>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={rankingChartData} margin={{ left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={50} />
               <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <Tooltip
+                cursor={{ fill: 'rgba(99,102,241,0.06)' }}
+                content={<PreviaDoResponsavel detalhes={projetosPorResponsavel} />}
+              />
               <Bar dataKey="pontos" radius={[4, 4, 0, 0]}>
                 {rankingChartData.map((_, i) => (
                   <Cell key={i} fill={RANKING_COLORS[i % RANKING_COLORS.length]} />
@@ -698,6 +756,48 @@ export default function Dashboard({
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Prévia ao passar o mouse no gráfico de pontos: mostra exatamente quais
+ * projetos formam a barra daquela pessoa.
+ */
+function PreviaDoResponsavel({
+  active,
+  label,
+  detalhes,
+}: {
+  active?: boolean
+  label?: string
+  detalhes: Map<string, { nome: string; numero: number | null; pts: number; aprovacao: string }[]>
+}) {
+  if (!active || !label) return null
+  const lista = detalhes.get(label) || []
+  const total = lista.reduce((s, p) => s + p.pts, 0)
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-2.5 max-w-xs">
+      <p className="text-xs font-semibold text-slate-800 mb-1">
+        {label} · {total.toLocaleString('pt-BR')} pts
+        <span className="font-normal text-slate-400"> · {lista.length} projeto(s)</span>
+      </p>
+      <div className="space-y-0.5 max-h-56 overflow-y-auto">
+        {lista.map((p, i) => (
+          <p key={i} className="text-[11px] text-slate-600 flex gap-1.5">
+            <span className="text-slate-400 tabular-nums shrink-0">
+              {p.aprovacao.slice(8, 10)}/{p.aprovacao.slice(5, 7)}
+            </span>
+            <span className="flex-1 truncate">
+              {p.numero ? `${p.numero} · ` : ''}
+              {p.nome}
+            </span>
+            <span className="font-medium text-slate-700 shrink-0">{p.pts}</span>
+          </p>
+        ))}
+        {lista.length === 0 && <p className="text-[11px] text-slate-400">Nenhum projeto aprovado.</p>}
       </div>
     </div>
   )
