@@ -6,6 +6,8 @@ import { usePerfil } from '../lib/perfil'
 import GanttChart from './GanttChart'
 import type { GanttItem } from './GanttChart'
 import TaskAttachments from './TaskAttachments'
+import SeletorDeResponsaveis from './SeletorDeResponsaveis'
+import { corDoResponsavel } from '../lib/agenda'
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10)
@@ -33,6 +35,18 @@ export default function TaskSchedule({
 
   // Observações e anexos ficam recolhidos: a maioria das tarefas não usa.
   const [anexosAbertos, setAnexosAbertos] = useState<string | null>(null)
+
+  // Equipe do escritório: alimenta a escolha de responsáveis.
+  const [equipe, setEquipe] = useState<string[]>([])
+
+  useEffect(() => {
+    supabase
+      .from('team_members')
+      .select('nome')
+      .eq('ativo', true)
+      .order('ordem')
+      .then(({ data }) => setEquipe(((data as { nome: string }[]) || []).map((m) => m.nome)))
+  }, [])
 
   // Reordenação manual por arrastar.
   const [arrastandoId, setArrastandoId] = useState<string | null>(null)
@@ -71,6 +85,34 @@ export default function TaskSchedule({
       .sort((a, b) => b[1] - a[1])
       .map(([nome]) => nome)
     setSuggestions(sorted)
+  }
+
+  /**
+   * Subtarefa nasce herdando prazo e responsáveis da mãe: quase sempre é o
+   * mesmo trabalho, quebrado em pedaços menores.
+   */
+  async function adicionarSubtarefa(mae: ProjectTask) {
+    const nome = prompt(`Nova subtarefa de "${mae.nome}":`)
+    if (!nome?.trim()) return
+    const { data, error } = await supabase
+      .from('project_tasks')
+      .insert({
+        parent_id: mae.id,
+        project_id: projectId,
+        nome: nome.trim(),
+        responsaveis: mae.responsaveis,
+        data_inicio: mae.data_prazo,
+        data_prazo: mae.data_prazo,
+        status: 'Pendente',
+        ordem: tasks.length,
+      })
+      .select()
+      .single()
+    if (error) {
+      alert(error.message)
+      return
+    }
+    setTasks((prev) => [...prev, data as ProjectTask])
   }
 
   async function handleAdd() {
@@ -206,8 +248,10 @@ export default function TaskSchedule({
         <GanttChart items={ganttItems} labelWidth={150} />
       ) : (
         <div className="space-y-2">
-          {tasks.map((t, index) => {
+          {tasks.filter((t) => !t.parent_id).map((t, index) => {
             const late = taskNeedsJustificativa(t)
+            const filhas = tasks.filter((f) => f.parent_id === t.id)
+            const feitas = filhas.filter((f) => f.status === 'Concluído').length
             const arrastando = arrastandoId === t.id
             const alvo = arrastandoSobre === t.id && !arrastando
 
@@ -274,14 +318,6 @@ export default function TaskSchedule({
                     onChange={(e) => updateLocal(t.id, { nome: e.target.value })}
                     onBlur={(e) => saveField(t.id, { nome: e.target.value })}
                   />
-                  <input
-                    className="w-32 border border-slate-300 rounded-md px-2 py-1 text-xs"
-                    placeholder="Responsável"
-                    list="task-resp-suggestions"
-                    value={t.responsavel || ''}
-                    onChange={(e) => updateLocal(t.id, { responsavel: e.target.value })}
-                    onBlur={(e) => saveField(t.id, { responsavel: e.target.value || null })}
-                  />
                   <select
                     className={`text-[11px] font-medium px-2 py-1 rounded-md border ${TASK_STATUS_COLORS[t.status] || ''}`}
                     value={t.status}
@@ -293,6 +329,23 @@ export default function TaskSchedule({
                       </option>
                     ))}
                   </select>
+                  {filhas.length > 0 && (
+                    <span
+                      className={`text-[10px] font-medium shrink-0 ${
+                        feitas === filhas.length ? 'text-emerald-600' : 'text-slate-500'
+                      }`}
+                      title="Subtarefas concluídas"
+                    >
+                      ☰ {feitas}/{filhas.length}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => adicionarSubtarefa(t)}
+                    className="text-slate-300 hover:text-indigo-600 text-sm px-1"
+                    title="Adicionar subtarefa"
+                  >
+                    ⊕
+                  </button>
                   <button
                     onClick={() => handleDelete(t.id)}
                     className="text-slate-300 hover:text-red-500 text-sm px-1"
@@ -301,6 +354,15 @@ export default function TaskSchedule({
                     ×
                   </button>
                 </div>
+
+                {/* Uma tarefa pode ser de mais de uma pessoa. */}
+                <SeletorDeResponsaveis
+                  titulo="Responsáveis"
+                  opcoes={Array.from(new Set([...equipe, ...responsaveis, ...(t.responsaveis || [])]))}
+                  selecionados={t.responsaveis || (t.responsavel ? [t.responsavel] : [])}
+                  onChange={(nomes) => saveField(t.id, { responsaveis: nomes.length ? nomes : null })}
+                  compacto
+                />
 
                 <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500">
                   <label className="flex items-center gap-1">
@@ -410,6 +472,56 @@ export default function TaskSchedule({
                       projectId={projectId}
                       observacoesIniciais={t.observacoes}
                     />
+                  </div>
+                )}
+
+                {filhas.length > 0 && (
+                  <div className="pl-4 border-l-2 border-slate-200 space-y-1">
+                    {filhas.map((f) => (
+                      <div key={f.id} className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={f.status === 'Concluído'}
+                          onChange={(e) =>
+                            handleStatusChange(f, e.target.checked ? 'Concluído' : 'Pendente')
+                          }
+                          title="Marcar como concluída"
+                        />
+                        <input
+                          className={`flex-1 min-w-[120px] border border-transparent hover:border-slate-200 rounded px-1 py-0.5 ${
+                            f.status === 'Concluído' ? 'line-through text-slate-400' : 'text-slate-700'
+                          }`}
+                          value={f.nome}
+                          onChange={(e) => updateLocal(f.id, { nome: e.target.value })}
+                          onBlur={(e) => saveField(f.id, { nome: e.target.value })}
+                        />
+                        {(f.responsaveis || []).map((r) => (
+                          <span
+                            key={r}
+                            className="text-[9px] font-medium text-white rounded-full px-1.5 py-0.5"
+                            style={{ background: corDoResponsavel(r) }}
+                          >
+                            {r}
+                          </span>
+                        ))}
+                        <input
+                          type="date"
+                          value={f.data_prazo || ''}
+                          onChange={(e) => saveField(f.id, { data_prazo: e.target.value })}
+                          className="border border-slate-200 rounded px-1 py-0.5 text-[10px]"
+                        />
+                        {taskNeedsJustificativa(f) && (
+                          <span className="text-red-600 font-semibold text-[10px]">⚠</span>
+                        )}
+                        <button
+                          onClick={() => handleDelete(f.id)}
+                          className="text-slate-300 hover:text-red-500 px-1"
+                          title="Excluir subtarefa"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
