@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase, carregarTabelaCompleta } from '../lib/supabase'
 import { STATUS_TO_LETRA, faixaHoraria, statusColor } from '../types'
+import { dataLocal, horaLocal } from '../lib/datas'
 
 type Tipo = 'status' | 'atividade' | 'tarefa' | 'pendencia' | 'correcao' | 'arquivo'
 
@@ -171,11 +172,11 @@ export default function FeedView({
       // Sem isso o feed viraria uma lista de "criou café", "criou café"...
       const geradaPorRegra = !!t.recurrence_id
 
-      if (!geradaPorRegra && t.created_at.slice(0, 10) >= desde) {
+      if (!geradaPorRegra && dataLocal(t.created_at) >= desde) {
         lista.push({
           id: `tk-${t.id}`,
-          data: t.created_at.slice(0, 10),
-          hora: t.created_at.slice(11, 16),
+          data: dataLocal(t.created_at),
+          hora: horaLocal(t.created_at),
           tipo: 'tarefa',
           titulo: `Criou a tarefa "${t.nome}"`,
           detalhe: `Prazo ${formatarData(t.data_prazo)}${horario ? ` · ${horario}` : ''}`,
@@ -262,8 +263,8 @@ export default function FeedView({
     for (const f of (arquivos.data as any[]) || []) {
       lista.push({
         id: `ar-${f.id}`,
-        data: f.created_at.slice(0, 10),
-        hora: f.created_at.slice(11, 16),
+        data: dataLocal(f.created_at),
+        hora: horaLocal(f.created_at),
         tipo: 'arquivo',
         titulo: `Enviou "${f.nome}"`,
         detalhe: f.categoria,

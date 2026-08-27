@@ -23,6 +23,7 @@ import {
 } from '../lib/stats'
 import type { MonthRef } from '../lib/month'
 import { addMonths, dateInMonth, monthKey, monthLabel } from '../lib/month'
+import { corDoResponsavel } from '../lib/agenda'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
@@ -696,8 +697,9 @@ export default function Dashboard({
                 content={<PreviaDoResponsavel detalhes={projetosPorResponsavel} />}
               />
               <Bar dataKey="pontos" radius={[4, 4, 0, 0]}>
-                {rankingChartData.map((_, i) => (
-                  <Cell key={i} fill={RANKING_COLORS[i % RANKING_COLORS.length]} />
+                {/* Cada pessoa com a sua cor, a mesma do calendário e do Gantt. */}
+                {rankingChartData.map((r, i) => (
+                  <Cell key={i} fill={corDoResponsavel(r.name)} />
                 ))}
               </Bar>
             </BarChart>

@@ -97,8 +97,33 @@ const CORES_RESPONSAVEL = [
   '#14b8a6',
 ]
 
+/**
+ * Cor fixa de cada pessoa da equipe.
+ *
+ * Antes a cor saía de um hash do nome, então mudava de pessoa a cada colega
+ * novo e ninguém conseguia associar cor a rosto. Definidas à mão, o calendário
+ * e o Gantt passam a ser lidos pela cor sem precisar da legenda.
+ */
+export const CORES_DA_EQUIPE: Record<string, string> = {
+  aimee: '#38bdf8', // azul claro
+  breno: '#f97316', // laranja
+  samuel: '#16a34a', // verde
+  samira: '#ec4899', // rosa
+  emanuel: '#0891b2', // ciano
+  matheus: '#8b5cf6', // roxo
+}
+
 export function corDoResponsavel(nome: string | null | undefined): string {
   const chave = (nome || 'Sem responsável').trim().toLowerCase()
+
+  const fixa = CORES_DA_EQUIPE[chave]
+  if (fixa) return fixa
+
+  // Primeiro nome resolve "Samira Souza" e afins.
+  const primeiro = chave.split(/\s+/)[0]
+  if (CORES_DA_EQUIPE[primeiro]) return CORES_DA_EQUIPE[primeiro]
+
+  // Quem não está na lista continua ganhando uma cor estável pelo nome.
   let soma = 0
   for (let i = 0; i < chave.length; i++) soma = (soma + chave.charCodeAt(i)) % 9973
   return CORES_RESPONSAVEL[soma % CORES_RESPONSAVEL.length]

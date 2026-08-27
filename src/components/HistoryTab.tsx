@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { STATUS_TO_LETRA, statusColor } from '../types'
+import { dataLocal, horaLocal } from '../lib/datas'
 
 /** Um acontecimento na vida do projeto, venha de onde vier. */
 type Evento = {
@@ -37,13 +38,9 @@ function formatarData(d: string | null | undefined): string {
   return `${dia}/${m}/${a}`
 }
 
-function soData(timestamp: string): string {
-  return timestamp.slice(0, 10)
-}
-
-function soHora(timestamp: string): string {
-  return timestamp.slice(11, 16)
-}
+// O carimbo vem em UTC; sem converter, a hora aparece 3h à frente.
+const soData = dataLocal
+const soHora = horaLocal
 
 /**
  * Linha do tempo do projeto: junta num lugar só tudo que aconteceu —
