@@ -36,6 +36,13 @@ export default function TaskSchedule({
   // Observações e anexos ficam recolhidos: a maioria das tarefas não usa.
   const [anexosAbertos, setAnexosAbertos] = useState<string | null>(null)
 
+  /**
+   * Como a lista é ordenada.
+   * 'manual' é a ordem arrastada; as outras duas agrupam por status para
+   * separar o que ainda dá trabalho do que já está resolvido.
+   */
+  const [ordenacao, setOrdenacao] = useState<'manual' | 'pendentes' | 'concluidas'>('manual')
+
   // Equipe do escritório: alimenta a escolha de responsáveis.
   const [equipe, setEquipe] = useState<string[]>([])
 
@@ -201,6 +208,28 @@ export default function TaskSchedule({
     await supabase.from('project_tasks').delete().eq('id', id)
   }
 
+  /** Peso do status: menor vem primeiro. */
+  const PESO_STATUS: Record<string, number> = {
+    Pendente: 0,
+    'Em andamento': 1,
+    'Concluído': 2,
+  }
+
+  /**
+   * Só as tarefas-mãe entram na lista; as filhas penduram embaixo de cada uma.
+   * A ordem manual é preservada como desempate, para a lista não embaralhar
+   * dentro de um mesmo status.
+   */
+  const maes = useMemo(() => {
+    const lista = tasks.filter((t) => !t.parent_id)
+    if (ordenacao === 'manual') return lista
+    const sinal = ordenacao === 'concluidas' ? -1 : 1
+    return [...lista].sort(
+      (a, b) => sinal * ((PESO_STATUS[a.status] ?? 9) - (PESO_STATUS[b.status] ?? 9)) || a.ordem - b.ordem
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, ordenacao])
+
   const ganttItems: GanttItem[] = useMemo(
     () =>
       tasks
@@ -226,20 +255,35 @@ export default function TaskSchedule({
       <div className="flex items-center justify-between mb-2">
         <label className="block text-xs font-medium text-slate-500">
           Cronograma de tarefas
-          {tasks.length > 1 && !showGantt && (
+          {tasks.length > 1 && !showGantt && ordenacao === 'manual' && (
             <span className="ml-2 font-normal text-slate-400">
               · arraste pela alça <span className="text-slate-500">⠿</span> para reordenar
             </span>
           )}
         </label>
-        {tasks.length > 0 && (
-          <button
-            onClick={() => setShowGantt((v) => !v)}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-          >
-            {showGantt ? 'Ver lista' : 'Ver Gantt'}
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {tasks.length > 1 && !showGantt && (
+            <select
+              value={ordenacao}
+              onChange={(e) => setOrdenacao(e.target.value as typeof ordenacao)}
+              title="Arrastar para reordenar só funciona na ordem manual"
+              className="text-[11px] border border-slate-300 rounded-md px-1.5 py-1 bg-white text-slate-600"
+            >
+              <option value="manual">Ordem manual</option>
+              <option value="pendentes">Pendentes primeiro</option>
+              <option value="concluidas">Concluídas primeiro</option>
+            </select>
+          )}
+          {tasks.length > 0 && (
+            <button
+              onClick={() => setShowGantt((v) => !v)}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              {showGantt ? 'Ver lista' : 'Ver Gantt'}
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -248,7 +292,7 @@ export default function TaskSchedule({
         <GanttChart items={ganttItems} labelWidth={150} />
       ) : (
         <div className="space-y-2">
-          {tasks.filter((t) => !t.parent_id).map((t, index) => {
+          {maes.map((t, index) => {
             const late = taskNeedsJustificativa(t)
             const filhas = tasks.filter((f) => f.parent_id === t.id)
             const feitas = filhas.filter((f) => f.status === 'Concluído').length
@@ -262,14 +306,14 @@ export default function TaskSchedule({
                   linhasRef.current[t.id] = el
                 }}
                 onDragOver={(e) => {
-                  if (!arrastandoId) return
+                  if (!arrastandoId || ordenacao !== 'manual') return
                   e.preventDefault()
                   setArrastandoSobre(t.id)
                 }}
                 onDragLeave={() => setArrastandoSobre((v) => (v === t.id ? null : v))}
                 onDrop={(e) => {
                   e.preventDefault()
-                  soltarEm(index)
+                  if (ordenacao === 'manual') soltarEm(index)
                 }}
                 className={`border rounded-lg p-2.5 space-y-2 transition ${
                   arrastando ? 'opacity-40' : ''
@@ -285,8 +329,9 @@ export default function TaskSchedule({
                   {/* Alça de arrastar: só ela é arrastável, para não atrapalhar
                       a seleção de texto nos campos ao lado. */}
                   <span
-                    draggable
+                    draggable={ordenacao === 'manual'}
                     onDragStart={(e) => {
+                      if (ordenacao !== 'manual') return
                       setArrastandoId(t.id)
                       e.dataTransfer.effectAllowed = 'move'
                       e.dataTransfer.setData('text/plain', t.id)
@@ -298,8 +343,16 @@ export default function TaskSchedule({
                       setArrastandoId(null)
                       setArrastandoSobre(null)
                     }}
-                    className="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 select-none px-0.5"
-                    title="Arraste para reordenar"
+                    className={`shrink-0 select-none px-0.5 ${
+                      ordenacao === 'manual'
+                        ? 'cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500'
+                        : 'text-slate-200 cursor-not-allowed'
+                    }`}
+                    title={
+                      ordenacao === 'manual'
+                        ? 'Arraste para reordenar'
+                        : 'Volte para "Ordem manual" para reordenar arrastando'
+                    }
                   >
                     ⠿
                   </span>
