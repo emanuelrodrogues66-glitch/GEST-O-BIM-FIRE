@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePerfil } from '../lib/perfil'
 import TaskAttachments from './TaskAttachments'
+import SeletorDeResponsaveis from './SeletorDeResponsaveis'
+import type { ReuniaoDaAgenda } from '../lib/reunioes'
+import { carregarReunioes } from '../lib/reunioes'
 import {
   PASTA_TAREFAS_GERAIS,
   imagensDaAreaDeTransferencia,
@@ -64,6 +67,8 @@ export default function AgendaView({
   const [carregando, setCarregando] = useState(true)
   /** Quantos anexos cada tarefa tem, para marcar o clipe na lista. */
   const [anexosPorTarefa, setAnexosPorTarefa] = useState<Record<string, number>>({})
+  // Reuniões dividem o calendário com as tarefas: o dia da pessoa é um só.
+  const [reunioes, setReunioes] = useState<ReuniaoDaAgenda[]>([])
 
   // Pré-preenchimento vindo do clique num horário do calendário.
   const [novoHorario, setNovoHorario] = useState<{
@@ -100,10 +105,16 @@ export default function AgendaView({
   }
 
   async function recarregar() {
-    const [t, c, r] = await Promise.all([carregarTarefas(), carregarCategorias(), carregarRecorrencias()])
+    const [t, c, r, m] = await Promise.all([
+      carregarTarefas(),
+      carregarCategorias(),
+      carregarRecorrencias(),
+      carregarReunioes(),
+    ])
     setTarefas(t)
     setCategorias(c)
     setRecorrencias(r)
+    setReunioes(m)
 
     // Só a contagem: serve para o clipe aparecer na lista sem abrir a tarefa.
     const { data: arquivos } = await supabase
@@ -116,6 +127,14 @@ export default function AgendaView({
     })
     setAnexosPorTarefa(contagem)
   }
+
+  /** A reunião entra na agenda de quem foi convocado. */
+  const reunioesVisiveis = useMemo(() => {
+    if (!responsavelFiltro) return reunioes
+    return reunioes.filter((r) =>
+      r.participantes.some((p) => p.trim() === responsavelFiltro.trim())
+    )
+  }, [reunioes, responsavelFiltro])
 
   const filtradas = useMemo(() => {
     return tarefas.filter((t) => {
@@ -187,6 +206,31 @@ export default function AgendaView({
       alert(error.message)
       recarregar()
     }
+  }
+
+  /**
+   * Subtarefa nasce herdando projeto, prazo e responsáveis da mãe: quase
+   * sempre é o mesmo trabalho, quebrado em pedaços.
+   */
+  async function criarSubtarefa(mae: TarefaDaAgenda) {
+    const nome = prompt(`Nova subtarefa de "${mae.nome}":`)
+    if (!nome?.trim()) return
+    const { error } = await supabase.from('project_tasks').insert({
+      parent_id: mae.id,
+      project_id: mae.project_id,
+      categoria_id: mae.categoria_id,
+      nome: nome.trim(),
+      responsaveis: mae.responsaveis,
+      data_inicio: mae.data_prazo,
+      data_prazo: mae.data_prazo,
+      status: 'Pendente',
+      ordem: 0,
+    })
+    if (error) {
+      alert(error.message)
+      return
+    }
+    recarregar()
   }
 
   async function mudarStatus(t: TarefaDaAgenda, status: string) {
@@ -318,8 +362,10 @@ export default function AgendaView({
                 <span className="text-xs font-normal text-slate-400">· {items.length}</span>
               </h3>
               <div className="space-y-1.5">
-                {items.map((t) => {
+                {items.filter((t) => !t.parent_id).map((t) => {
                   const atrasada = isTaskLate(t)
+                  const filhas = tarefas.filter((f) => f.parent_id === t.id)
+                  const feitas = filhas.filter((f) => f.status === 'Concluído').length
 
                   if (editandoId === t.id) {
                     return (
@@ -369,6 +415,16 @@ export default function AgendaView({
                             📝
                           </span>
                         )}
+                        {filhas.length > 0 && (
+                          <span
+                            className={`text-[10px] font-medium ${
+                              feitas === filhas.length ? 'text-emerald-600' : 'text-slate-500'
+                            }`}
+                            title="Subtarefas concluídas"
+                          >
+                            ☰ {feitas}/{filhas.length}
+                          </span>
+                        )}
                         {anexosPorTarefa[t.id] > 0 && (
                           <span
                             className="text-[10px] text-slate-400"
@@ -410,6 +466,13 @@ export default function AgendaView({
                           ))}
                         </select>
                         <button
+                          onClick={() => criarSubtarefa(t)}
+                          className="text-slate-300 hover:text-indigo-600 px-1"
+                          title="Adicionar subtarefa"
+                        >
+                          ⊕
+                        </button>
+                        <button
                           onClick={() => setEditandoId(t.id)}
                           className="text-slate-300 hover:text-indigo-600 px-1"
                           title="Editar tarefa"
@@ -424,6 +487,57 @@ export default function AgendaView({
                           ×
                         </button>
                       </div>
+
+                      {filhas.length > 0 && (
+                        <div className="mt-1.5 pl-4 border-l-2 border-slate-200 space-y-1">
+                          {filhas.map((f) => (
+                            <div key={f.id} className="flex flex-wrap items-center gap-2 text-[11px]">
+                              <input
+                                type="checkbox"
+                                checked={f.status === 'Concluído'}
+                                onChange={(e) =>
+                                  mudarStatus(f, e.target.checked ? 'Concluído' : 'Pendente')
+                                }
+                                title="Marcar como concluída"
+                              />
+                              <span
+                                className={
+                                  f.status === 'Concluído'
+                                    ? 'line-through text-slate-400'
+                                    : 'text-slate-700'
+                                }
+                              >
+                                {f.nome}
+                              </span>
+                              {f.responsavel && (
+                                <span
+                                  className="text-[10px] font-medium"
+                                  style={{ color: corDoResponsavel(f.responsavel) }}
+                                >
+                                  {(f.responsaveis || [f.responsavel]).join(', ')}
+                                </span>
+                              )}
+                              <span className={isTaskLate(f) ? 'text-red-600' : 'text-slate-400'}>
+                                {formatarData(f.data_prazo)}
+                              </span>
+                              <button
+                                onClick={() => setEditandoId(f.id)}
+                                className="text-slate-300 hover:text-indigo-600 px-1 ml-auto"
+                                title="Editar subtarefa"
+                              >
+                                ✎
+                              </button>
+                              <button
+                                onClick={() => excluirTarefa(f)}
+                                className="text-slate-300 hover:text-red-500 px-1"
+                                title="Excluir"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -437,6 +551,7 @@ export default function AgendaView({
         <>
           <TaskCalendar
             tarefas={filtradas}
+            reunioes={reunioesVisiveis}
             onNovoHorario={(dados) => {
               // Abre o formulário completo por cima da agenda do dia, com
               // dia, hora e responsável da coluna já preenchidos.
@@ -975,7 +1090,7 @@ function Recorrentes({
 function EditarTarefa({
   tarefa,
   categorias,
-  responsaveis,
+  responsaveis: responsaveisEquipe,
   projetos,
   onSalvo,
   onCancelar,
@@ -987,8 +1102,15 @@ function EditarTarefa({
   onSalvo: (patch: Partial<ProjectTask>) => void
   onCancelar: () => void
 }) {
+  // Quem já está marcado entra na lista mesmo se saiu da equipe, senão
+  // reabrir a tarefa apagaria a pessoa em silêncio.
+  const responsaveisDisponiveis = Array.from(
+    new Set([...responsaveisEquipe, ...(tarefa.responsaveis || [])])
+  )
   const [nome, setNome] = useState(tarefa.nome)
-  const [responsavel, setResponsavel] = useState(tarefa.responsavel || '')
+  const [responsaveis, setResponsaveis] = useState<string[]>(
+    tarefa.responsaveis?.length ? tarefa.responsaveis : tarefa.responsavel ? [tarefa.responsavel] : []
+  )
   const [categoriaId, setCategoriaId] = useState(tarefa.categoria_id || '')
   const [projectId, setProjectId] = useState(tarefa.project_id || '')
   const [prazo, setPrazo] = useState(tarefa.data_prazo)
@@ -1032,7 +1154,7 @@ function EditarTarefa({
 
     onSalvo({
       nome: nome.trim(),
-      responsavel: responsavel.trim() || null,
+      responsaveis: responsaveis.length ? responsaveis : null,
       categoria_id: categoriaId || null,
       project_id: projectId || null,
       data_prazo: prazo,
@@ -1052,13 +1174,6 @@ function EditarTarefa({
           onKeyDown={(e) => e.key === 'Enter' && salvar()}
           autoFocus
         />
-        <input
-          className="w-32 border border-slate-300 rounded-md px-2 py-1.5 text-xs"
-          placeholder="Responsável"
-          list="agenda-resp"
-          value={responsavel}
-          onChange={(e) => setResponsavel(e.target.value)}
-        />
         <select
           value={categoriaId}
           onChange={(e) => setCategoriaId(e.target.value)}
@@ -1072,6 +1187,15 @@ function EditarTarefa({
           ))}
         </select>
       </div>
+
+      {/* Uma tarefa pode ser de mais de uma pessoa. */}
+      <SeletorDeResponsaveis
+        titulo="Responsáveis"
+        opcoes={responsaveisDisponiveis}
+        selecionados={responsaveis}
+        onChange={setResponsaveis}
+        compacto
+      />
 
       {/* Tarefa geral vira de projeto (e vice-versa) trocando aqui. */}
       <div className="flex flex-wrap items-center gap-2">

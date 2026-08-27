@@ -116,7 +116,12 @@ export type ProjectTask = {
   /** Código no formato MM + sequência do mês: 0801, 0802, 0901... */
   codigo: string | null
   nome: string
+  /** Primeiro nome de `responsaveis`. Mantido para as telas antigas. */
   responsavel: string | null
+  /** Todos os responsáveis pela tarefa. */
+  responsaveis: string[] | null
+  /** Preenchido quando é subtarefa: aponta para a tarefa mãe. */
+  parent_id: string | null
   data_inicio: string | null
   data_prazo: string
   /** "09:00:00" quando a tarefa tem hora marcada; nulo = dia inteiro. */
@@ -313,6 +318,12 @@ export const FILE_CATEGORIES = [
     label: 'Comprovante de entrega do projeto',
     hint: 'Se o processo foi digital, envie o print do e-mail com os arquivos',
     obrigatorio: true,
+  },
+  {
+    key: 'cliente',
+    label: 'Arquivos recebidos do cliente',
+    hint: 'Plantas, projetos anteriores, fotos e documentos enviados por quem contratou',
+    obrigatorio: false,
   },
   {
     key: 'analises',

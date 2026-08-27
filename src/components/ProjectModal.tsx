@@ -26,6 +26,7 @@ import CorrectionsTab from './CorrectionsTab'
 import PendenciesTab from './PendenciesTab'
 import HistoryTab from './HistoryTab'
 import ProjectFinanceTab from './ProjectFinanceTab'
+import MeetingsTab from './MeetingsTab'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -92,6 +93,17 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
   // Pontuação e exclusão são do administrador. Na criação o campo continua
   // liberado, porque aí ele só recebe a sugestão automática do tipo.
   const { ehAdmin } = usePerfil()
+  // Equipe do escritório: alimenta a escolha de participantes das reuniões.
+  const [equipeDoEscritorio, setEquipeDoEscritorio] = useState<string[]>([])
+
+  useEffect(() => {
+    supabase
+      .from('team_members')
+      .select('nome')
+      .eq('ativo', true)
+      .order('ordem')
+      .then(({ data }) => setEquipeDoEscritorio(((data as { nome: string }[]) || []).map((m) => m.nome)))
+  }, [])
   const podeEditarPontos = ehAdmin || isNew
   const [progress, setProgress] = useState<Record<number, string>>({})
 
@@ -101,7 +113,7 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
   const [mesesComRegistro, setMesesComRegistro] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<
-    'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico' | 'financeiro'
+    'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico' | 'reunioes' | 'financeiro'
   >('geral')
   const [clientData, setClientData] = useState<Partial<ProjectClient>>({})
   const [showMissingClientData, setShowMissingClientData] = useState(false)
@@ -397,11 +409,12 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                 ['plano', 'Planejamento'],
                 ['correcoes', 'Correções'],
                 ['pendencias', 'Pendências'],
+                ['reunioes', 'Reuniões'],
                 ['historico', 'Histórico'],
                 // Valor e custo são do ADM; a aba nem aparece para os demais.
                 ...(ehAdmin ? ([['financeiro', 'Financeiro']] as const) : []),
               ] as [
-                'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico' | 'financeiro',
+                'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico' | 'reunioes' | 'financeiro',
                 string,
               ][]
             ).map(([tab, label]) => (
@@ -421,7 +434,9 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
         )}
 
         <div className="p-6 space-y-4">
-          {activeTab === 'financeiro' && !isNew && project ? (
+          {activeTab === 'reunioes' && !isNew && project ? (
+            <MeetingsTab projectId={project.id} equipe={equipeDoEscritorio} />
+          ) : activeTab === 'financeiro' && !isNew && project ? (
             <ProjectFinanceTab projectId={project.id} />
           ) : activeTab === 'historico' && !isNew && project ? (
             <HistoryTab projectId={project.id} />

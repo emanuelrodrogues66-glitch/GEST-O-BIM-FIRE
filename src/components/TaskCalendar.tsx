@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { TarefaDaAgenda } from '../lib/agenda'
 import { corDoResponsavel, hojeStr, inicioDaSemana, paraData, paraIso, somarDias } from '../lib/agenda'
 import { faixaHoraria, horaCurta, isTaskLate } from '../types'
+import type { ReuniaoDaAgenda } from '../lib/reunioes'
 
 const NOMES_MES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -29,11 +30,14 @@ function emHoras(h: string | null): number | null {
 
 export default function TaskCalendar({
   tarefas,
+  reunioes = [],
   onTarefaClick,
   onNovoHorario,
   onConcluir,
 }: {
   tarefas: TarefaDaAgenda[]
+  /** Compromissos marcados no cartão do projeto, no mesmo calendário. */
+  reunioes?: ReuniaoDaAgenda[]
   onTarefaClick?: (t: TarefaDaAgenda) => void
   /** Clique num espaço vazio da grade de horas: cria tarefa naquele horário. */
   onNovoHorario?: (dados: { data: string; hora: string; responsavel: string }) => void
@@ -41,6 +45,21 @@ export default function TaskCalendar({
   onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
 }) {
   const [visao, setVisao] = useState<Visao>('mes')
+  // Reunião aberta no calendário: mostra ata e encaminhamentos sem sair daqui.
+  const [reuniaoAberta, setReuniaoAberta] = useState<ReuniaoDaAgenda | null>(null)
+
+  /** Reuniões do dia, na ordem do relógio. */
+  const reunioesPorDia = useMemo(() => {
+    const mapa = new Map<string, ReuniaoDaAgenda[]>()
+    for (const r of reunioes) {
+      if (!mapa.has(r.data)) mapa.set(r.data, [])
+      mapa.get(r.data)!.push(r)
+    }
+    for (const lista of mapa.values()) {
+      lista.sort((a, b) => (a.hora_inicio || '99').localeCompare(b.hora_inicio || '99'))
+    }
+    return mapa
+  }, [reunioes])
   // A grade de horas fica apertada dentro da página; abre em janela cheia,
   // como o cartão do projeto.
   const [diaAmpliado, setDiaAmpliado] = useState(false)
@@ -157,7 +176,18 @@ export default function TaskCalendar({
       </div>
 
       {visao === 'mes' && (
-        <VisaoMes ancora={ancora} porDia={porDia} onTarefaClick={onTarefaClick} onConcluir={onConcluir} />
+        <VisaoMes
+          ancora={ancora}
+          porDia={porDia}
+          reunioesPorDia={reunioesPorDia}
+          onReuniaoClick={setReuniaoAberta}
+          onTarefaClick={onTarefaClick}
+          onConcluir={onConcluir}
+        />
+      )}
+
+      {reuniaoAberta && (
+        <DetalheDaReuniao reuniao={reuniaoAberta} onFechar={() => setReuniaoAberta(null)} />
       )}
 
       {visao === 'semana' && (
@@ -316,11 +346,15 @@ function Pilula({
 function VisaoMes({
   ancora,
   porDia,
+  reunioesPorDia,
+  onReuniaoClick,
   onTarefaClick,
   onConcluir,
 }: {
   ancora: Date
   porDia: Map<string, TarefaDaAgenda[]>
+  reunioesPorDia: Map<string, ReuniaoDaAgenda[]>
+  onReuniaoClick: (r: ReuniaoDaAgenda) => void
   onTarefaClick?: (t: TarefaDaAgenda) => void
   onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
 }) {
@@ -346,6 +380,7 @@ function VisaoMes({
           const doMes = d.getMonth() === ancora.getMonth()
           const ehHoje = iso === hoje
           const items = porDia.get(iso) || []
+          const encontros = reunioesPorDia.get(iso) || []
           return (
             <div
               key={iso}
@@ -364,6 +399,22 @@ function VisaoMes({
               >
                 {d.getDate()}
               </div>
+              {/* Reunião vem primeiro: é hora marcada com outras pessoas,
+                  não dá para empurrar como uma tarefa qualquer. */}
+              {encontros.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => onReuniaoClick(r)}
+                  title={`${r.titulo}${r.local ? ` · ${r.local}` : ''}`}
+                  className="w-full flex items-center gap-1 text-left text-[10px] px-1 py-0.5 rounded bg-violet-100 border border-violet-300 text-violet-900 hover:bg-violet-200"
+                >
+                  <span>📅</span>
+                  {r.hora_inicio && (
+                    <span className="tabular-nums shrink-0">{horaCurta(r.hora_inicio)}</span>
+                  )}
+                  <span className="truncate">{r.titulo}</span>
+                </button>
+              ))}
               {items.slice(0, 4).map((t) => (
                 <Pilula key={t.id} t={t} onClick={() => onTarefaClick?.(t)} onConcluir={onConcluir} />
               ))}
@@ -651,6 +702,89 @@ function VisaoDia({
               </div>
             )
           })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+/**
+ * Detalhe da reunião a partir do calendário.
+ *
+ * Somente leitura: quem edita a ata é o cartão do projeto, que é onde ela
+ * pertence. Aqui serve para lembrar o que ficou combinado sem perder o lugar.
+ */
+function DetalheDaReuniao({
+  reuniao,
+  onFechar,
+}: {
+  reuniao: ReuniaoDaAgenda
+  onFechar: () => void
+}) {
+  const [a, m, dia] = reuniao.data.split('-')
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onFechar}>
+      <div
+        className="w-full max-w-lg bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-violet-50 border-b border-violet-200 px-5 py-3">
+          <div className="flex items-start gap-2">
+            <span className="text-xl">📅</span>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-violet-900">{reuniao.titulo}</h3>
+              <p className="text-[11px] text-violet-800">
+                {dia}/{m}/{a}
+                {reuniao.hora_inicio && ` · ${faixaHoraria(reuniao.hora_inicio, reuniao.hora_fim)}`}
+                {reuniao.local && ` · ${reuniao.local}`}
+              </p>
+              {reuniao.projects && (
+                <p className="text-[10px] text-violet-700 mt-0.5">
+                  {reuniao.projects.numero ? `${reuniao.projects.numero} · ` : ''}
+                  {reuniao.projects.nome}
+                </p>
+              )}
+            </div>
+            <button onClick={onFechar} className="text-violet-400 hover:text-violet-700 text-lg leading-none">
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div className="px-5 py-3 space-y-3 overflow-y-auto">
+          {reuniao.participantes.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-medium text-slate-500">Participantes</span>
+              {reuniao.participantes.map((p) => (
+                <span
+                  key={p}
+                  className="text-[10px] font-medium text-white rounded-full px-2 py-0.5"
+                  style={{ background: corDoResponsavel(p) }}
+                >
+                  {p}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div>
+            <p className="text-[10px] font-medium text-slate-500 mb-1">Ata</p>
+            {reuniao.ata ? (
+              <p className="text-xs text-slate-700 whitespace-pre-wrap">{reuniao.ata}</p>
+            ) : (
+              <p className="text-xs text-amber-700">
+                Ainda sem ata. Abra o cartão do projeto, aba Reuniões, para escrever.
+              </p>
+            )}
+          </div>
+
+          {reuniao.encaminhamentos && (
+            <div>
+              <p className="text-[10px] font-medium text-slate-500 mb-1">Encaminhamentos</p>
+              <p className="text-xs text-slate-700 whitespace-pre-wrap">{reuniao.encaminhamentos}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
