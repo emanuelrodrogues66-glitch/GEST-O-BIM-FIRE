@@ -4,6 +4,7 @@ import type { ProjectActivity } from '../types'
 import { driveConfigError, encontrarOuCriarPasta, enviarArquivo, obterToken } from '../lib/googleDrive'
 import { DURACOES, JORNADA_PADRAO, horasLegiveis } from '../types'
 import type { ProjectTask } from '../types'
+import { usePerfil } from '../lib/perfil'
 
 /** Print anexado ao registro, ainda só na memória do navegador. */
 type ImagemColada = { file: File; previa: string }
@@ -85,7 +86,9 @@ export default function ActivityHistory({
 
   // Edição de um registro já gravado do histórico.
   const [editandoId, setEditandoId] = useState<string | null>(null)
-  const [rascunho, setRascunho] = useState({ responsavel: '', data: '', descricao: '' })
+  // A hora lançada reparte pontos e forma o custo: corrigir depois é do ADM.
+  const { ehAdmin } = usePerfil()
+  const [rascunho, setRascunho] = useState({ responsavel: '', data: '', descricao: '', horas: '' })
 
   useEffect(() => {
     load()
@@ -518,7 +521,37 @@ export default function ActivityHistory({
                     value={rascunho.data}
                     onChange={(e) => setRascunho((r) => ({ ...r, data: e.target.value }))}
                   />
+
+                  {ehAdmin ? (
+                    <label className="flex items-center gap-1 text-[10px] text-slate-500">
+                      <input
+                        type="number"
+                        step="0.25"
+                        min="0.25"
+                        max="24"
+                        className="w-20 border border-amber-400 rounded-md px-2 py-1 text-xs text-right"
+                        value={rascunho.horas}
+                        onChange={(e) => setRascunho((r) => ({ ...r, horas: e.target.value }))}
+                        title="Corrigir a hora muda os pontos e o custo deste projeto"
+                      />
+                      h
+                    </label>
+                  ) : (
+                    <span
+                      className="text-[10px] text-slate-400"
+                      title="A hora só é corrigida pelo administrador"
+                    >
+                      {horasLegiveis(a.horas)} 🔒
+                    </span>
+                  )}
                 </div>
+
+                {ehAdmin && (
+                  <p className="text-[10px] text-amber-700">
+                    Mudar a hora recalcula a divisão de pontos e o custo deste projeto. A correção
+                    passa a valer como número informado, não mais como estimativa.
+                  </p>
+                )}
                 <textarea
                   className="w-full border border-slate-300 rounded-md px-2 py-1 text-xs"
                   rows={2}
@@ -535,11 +568,18 @@ export default function ActivityHistory({
                   </button>
                   <button
                     onClick={async () => {
-                      await salvarEdicao(a.id, {
+                      const patch: Partial<ProjectActivity> = {
                         responsavel: rascunho.responsavel.trim() || a.responsavel,
                         data: rascunho.data || a.data,
                         descricao: rascunho.descricao.trim() || null,
-                      })
+                      }
+                      // Só o ADM manda hora no patch; o banco recusaria de
+                      // qualquer jeito, mas assim o erro nem chega a acontecer.
+                      if (ehAdmin) {
+                        const h = Number(rascunho.horas)
+                        patch.horas = h > 0 ? h : null
+                      }
+                      await salvarEdicao(a.id, patch)
                       setEditandoId(null)
                     }}
                     className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-medium"
@@ -556,6 +596,19 @@ export default function ActivityHistory({
                 <span className="text-slate-400 shrink-0 w-16">{formatDate(a.data)}</span>
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-slate-700">{a.responsavel}</span>
+                  {a.horas != null && (
+                    <span
+                      className="ml-1.5 text-[10px] text-slate-400 tabular-nums"
+                      title={
+                        a.horas_estimadas
+                          ? 'Estimativa do preenchimento automático'
+                          : 'Informado por quem lançou'
+                      }
+                    >
+                      {horasLegiveis(a.horas)}
+                      {a.horas_estimadas && ' ~'}
+                    </span>
+                  )}
                   {a.descricao ? (
                     <p className="text-slate-500 mt-0.5 whitespace-pre-wrap">{a.descricao}</p>
                   ) : (
@@ -579,6 +632,7 @@ export default function ActivityHistory({
                       responsavel: a.responsavel,
                       data: a.data,
                       descricao: a.descricao || '',
+                      horas: a.horas != null ? String(a.horas) : '',
                     })
                   }}
                   className="text-slate-300 hover:text-indigo-600 shrink-0 px-1"
