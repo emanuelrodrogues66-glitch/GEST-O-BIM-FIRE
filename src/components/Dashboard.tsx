@@ -24,8 +24,8 @@ import {
 import type { MonthRef } from '../lib/month'
 import { addMonths, dateInMonth, monthKey, monthLabel } from '../lib/month'
 import { corDoResponsavel } from '../lib/agenda'
-import type { LancamentoDeHora } from '../lib/rateioPontos'
-import { calcularRateio } from '../lib/rateioPontos'
+import type { LancamentoDeHora, SemPontuacao } from '../lib/rateioPontos'
+import { calcularRateio, carregarQuemNaoPontua } from '../lib/rateioPontos'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
@@ -154,6 +154,8 @@ export default function Dashboard({
   const [rateioManual, setRateioManual] = useState<
     Map<string, { colaborador: string; fracao: number }[]>
   >(new Map())
+  // Quem gerencia não disputa ranking: as horas dele saem da divisão.
+  const [semPontuacao, setSemPontuacao] = useState<SemPontuacao>(new Set())
 
   useEffect(() => {
     setMesSel(month)
@@ -176,6 +178,8 @@ export default function Dashboard({
         }>('project_activities', 'project_id, responsavel, horas, horas_estimadas'),
         supabase.from('project_point_shares').select('project_id, colaborador, fracao'),
       ])
+
+    setSemPontuacao(await carregarQuemNaoPontua())
 
     const mapa: Record<string, ProjectPlan> = {}
     ;(planosData as ProjectPlan[] | null)?.forEach((p) => {
@@ -380,6 +384,7 @@ export default function Dashboard({
         aprovacao,
         lancamentos: horasPorProjeto.get(p.id) || [],
         manual: rateioManual.get(p.id),
+        semPontuacao,
       })
 
       for (const f of fatias) {
@@ -418,7 +423,7 @@ export default function Dashboard({
         .sort((a, b) => b.pontos - a.pontos),
       projetosPorResponsavel: detalhe,
     }
-  }, [todosProjetos, aprovacoes, mesSel, horasPorProjeto, rateioManual])
+  }, [todosProjetos, aprovacoes, mesSel, horasPorProjeto, rateioManual, semPontuacao])
   const statusRows = statusDistribution(projects)
 
   const totalPontos = projects.reduce((s, p) => s + (p.pts || 0), 0)

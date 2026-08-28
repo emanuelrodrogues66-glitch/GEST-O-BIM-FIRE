@@ -39,6 +39,9 @@ export default function TeamCostsView() {
   const { ehAdmin, carregando: carregandoPerfil } = usePerfil()
   const [custos, setCustos] = useState<TeamCost[]>([])
   const [equipe, setEquipe] = useState<string[]>([])
+  // Quem entra no ranking de pontos. Gerente entra em projeto para destravar,
+  // não para competir — por isso a lista é editável, e não fixa no código.
+  const [membros, setMembros] = useState<{ id: string; nome: string; pontua: boolean }[]>([])
   const [carregando, setCarregando] = useState(true)
   const [form, setForm] = useState({ ...VAZIO })
   const [editandoId, setEditandoId] = useState<string | null>(null)
@@ -55,10 +58,12 @@ export default function TeamCostsView() {
     setCarregando(true)
     const [c, m] = await Promise.all([
       supabase.from('team_costs').select('*').order('colaborador').order('vigencia_inicio', { ascending: false }),
-      supabase.from('team_members').select('nome').eq('ativo', true).order('ordem'),
+      supabase.from('team_members').select('id, nome, pontua').eq('ativo', true).order('ordem'),
     ])
     setCustos((c.data as TeamCost[]) || [])
-    setEquipe(((m.data as { nome: string }[]) || []).map((x) => x.nome))
+    const lista = (m.data as { id: string; nome: string; pontua: boolean }[]) || []
+    setMembros(lista)
+    setEquipe(lista.map((x) => x.nome))
     setCarregando(false)
   }
 
@@ -130,6 +135,18 @@ export default function TeamCostsView() {
       return
     }
     limpar()
+    carregar()
+  }
+
+  async function alternarPontuacao(m: { id: string; nome: string; pontua: boolean }) {
+    const { error } = await supabase
+      .from('team_members')
+      .update({ pontua: !m.pontua })
+      .eq('id', m.id)
+    if (error) {
+      setErro(error.message)
+      return
+    }
     carregar()
   }
 
@@ -407,6 +424,32 @@ export default function TeamCostsView() {
             até você preencher.
           </p>
         )}
+      </div>
+
+      {/* ---------- Quem disputa pontos ---------- */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-slate-800 mb-1">Quem disputa pontos</h3>
+        <p className="text-[10px] text-slate-400 mb-3">
+          Quem gerencia entra em projeto para destravar ou revisar. Se pontuasse, apareceria no
+          ranking competindo com quem projeta — e ainda tiraria fatia deles na divisão. As horas de
+          quem está desmarcado continuam contando no custo, só não viram ponto.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {membros.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => alternarPontuacao(m)}
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-lg border transition ${
+                m.pontua
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-medium'
+                  : 'bg-slate-50 border-slate-300 text-slate-500'
+              }`}
+            >
+              <input type="checkbox" checked={m.pontua} readOnly className="pointer-events-none" />
+              {m.nome}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ---------- Histórico ---------- */}

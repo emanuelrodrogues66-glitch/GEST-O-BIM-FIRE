@@ -3,15 +3,29 @@ import { supabase } from '../lib/supabase'
 import { usePerfil } from '../lib/perfil'
 import { corDoResponsavel } from '../lib/agenda'
 import { horasLegiveis } from '../types'
-import type { RateioDoProjeto } from '../lib/rateioPontos'
+import type { RateioDoProjeto, SemPontuacao } from '../lib/rateioPontos'
 import {
   CORTE_RATEIO,
   calcularRateio,
   carregarLancamentos,
+  carregarQuemNaoPontua,
   carregarRateioManual,
   pontosLegiveis,
   porcentagem,
 } from '../lib/rateioPontos'
+
+/** Quem lançou hora no projeto mas não disputa pontos. */
+function nomesForaDoRanking(
+  lancamentos: { responsavel: string; horas: number | null }[],
+  fora: SemPontuacao
+): string[] {
+  const nomes = new Set<string>()
+  for (const l of lancamentos) {
+    if ((Number(l.horas) || 0) <= 0) continue
+    if (fora.has(l.responsavel.trim().toLowerCase())) nomes.add(l.responsavel.trim())
+  }
+  return Array.from(nomes)
+}
 
 function dataBR(iso: string) {
   const [a, m, d] = iso.split('-')
@@ -38,6 +52,9 @@ export default function RateioPontos({
 }) {
   const { ehAdmin } = usePerfil()
   const [rateio, setRateio] = useState<RateioDoProjeto | null>(null)
+  // Quem trabalhou no projeto mas está fora do ranking, para o cartão explicar
+  // por que aquelas horas não viraram fatia.
+  const [ajudaram, setAjudaram] = useState<string[]>([])
   const [carregando, setCarregando] = useState(true)
   const [editando, setEditando] = useState(false)
   const [rascunho, setRascunho] = useState<{ colaborador: string; pct: string }[]>([])
@@ -50,10 +67,12 @@ export default function RateioPontos({
 
   async function recarregar() {
     setCarregando(true)
-    const [lancamentos, manual] = await Promise.all([
+    const [lancamentos, manual, semPontuacao] = await Promise.all([
       carregarLancamentos(projectId),
       carregarRateioManual(projectId),
+      carregarQuemNaoPontua(),
     ])
+
     setRateio(
       calcularRateio({
         pontos: Number(pontos) || 0,
@@ -61,8 +80,11 @@ export default function RateioPontos({
         aprovacao,
         lancamentos,
         manual: manual.length > 0 ? manual : undefined,
+        semPontuacao,
       })
     )
+
+    setAjudaram(nomesForaDoRanking(lancamentos, semPontuacao))
     setCarregando(false)
   }
 
@@ -203,6 +225,13 @@ export default function RateioPontos({
           </div>
 
           <p className="text-[10px] text-slate-400">{explicacao[rateio.origem]}</p>
+
+          {ajudaram.length > 0 && (
+            <p className="text-[10px] text-slate-500">
+              {ajudaram.join(' e ')} também lançou hora aqui, mas não disputa pontos — as horas
+              dessa ajuda saem da conta e a divisão é feita só entre os projetistas.
+            </p>
+          )}
 
           {rateio.temHoraEstimada && (
             <p className="text-[10px] text-amber-700">

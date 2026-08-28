@@ -12,6 +12,10 @@
  * 2. Sem hora lançada, o responsável cadastrado leva tudo — ponto de trabalho
  *    feito não pode sumir por falha de registro.
  * 3. O ADM pode sobrescrever a divisão de um projeto, e fica registrado.
+ *
+ * Quem gerencia (marcado com `pontua = false` na equipe) não entra na divisão:
+ * entra em projeto para destravar ou revisar, e pontuar aí seria disputar
+ * ranking com quem projeta — além de tirar fatia deles.
  */
 
 import { supabase } from './supabase'
@@ -46,6 +50,18 @@ export type LancamentoDeHora = {
   responsavel: string
   horas: number | null
   horas_estimadas: boolean
+}
+
+/** Quem não disputa pontos, em minúsculas para comparar sem tropeçar em acento. */
+export type SemPontuacao = Set<string>
+
+export async function carregarQuemNaoPontua(): Promise<SemPontuacao> {
+  const { data } = await supabase.from('team_members').select('nome, pontua').eq('pontua', false)
+  return new Set(((data as { nome: string }[]) || []).map((m) => m.nome.trim().toLowerCase()))
+}
+
+function pontua(nome: string, fora?: SemPontuacao): boolean {
+  return !fora || !fora.has(nome.trim().toLowerCase())
 }
 
 /**
@@ -90,11 +106,15 @@ export function calcularRateio(params: {
   aprovacao: string | null
   lancamentos: LancamentoDeHora[]
   manual?: { colaborador: string; fracao: number }[]
+  /** Nomes que não disputam pontos. */
+  semPontuacao?: SemPontuacao
 }): RateioDoProjeto {
-  const { pontos, responsavelCadastrado, aprovacao, lancamentos, manual } = params
+  const { pontos, responsavelCadastrado, aprovacao, lancamentos, manual, semPontuacao } = params
 
   // --- Ajuste manual do ADM tem prioridade sobre tudo ---
-  if (manual && manual.length > 0) {
+  const manualValido = (manual || []).filter((m) => pontua(m.colaborador, semPontuacao))
+  if (manualValido.length > 0) {
+    const manual = manualValido
     const pesos = manual.map((m) => m.fracao)
     const valores = repartirExato(pontos, pesos)
     const somaFracoes = pesos.reduce((s, p) => s + p, 0) || 1
@@ -115,9 +135,12 @@ export function calcularRateio(params: {
     origem,
     totalHoras: 0,
     temHoraEstimada: false,
-    fatias: responsavelCadastrado
-      ? [{ colaborador: responsavelCadastrado, fracao: 1, pontos, horas: 0 }]
-      : [],
+    // Se o próprio responsável não pontua, o projeto simplesmente não gera
+    // ponto para ninguém — melhor do que atribuir a alguém que não trabalhou.
+    fatias:
+      responsavelCadastrado && pontua(responsavelCadastrado, semPontuacao)
+        ? [{ colaborador: responsavelCadastrado, fracao: 1, pontos, horas: 0 }]
+        : [],
   })
 
   // --- Projeto aprovado antes do corte segue a regra antiga ---
@@ -129,6 +152,9 @@ export function calcularRateio(params: {
     const h = Number(l.horas) || 0
     if (h <= 0) continue
     const nome = l.responsavel.trim()
+    // As horas de quem não pontua saem da conta; a proporção é recalculada
+    // entre os demais, então ninguém perde ponto por ter recebido ajuda.
+    if (!pontua(nome, semPontuacao)) continue
     const atual = porPessoa.get(nome) || { horas: 0, estimada: false }
     atual.horas += h
     if (l.horas_estimadas) atual.estimada = true
