@@ -27,6 +27,7 @@ import PendenciesTab from './PendenciesTab'
 import HistoryTab from './HistoryTab'
 import ProjectFinanceTab from './ProjectFinanceTab'
 import MeetingsTab from './MeetingsTab'
+import TermoEntregaButton from './TermoEntregaButton'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -448,6 +449,11 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
             <PlanningForm projectId={project.id} />
           ) : activeTab === 'dados' && !isNew && project ? (
             <>
+              {/* O termo sai daqui porque é aqui que moram os dados que ele usa. */}
+              <div className="flex justify-end -mt-1">
+                <TermoEntregaButton projeto={project} cliente={clientData} />
+              </div>
+
               <ClientDataForm
                 value={clientData}
                 onChange={(patch) => setClientData((c) => ({ ...c, ...patch }))}
