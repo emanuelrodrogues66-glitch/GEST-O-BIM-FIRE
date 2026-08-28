@@ -19,6 +19,7 @@ import ReportsView from './components/ReportsView'
 import AvisoAtrasadas from './components/AvisoAtrasadas'
 import AvisoAprovacoes from './components/AvisoAprovacoes'
 import TeamCostsView from './components/TeamCostsView'
+import FinanceReportView from './components/FinanceReportView'
 import { usePerfil } from './lib/perfil'
 import AgendaView from './components/AgendaView'
 import FeedView from './components/FeedView'
@@ -40,6 +41,7 @@ type ViewMode =
   | 'humor'
   | 'atividades'
   | 'custos'
+  | 'financeiro'
 
 /**
  * O link de recuperação chega com `type=recovery` na URL. O supabase-js
@@ -420,7 +422,12 @@ export default function App() {
                 ['humor', 'Humor da equipe'],
                 ['atividades', 'Atividades'],
                 ['relatorio', 'Relatório'],
-                ...(ehAdmin ? ([['custos', 'Custo da equipe']] as [ViewMode, string][]) : []),
+                ...(ehAdmin
+                  ? ([
+                      ['financeiro', 'Financeiro'],
+                      ['custos', 'Custo da equipe'],
+                    ] as [ViewMode, string][])
+                  : []),
               ] as [ViewMode, string][]
             ).map(([mode, label]) => (
               <button
@@ -481,6 +488,8 @@ export default function App() {
             projetos={projects}
             onProjectClick={openEditById}
           />
+        ) : viewMode === 'financeiro' ? (
+          <FinanceReportView onProjectClick={openEditById} />
         ) : viewMode === 'custos' ? (
           <TeamCostsView />
         ) : viewMode === 'atividades' ? (
