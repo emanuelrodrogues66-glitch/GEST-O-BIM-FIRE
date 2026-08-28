@@ -28,6 +28,7 @@ import HistoryTab from './HistoryTab'
 import ProjectFinanceTab from './ProjectFinanceTab'
 import MeetingsTab from './MeetingsTab'
 import TermoEntregaButton from './TermoEntregaButton'
+import RateioPontos from './RateioPontos'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -798,6 +799,19 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* A divisão dos pontos é pública: é ela que permite conferir
+                  se a fatia de cada um bate com o trabalho que teve. */}
+              {!isNew && project && (
+                <div className="border-t border-slate-100 pt-4">
+                  <RateioPontos
+                    projectId={project.id}
+                    pontos={form.pts ?? null}
+                    responsavel={form.responsavel ?? null}
+                    aprovacao={clientData.data_aprovacao || null}
+                  />
                 </div>
               )}
 

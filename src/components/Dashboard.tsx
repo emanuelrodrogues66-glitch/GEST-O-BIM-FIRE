@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, carregarTabelaCompleta } from '../lib/supabase'
 import type { Project, ProjectPlan } from '../types'
 import { STATUS_COLUNAS, normalizeStatus, statusColor } from '../types'
 import {
@@ -24,6 +24,8 @@ import {
 import type { MonthRef } from '../lib/month'
 import { addMonths, dateInMonth, monthKey, monthLabel } from '../lib/month'
 import { corDoResponsavel } from '../lib/agenda'
+import type { LancamentoDeHora } from '../lib/rateioPontos'
+import { calcularRateio } from '../lib/rateioPontos'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
@@ -147,6 +149,11 @@ export default function Dashboard({
   const [planos, setPlanos] = useState<Record<string, ProjectPlan>>({})
   // Data em que cada projeto foi aprovado — é ela que posiciona o "realizado".
   const [aprovacoes, setAprovacoes] = useState<Record<string, string>>({})
+  // Horas por projeto: é o que reparte os pontos entre quem trabalhou nele.
+  const [horasPorProjeto, setHorasPorProjeto] = useState<Map<string, LancamentoDeHora[]>>(new Map())
+  const [rateioManual, setRateioManual] = useState<
+    Map<string, { colaborador: string; fracao: number }[]>
+  >(new Map())
 
   useEffect(() => {
     setMesSel(month)
@@ -157,10 +164,18 @@ export default function Dashboard({
   }, [])
 
   async function carregarPlanos() {
-    const [{ data: planosData }, { data: clientes }] = await Promise.all([
-      supabase.from('project_plans').select('*'),
-      supabase.from('project_clients').select('project_id, data_aprovacao'),
-    ])
+    const [{ data: planosData }, { data: clientes }, atividades, { data: ajustes }] =
+      await Promise.all([
+        supabase.from('project_plans').select('*'),
+        supabase.from('project_clients').select('project_id, data_aprovacao'),
+        carregarTabelaCompleta<{
+          project_id: string
+          responsavel: string
+          horas: number | null
+          horas_estimadas: boolean
+        }>('project_activities', 'project_id, responsavel, horas, horas_estimadas'),
+        supabase.from('project_point_shares').select('project_id, colaborador, fracao'),
+      ])
 
     const mapa: Record<string, ProjectPlan> = {}
     ;(planosData as ProjectPlan[] | null)?.forEach((p) => {
@@ -173,6 +188,26 @@ export default function Dashboard({
       if (c.data_aprovacao) aprov[c.project_id] = c.data_aprovacao
     })
     setAprovacoes(aprov)
+
+    const horas = new Map<string, LancamentoDeHora[]>()
+    for (const a of atividades) {
+      if (!horas.has(a.project_id)) horas.set(a.project_id, [])
+      horas.get(a.project_id)!.push({
+        responsavel: a.responsavel,
+        horas: a.horas,
+        horas_estimadas: a.horas_estimadas,
+      })
+    }
+    setHorasPorProjeto(horas)
+
+    const manual = new Map<string, { colaborador: string; fracao: number }[]>()
+    ;((ajustes as { project_id: string; colaborador: string; fracao: number }[]) || []).forEach(
+      (r) => {
+        if (!manual.has(r.project_id)) manual.set(r.project_id, [])
+        manual.get(r.project_id)!.push({ colaborador: r.colaborador, fracao: Number(r.fracao) })
+      }
+    )
+    setRateioManual(manual)
   }
 
   function toggleStatus(s: string) {
@@ -336,22 +371,37 @@ export default function Dashboard({
       if (!aprovacao) continue
       if (mesSel && !dateInMonth(aprovacao, mesSel)) continue
 
-      const nome = (p.responsavel || 'Sem responsável').trim()
-      if (!mapa.has(nome)) {
-        mapa.set(nome, { responsavel: nome, pontos: 0, m2: 0, projetos: 0 })
-        detalhe.set(nome, [])
-      }
-      const linha = mapa.get(nome)!
-      linha.pontos += p.pts || 0
-      linha.m2 += p.m2 || 0
-      linha.projetos += 1
-
-      detalhe.get(nome)!.push({
-        nome: p.nome,
-        numero: p.numero,
-        pts: p.pts || 0,
+      // Os pontos do projeto são repartidos entre quem trabalhou nele. Antes
+      // da data de corte, e nos projetos sem hora lançada, a divisão devolve
+      // tudo para o responsável cadastrado — o número não muda.
+      const { fatias } = calcularRateio({
+        pontos: p.pts || 0,
+        responsavelCadastrado: p.responsavel,
         aprovacao,
+        lancamentos: horasPorProjeto.get(p.id) || [],
+        manual: rateioManual.get(p.id),
       })
+
+      for (const f of fatias) {
+        const nome = (f.colaborador || 'Sem responsável').trim()
+        if (!mapa.has(nome)) {
+          mapa.set(nome, { responsavel: nome, pontos: 0, m2: 0, projetos: 0 })
+          detalhe.set(nome, [])
+        }
+        const linha = mapa.get(nome)!
+        linha.pontos += f.pontos
+        // Área e contagem seguem a mesma proporção, senão dois projetistas
+        // no mesmo projeto contariam dois projetos inteiros.
+        linha.m2 += (p.m2 || 0) * f.fracao
+        linha.projetos += f.fracao
+
+        detalhe.get(nome)!.push({
+          nome: p.nome,
+          numero: p.numero,
+          pts: f.pontos,
+          aprovacao,
+        })
+      }
     }
 
     for (const lista of detalhe.values()) {
@@ -359,10 +409,16 @@ export default function Dashboard({
     }
 
     return {
-      ranking: Array.from(mapa.values()).sort((a, b) => b.pontos - a.pontos),
+      ranking: Array.from(mapa.values())
+        .map((r) => ({
+          ...r,
+          pontos: Math.round(r.pontos * 100) / 100,
+          projetos: Math.round(r.projetos * 100) / 100,
+        }))
+        .sort((a, b) => b.pontos - a.pontos),
       projetosPorResponsavel: detalhe,
     }
-  }, [todosProjetos, aprovacoes, mesSel])
+  }, [todosProjetos, aprovacoes, mesSel, horasPorProjeto, rateioManual])
   const statusRows = statusDistribution(projects)
 
   const totalPontos = projects.reduce((s, p) => s + (p.pts || 0), 0)
