@@ -20,6 +20,7 @@ import AvisoAtrasadas from './components/AvisoAtrasadas'
 import AvisoAprovacoes from './components/AvisoAprovacoes'
 import TeamCostsView from './components/TeamCostsView'
 import FinanceReportView from './components/FinanceReportView'
+import PermissionsView from './components/PermissionsView'
 import { usePerfil } from './lib/perfil'
 import AgendaView from './components/AgendaView'
 import FeedView from './components/FeedView'
@@ -42,6 +43,7 @@ type ViewMode =
   | 'atividades'
   | 'custos'
   | 'financeiro'
+  | 'permissoes'
 
 /**
  * O link de recuperação chega com `type=recovery` na URL. O supabase-js
@@ -72,7 +74,7 @@ export default function App() {
   const [isNew, setIsNew] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
   // Custo da equipe é do ADM; a aba nem aparece para os demais.
-  const { ehAdmin } = usePerfil()
+  const { ehAdmin, ehProprietario } = usePerfil()
   // O aviso de atrasadas espera a comemoração das aprovações terminar.
   const [comemoracaoPassou, setComemoracaoPassou] = useState(false)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
@@ -428,6 +430,8 @@ export default function App() {
                       ['custos', 'Custo da equipe'],
                     ] as [ViewMode, string][])
                   : []),
+                // Gestão de permissões é só do dono do escritório.
+                ...(ehProprietario ? ([['permissoes', 'Permissões']] as [ViewMode, string][]) : []),
               ] as [ViewMode, string][]
             ).map(([mode, label]) => (
               <button
@@ -488,6 +492,8 @@ export default function App() {
             projetos={projects}
             onProjectClick={openEditById}
           />
+        ) : viewMode === 'permissoes' ? (
+          <PermissionsView />
         ) : viewMode === 'financeiro' ? (
           <FinanceReportView onProjectClick={openEditById} />
         ) : viewMode === 'custos' ? (

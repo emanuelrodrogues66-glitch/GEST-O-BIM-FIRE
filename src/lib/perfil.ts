@@ -1,7 +1,35 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
-export type Papel = 'admin' | 'projetista'
+/**
+ * Papéis, do mais alto para o mais baixo.
+ *
+ * `proprietario` existe acima de `admin` para que o dono do escritório não
+ * possa ser rebaixado por outro administrador — nem por engano.
+ */
+export type Papel = 'proprietario' | 'admin' | 'projetista'
+
+export const PAPEIS: { valor: Papel; rotulo: string; descricao: string }[] = [
+  {
+    valor: 'proprietario',
+    rotulo: 'Proprietário',
+    descricao: 'Tudo, mais a gestão de permissões. Fixo no e-mail do dono.',
+  },
+  {
+    valor: 'admin',
+    rotulo: 'Administrador',
+    descricao: 'Vê salários, valores e margem. Altera pontos, datas travadas e apaga projeto.',
+  },
+  {
+    valor: 'projetista',
+    rotulo: 'Projetista',
+    descricao: 'Trabalha nos projetos e tarefas. Não vê nada de dinheiro.',
+  },
+]
+
+export function rotuloDoPapel(p: string): string {
+  return PAPEIS.find((x) => x.valor === p)?.rotulo || p
+}
 
 export type UserProfile = {
   user_id: string
@@ -53,5 +81,13 @@ export function usePerfil() {
     }
   }, [])
 
-  return { perfil, ehAdmin: perfil?.papel === 'admin', carregando }
+  const ehProprietario = perfil?.papel === 'proprietario'
+
+  return {
+    perfil,
+    // Proprietário é admin também: senão perderia as telas financeiras.
+    ehAdmin: ehProprietario || perfil?.papel === 'admin',
+    ehProprietario,
+    carregando,
+  }
 }
