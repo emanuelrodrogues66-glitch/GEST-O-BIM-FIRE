@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePerfil } from '../lib/perfil'
 import type { Gatilho, ProjectExpense, ProjectFinance, ProjectInstallment, TeamCost } from '../lib/financeiro'
+import { horasLegiveis } from '../types'
 import {
   CATEGORIAS_DESPESA,
   GATILHOS,
   PARCELAMENTO_PADRAO,
-  custoNaData,
+  custoHoraNaData,
+
   pct,
   reais,
   rotuloDoGatilho,
@@ -47,6 +49,8 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
     data_aprovacao: null,
   })
   const [custoMaoDeObra, setCustoMaoDeObra] = useState(0)
+  const [horasApropriadas, setHorasApropriadas] = useState(0)
+  const [horasEstimadas, setHorasEstimadas] = useState(0)
   const [diasSemCusto, setDiasSemCusto] = useState<string[]>([])
   const [carregando, setCarregando] = useState(true)
 
@@ -105,29 +109,38 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
    * o que alimenta este número.
    */
   async function calcularMaoDeObra(custos: TeamCost[]) {
-    const { data } = await supabase.from('project_activities').select('responsavel, data, project_id')
-    const linhas = (data as { responsavel: string; data: string; project_id: string }[]) || []
+    const { data } = await supabase
+      .from('project_activities')
+      .select('responsavel, data, horas, horas_estimadas')
+      .eq('project_id', projectId)
 
-    // Quantos projetos cada pessoa tocou em cada dia — é o divisor do dia.
-    const projetosNoDia = new Map<string, number>()
-    for (const l of linhas) {
-      const chave = `${l.responsavel.trim().toLowerCase()}|${l.data}`
-      projetosNoDia.set(chave, (projetosNoDia.get(chave) || 0) + 1)
-    }
+    const linhas =
+      (data as { responsavel: string; data: string; horas: number | null; horas_estimadas: boolean }[]) ||
+      []
 
     let total = 0
+    let horas = 0
+    let estimadas = 0
     const faltando = new Set<string>()
+
     for (const l of linhas) {
-      if (l.project_id !== projectId) continue
-      const divisor = projetosNoDia.get(`${l.responsavel.trim().toLowerCase()}|${l.data}`) || 1
-      const diaria = custoNaData(custos, l.responsavel, l.data)
-      if (diaria === null) {
+      // Sem hora registrada não dá para custear: o dia inteiro seria um chute.
+      const h = Number(l.horas) || 0
+      if (h <= 0) continue
+
+      const hora = custoHoraNaData(custos, l.responsavel, l.data)
+      if (hora === null) {
         faltando.add(l.responsavel)
         continue
       }
-      total += diaria / divisor
+      total += hora * h
+      horas += h
+      if (l.horas_estimadas) estimadas += h
     }
+
     setCustoMaoDeObra(total)
+    setHorasApropriadas(horas)
+    setHorasEstimadas(estimadas)
     setDiasSemCusto(Array.from(faltando))
   }
 
@@ -322,7 +335,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
         <Caixa
           titulo="Custo apurado"
           valor={reais(custoTotal)}
-          ajuda={`Mão de obra ${reais(custoMaoDeObra)} + despesas ${reais(totalDespesas)}`}
+          ajuda={`${horasLegiveis(horasApropriadas)} de mão de obra (${reais(custoMaoDeObra)}) + despesas ${reais(totalDespesas)}`}
         />
         <Caixa
           titulo="Margem de contribuição"
@@ -352,6 +365,14 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
           </>
         )}
       </p>
+
+      {horasEstimadas > 0 && (
+        <p className="text-[10px] text-amber-700">
+          {horasLegiveis(horasEstimadas)} das {horasLegiveis(horasApropriadas)} vieram do
+          preenchimento automático (jornada dividida entre os projetos do dia), não do que a pessoa
+          informou. Serve de ordem de grandeza, não de número fechado.
+        </p>
+      )}
 
       {diasSemCusto.length > 0 && (
         <p className="text-[10px] text-amber-700">

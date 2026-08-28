@@ -17,6 +17,7 @@ export type TeamCost = {
   encargos_pct: number | null
   custo_mensal: number
   dias_uteis_mes: number
+  horas_por_dia: number
   observacao: string | null
 }
 
@@ -121,19 +122,45 @@ export function custoPorDia(c: TeamCost): number {
   return Number(c.custo_mensal) / dias
 }
 
+/** Custo de uma hora. É a unidade que a apropriação usa. */
+export function custoPorHora(c: TeamCost): number {
+  const horas = Number(c.horas_por_dia) || 8
+  return custoPorDia(c) / horas
+}
+
 /**
  * Custo/dia da pessoa na data pedida.
  * Aumento não reescreve o passado: cada dia usa a faixa que valia nele.
  */
-export function custoNaData(custos: TeamCost[], colaborador: string, data: string): number | null {
+export function faixaNaData(
+  custos: TeamCost[],
+  colaborador: string,
+  data: string
+): TeamCost | null {
   const nome = colaborador.trim().toLowerCase()
-  const faixa = custos.find(
-    (c) =>
-      c.colaborador.trim().toLowerCase() === nome &&
-      c.vigencia_inicio <= data &&
-      (!c.vigencia_fim || c.vigencia_fim >= data)
+  return (
+    custos.find(
+      (c) =>
+        c.colaborador.trim().toLowerCase() === nome &&
+        c.vigencia_inicio <= data &&
+        (!c.vigencia_fim || c.vigencia_fim >= data)
+    ) || null
   )
+}
+
+export function custoNaData(custos: TeamCost[], colaborador: string, data: string): number | null {
+  const faixa = faixaNaData(custos, colaborador, data)
   return faixa ? custoPorDia(faixa) : null
+}
+
+/** Custo/hora da pessoa na data pedida. */
+export function custoHoraNaData(
+  custos: TeamCost[],
+  colaborador: string,
+  data: string
+): number | null {
+  const faixa = faixaNaData(custos, colaborador, data)
+  return faixa ? custoPorHora(faixa) : null
 }
 
 export function vigente(c: TeamCost, hoje = new Date().toISOString().slice(0, 10)): boolean {

@@ -132,6 +132,8 @@ export type ProjectTask = {
   justificativa: string | null
   /** Anotações livres: o que foi combinado, onde parou, o que falta. */
   observacoes: string | null
+  /** Só para tarefa geral: ela não passa pelo "assumir projeto". */
+  horas_gastas: number | null
   ordem: number
   created_at: string
   updated_at: string
@@ -174,7 +176,31 @@ export type ProjectActivity = {
   responsavel: string
   data: string
   descricao: string | null
+  /** Quanto o dia rendeu neste projeto. É esta hora que vira custo. */
+  horas: number | null
+  /** Verdadeiro quando o número veio do preenchimento retroativo, não da pessoa. */
+  horas_estimadas: boolean
   created_at: string
+}
+
+/** Jornada padrão quando a pessoa não tem custo cadastrado. */
+export const JORNADA_PADRAO = 8
+
+/** Atalhos de duração: cobre quase todo lançamento sem digitar nada. */
+export const DURACOES = [
+  { horas: 1, rotulo: '1h' },
+  { horas: 2, rotulo: '2h' },
+  { horas: 4, rotulo: 'meio dia' },
+  { horas: 8, rotulo: 'dia todo' },
+] as const
+
+/** "2.5" -> "2h30". Hora quebrada em minuto lê melhor. */
+export function horasLegiveis(h: number | null | undefined): string {
+  if (h === null || h === undefined) return '—'
+  const inteiras = Math.floor(h)
+  const minutos = Math.round((h - inteiras) * 60)
+  if (minutos === 0) return `${inteiras}h`
+  return `${inteiras}h${String(minutos).padStart(2, '0')}`
 }
 
 export const CATEGORIAS = [

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { ProjectActivity } from '../types'
 import { driveConfigError, encontrarOuCriarPasta, enviarArquivo, obterToken } from '../lib/googleDrive'
+import { DURACOES, JORNADA_PADRAO, horasLegiveis } from '../types'
+import type { ProjectTask } from '../types'
 
 /** Print anexado ao registro, ainda só na memória do navegador. */
 type ImagemColada = { file: File; previa: string }
@@ -48,7 +50,21 @@ export default function ActivityHistory({
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ responsavel: '', data: todayStr(), descricao: '' })
+  const [form, setForm] = useState({
+    responsavel: '',
+    data: todayStr(),
+    descricao: '',
+    horas: String(JORNADA_PADRAO),
+  })
+
+  /**
+   * Tarefas abertas do projeto, para vincular o tempo do dia.
+   * O vínculo apenas REPARTE as horas informadas acima — nunca as substitui.
+   * Se substituísse, a hora gasta no projeto fora de qualquer tarefa sumiria
+   * da conta e o projeto pareceria mais barato do que foi.
+   */
+  const [tarefasDoProjeto, setTarefasDoProjeto] = useState<ProjectTask[]>([])
+  const [tarefasMarcadas, setTarefasMarcadas] = useState<string[]>([])
 
   /** Responsável do projeto primeiro; depois os demais nomes conhecidos. */
   const opcoesResponsavel = useMemo(() => {
@@ -109,6 +125,14 @@ export default function ActivityHistory({
       .eq('project_id', projectId)
       .not('activity_id', 'is', null)
     setAnexos((arquivos as AnexoDaAtividade[]) || [])
+
+    const { data: tarefas } = await supabase
+      .from('project_tasks')
+      .select('*')
+      .eq('project_id', projectId)
+      .neq('status', 'Concluído')
+      .order('data_prazo')
+    setTarefasDoProjeto((tarefas as ProjectTask[]) || [])
 
     setLoading(false)
   }
@@ -192,19 +216,35 @@ export default function ActivityHistory({
     if (!form.responsavel.trim()) return
     setSaving(true)
     try {
+      const horas = Number(form.horas)
       const payload = {
         project_id: projectId,
         responsavel: form.responsavel.trim(),
         data: form.data,
         descricao: form.descricao.trim() || null,
+        horas: horas > 0 ? horas : null,
+        horas_estimadas: false,
       }
       const { data, error } = await supabase.from('project_activities').insert(payload).select().single()
       if (error) throw error
 
+      // Reparte as horas do dia entre as tarefas marcadas, em partes iguais.
+      if (tarefasMarcadas.length > 0 && horas > 0) {
+        const fatia = Number((horas / tarefasMarcadas.length).toFixed(2))
+        await supabase.from('activity_task_hours').insert(
+          tarefasMarcadas.map((taskId) => ({
+            activity_id: (data as ProjectActivity).id,
+            task_id: taskId,
+            horas: fatia,
+          }))
+        )
+      }
+
       await enviarImagens(data as ProjectActivity)
 
       setActivities((prev) => [data as ProjectActivity, ...prev])
-      setForm((f) => ({ ...f, descricao: '' }))
+      setForm((f) => ({ ...f, descricao: '', horas: String(JORNADA_PADRAO) }))
+      setTarefasMarcadas([])
       imagens.forEach((i) => URL.revokeObjectURL(i.previa))
       setImagens([])
       setShowForm(false)
@@ -292,6 +332,84 @@ export default function ActivityHistory({
             onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
             onPaste={colar}
           />
+
+          {/* ---------- Quanto tempo o dia rendeu ---------- */}
+          <div className="border border-slate-200 rounded-lg p-2.5 space-y-2 bg-slate-50/60">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-medium text-slate-500">Quanto tempo levou?</span>
+              {DURACOES.map((d) => (
+                <button
+                  key={d.horas}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, horas: String(d.horas) }))}
+                  className={`text-[11px] px-2 py-1 rounded-md border transition ${
+                    Number(form.horas) === d.horas
+                      ? 'bg-indigo-600 text-white border-indigo-600 font-medium'
+                      : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'
+                  }`}
+                >
+                  {d.rotulo}
+                </button>
+              ))}
+              <input
+                type="number"
+                step="0.25"
+                min="0.25"
+                max="24"
+                value={form.horas}
+                onChange={(e) => setForm((f) => ({ ...f, horas: e.target.value }))}
+                className="w-20 border border-slate-300 rounded-md px-2 py-1 text-xs text-right"
+                title="Horas dedicadas a este projeto neste dia"
+              />
+              <span className="text-[10px] text-slate-400">horas</span>
+            </div>
+
+            {/* Vínculo com tarefas: reparte a hora acima, não soma por cima. */}
+            {tarefasDoProjeto.length > 0 && (
+              <div className="border-t border-slate-200 pt-2 space-y-1.5">
+                <p className="text-[10px] text-slate-500">
+                  Esse tempo foi em alguma tarefa do projeto? Marque quantas quiser — as{' '}
+                  <b>{horasLegiveis(Number(form.horas) || 0)}</b> são divididas entre elas.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tarefasDoProjeto.map((t) => {
+                    const marcada = tarefasMarcadas.includes(t.id)
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() =>
+                          setTarefasMarcadas((prev) =>
+                            marcada ? prev.filter((x) => x !== t.id) : [...prev, t.id]
+                          )
+                        }
+                        className={`text-[10px] px-2 py-1 rounded-md border max-w-[220px] truncate transition ${
+                          marcada
+                            ? 'bg-emerald-600 text-white border-emerald-600 font-medium'
+                            : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'
+                        }`}
+                      >
+                        {t.codigo ? `${t.codigo} · ` : ''}
+                        {t.nome}
+                      </button>
+                    )
+                  })}
+                </div>
+                {tarefasMarcadas.length > 0 && (
+                  <p className="text-[10px] text-emerald-700">
+                    {horasLegiveis(Number(form.horas) / tarefasMarcadas.length)} em cada uma das{' '}
+                    {tarefasMarcadas.length} tarefas marcadas.
+                  </p>
+                )}
+                {tarefasMarcadas.length === 0 && (
+                  <p className="text-[10px] text-slate-400">
+                    Sem marcar nenhuma, o tempo fica no projeto de forma geral — e conta igual no
+                    custo.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Prints colados, ainda no navegador: sobem ao salvar o registro */}
           {imagens.length > 0 && (

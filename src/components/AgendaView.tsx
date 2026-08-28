@@ -1116,6 +1116,7 @@ function EditarTarefa({
   const [prazo, setPrazo] = useState(tarefa.data_prazo)
   const [horaInicio, setHoraInicio] = useState(horaCurta(tarefa.hora_inicio))
   const [horaFim, setHoraFim] = useState(horaCurta(tarefa.hora_fim))
+  const [horasGastas, setHorasGastas] = useState(tarefa.horas_gastas?.toString() || '')
   const [salvando, setSalvando] = useState(false)
 
   // Trocar de projeto muda a pasta de destino no Drive. Os arquivos que já
@@ -1161,6 +1162,7 @@ function EditarTarefa({
       data_inicio: prazo,
       hora_inicio: horaInicio || null,
       hora_fim: horaFim || null,
+      horas_gastas: horasGastas ? Number(horasGastas) : null,
     })
   }
 
@@ -1245,6 +1247,25 @@ function EditarTarefa({
             className="text-xs border border-slate-300 rounded-md px-1.5 py-1.5"
           />
         </label>
+
+        {!projectId && (
+          <label
+            className="flex items-center gap-1 text-[10px] text-slate-500"
+            title="Tarefa geral não passa pelo assumir projeto, então a hora é digitada aqui"
+          >
+            gastou
+            <input
+              type="number"
+              step="0.25"
+              min="0"
+              value={horasGastas}
+              onChange={(e) => setHorasGastas(e.target.value)}
+              placeholder="0"
+              className="w-16 border border-slate-300 rounded-md px-1.5 py-1.5 text-xs text-right"
+            />
+            h
+          </label>
+        )}
 
         {tarefa.recurrence_id && (
           <span className="text-[10px] text-amber-700">

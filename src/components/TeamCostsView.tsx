@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePerfil } from '../lib/perfil'
 import type { TeamCost } from '../lib/financeiro'
-import { VINCULOS, custoComEncargos, custoPorDia, reais, vigente } from '../lib/financeiro'
+import { VINCULOS, custoComEncargos, custoPorDia, custoPorHora, reais, vigente } from '../lib/financeiro'
 
 function hojeStr() {
   return new Date().toISOString().slice(0, 10)
@@ -22,6 +22,7 @@ const VAZIO = {
   encargos_pct: '',
   custo_mensal: '',
   dias_uteis_mes: '21',
+  horas_por_dia: '8',
   observacao: '',
 }
 
@@ -86,6 +87,7 @@ export default function TeamCostsView() {
       encargos_pct: c.encargos_pct?.toString() || '',
       custo_mensal: c.custo_mensal.toString(),
       dias_uteis_mes: c.dias_uteis_mes.toString(),
+      horas_por_dia: c.horas_por_dia?.toString() || '8',
       observacao: c.observacao || '',
     })
   }
@@ -109,6 +111,7 @@ export default function TeamCostsView() {
       encargos_pct: form.encargos_pct ? Number(form.encargos_pct) : null,
       custo_mensal: custo,
       dias_uteis_mes: Number(form.dias_uteis_mes) || 21,
+      horas_por_dia: Number(form.horas_por_dia) || 8,
       observacao: form.observacao.trim() || null,
       updated_at: new Date().toISOString(),
     }
@@ -228,6 +231,20 @@ export default function TeamCostsView() {
               value={form.dias_uteis_mes}
               onChange={(e) => setForm((f) => ({ ...f, dias_uteis_mes: e.target.value }))}
               className="w-24 border border-slate-300 rounded-md px-2 py-1.5 text-xs"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] font-medium text-slate-500">Horas/dia</span>
+            <input
+              type="number"
+              min={1}
+              max={24}
+              step="0.5"
+              value={form.horas_por_dia}
+              onChange={(e) => setForm((f) => ({ ...f, horas_por_dia: e.target.value }))}
+              title="Jornada diária. Divide o custo do dia para chegar ao custo por hora."
+              className="w-20 border border-slate-300 rounded-md px-2 py-1.5 text-xs"
             />
           </label>
         </div>
@@ -360,6 +377,7 @@ export default function TeamCostsView() {
                   <td className="text-slate-500">{c.vinculo}</td>
                   <td className="text-right tabular-nums text-slate-700">{reais(c.custo_mensal)}</td>
                   <td className="text-right tabular-nums text-slate-500">{reais(custoPorDia(c))}</td>
+                  <td className="text-right tabular-nums text-slate-500">{reais(custoPorHora(c))}</td>
                   <td className="pl-3 text-slate-400 tabular-nums">{formatarData(c.vigencia_inicio)}</td>
                   <td className="text-right whitespace-nowrap">
                     <button
