@@ -31,6 +31,7 @@ import MeetingsTab from './MeetingsTab'
 import TermoEntregaButton from './TermoEntregaButton'
 import RateioPontos from './RateioPontos'
 import ServicosDerivados from './ServicosDerivados'
+import SeletorCadastro from './SeletorCadastro'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -467,6 +468,12 @@ export default function ProjectModal({
               <div className="flex justify-end -mt-1">
                 <TermoEntregaButton projeto={project} cliente={clientData} />
               </div>
+
+              {/* Cliente e parceiro já cadastrados preenchem os campos abaixo. */}
+              <SeletorCadastro
+                value={clientData}
+                onChange={(patch) => setClientData((c) => ({ ...c, ...patch }))}
+              />
 
               <ClientDataForm
                 value={clientData}

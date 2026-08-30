@@ -317,6 +317,9 @@ export type ProjectClient = {
   protocolo: string | null
   ocupacao: string | null
   nome_pasta: string | null
+  /** Vínculo com a base de clientes; o cartão mantém a própria cópia. */
+  cliente_id: string | null
+  parceiro_id: string | null
   // Campos vindos do formulário "Cadastro de Projetos Aprovados"
   data_aprovacao: string | null
   /** Assinatura do contrato — libera a parcela de entrada. */
