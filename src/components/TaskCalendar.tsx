@@ -3,6 +3,8 @@ import type { TarefaDaAgenda } from '../lib/agenda'
 import { corDoResponsavel, hojeStr, inicioDaSemana, paraData, paraIso, somarDias } from '../lib/agenda'
 import { faixaHoraria, horaCurta, isTaskLate } from '../types'
 import type { ReuniaoDaAgenda } from '../lib/reunioes'
+import type { VencimentoProximo } from '../lib/renovacoes'
+import { descreverVencimento } from '../lib/renovacoes'
 
 const NOMES_MES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -31,13 +33,18 @@ function emHoras(h: string | null): number | null {
 export default function TaskCalendar({
   tarefas,
   reunioes = [],
+  vencimentos = [],
   onTarefaClick,
+  onProjetoClick,
   onNovoHorario,
   onConcluir,
 }: {
   tarefas: TarefaDaAgenda[]
   /** Compromissos marcados no cartão do projeto, no mesmo calendário. */
   reunioes?: ReuniaoDaAgenda[]
+  /** Vistorias e laudos que vencem — renovar é trabalho com data marcada. */
+  vencimentos?: VencimentoProximo[]
+  onProjetoClick?: (projectId: string) => void
   onTarefaClick?: (t: TarefaDaAgenda) => void
   /** Clique num espaço vazio da grade de horas: cria tarefa naquele horário. */
   onNovoHorario?: (dados: { data: string; hora: string; responsavel: string }) => void
@@ -60,6 +67,18 @@ export default function TaskCalendar({
     }
     return mapa
   }, [reunioes])
+
+  /** Vencimentos agrupados pelo dia em que expiram. */
+  const vencimentosPorDia = useMemo(() => {
+    const mapa = new Map<string, VencimentoProximo[]>()
+    for (const v of vencimentos) {
+      const dia = v.projeto.data_vencimento
+      if (!dia) continue
+      if (!mapa.has(dia)) mapa.set(dia, [])
+      mapa.get(dia)!.push(v)
+    }
+    return mapa
+  }, [vencimentos])
   // A grade de horas fica apertada dentro da página; abre em janela cheia,
   // como o cartão do projeto.
   const [diaAmpliado, setDiaAmpliado] = useState(false)
@@ -180,6 +199,8 @@ export default function TaskCalendar({
           ancora={ancora}
           porDia={porDia}
           reunioesPorDia={reunioesPorDia}
+          vencimentosPorDia={vencimentosPorDia}
+          onProjetoClick={onProjetoClick}
           onReuniaoClick={setReuniaoAberta}
           onTarefaClick={onTarefaClick}
           onConcluir={onConcluir}
@@ -347,13 +368,17 @@ function VisaoMes({
   ancora,
   porDia,
   reunioesPorDia,
+  vencimentosPorDia,
   onReuniaoClick,
+  onProjetoClick,
   onTarefaClick,
   onConcluir,
 }: {
   ancora: Date
   porDia: Map<string, TarefaDaAgenda[]>
   reunioesPorDia: Map<string, ReuniaoDaAgenda[]>
+  vencimentosPorDia: Map<string, VencimentoProximo[]>
+  onProjetoClick?: (projectId: string) => void
   onReuniaoClick: (r: ReuniaoDaAgenda) => void
   onTarefaClick?: (t: TarefaDaAgenda) => void
   onConcluir?: (t: TarefaDaAgenda, concluir: boolean) => void
@@ -381,6 +406,7 @@ function VisaoMes({
           const ehHoje = iso === hoje
           const items = porDia.get(iso) || []
           const encontros = reunioesPorDia.get(iso) || []
+          const vencendo = vencimentosPorDia.get(iso) || []
           return (
             <div
               key={iso}
@@ -399,7 +425,23 @@ function VisaoMes({
               >
                 {d.getDate()}
               </div>
-              {/* Reunião vem primeiro: é hora marcada com outras pessoas,
+              {/* Vencimento no topo: é prazo legal do cliente, não compromisso
+                  do escritório — não dá para empurrar para a semana seguinte. */}
+              {vencendo.map((v) => (
+                <button
+                  key={v.projeto.id}
+                  onClick={() => onProjetoClick?.(v.projeto.id)}
+                  title={`${v.projeto.tipo} · ${v.projeto.nome} — ${descreverVencimento(v.dias)}`}
+                  className="w-full flex items-center gap-1 text-left text-[10px] px-1 py-0.5 rounded bg-red-100 border border-red-300 text-red-900 hover:bg-red-200"
+                >
+                  <span>⏳</span>
+                  <span className="truncate">
+                    Vence {v.projeto.tipo}: {v.projeto.nome}
+                  </span>
+                </button>
+              ))}
+
+              {/* Reunião vem depois: é hora marcada com outras pessoas,
                   não dá para empurrar como uma tarefa qualquer. */}
               {encontros.map((r) => (
                 <button

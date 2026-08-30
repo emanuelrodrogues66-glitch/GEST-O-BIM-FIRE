@@ -5,6 +5,8 @@ import TaskAttachments from './TaskAttachments'
 import SeletorDeResponsaveis from './SeletorDeResponsaveis'
 import type { ReuniaoDaAgenda } from '../lib/reunioes'
 import { carregarReunioes } from '../lib/reunioes'
+import type { VencimentoProximo } from '../lib/renovacoes'
+import { carregarVencimentos } from '../lib/renovacoes'
 import {
   PASTA_TAREFAS_GERAIS,
   imagensDaAreaDeTransferencia,
@@ -69,6 +71,9 @@ export default function AgendaView({
   const [anexosPorTarefa, setAnexosPorTarefa] = useState<Record<string, number>>({})
   // Reuniões dividem o calendário com as tarefas: o dia da pessoa é um só.
   const [reunioes, setReunioes] = useState<ReuniaoDaAgenda[]>([])
+  // Vencimento de vistoria e SPDA é compromisso com data: entra no calendário
+  // junto do resto, senão a renovação só aparece para quem abre a aba própria.
+  const [vencimentos, setVencimentos] = useState<VencimentoProximo[]>([])
 
   // Pré-preenchimento vindo do clique num horário do calendário.
   const [novoHorario, setNovoHorario] = useState<{
@@ -105,16 +110,20 @@ export default function AgendaView({
   }
 
   async function recarregar() {
-    const [t, c, r, m] = await Promise.all([
+    const [t, c, r, m, v] = await Promise.all([
       carregarTarefas(),
       carregarCategorias(),
       carregarRecorrencias(),
       carregarReunioes(),
+      // Janela larga: navegar para frente no calendário precisa mostrar o que
+      // vence daqui a um ano.
+      carregarVencimentos(730),
     ])
     setTarefas(t)
     setCategorias(c)
     setRecorrencias(r)
     setReunioes(m)
+    setVencimentos(v)
 
     // Só a contagem: serve para o clipe aparecer na lista sem abrir a tarefa.
     const { data: arquivos } = await supabase
@@ -135,6 +144,14 @@ export default function AgendaView({
       r.participantes.some((p) => p.trim() === responsavelFiltro.trim())
     )
   }, [reunioes, responsavelFiltro])
+
+  /** O vencimento aparece para o responsável pelo serviço. */
+  const vencimentosVisiveis = useMemo(() => {
+    if (!responsavelFiltro) return vencimentos
+    return vencimentos.filter(
+      (v) => (v.projeto.responsavel || '').trim() === responsavelFiltro.trim()
+    )
+  }, [vencimentos, responsavelFiltro])
 
   const filtradas = useMemo(() => {
     return tarefas.filter((t) => {
@@ -552,6 +569,8 @@ export default function AgendaView({
           <TaskCalendar
             tarefas={filtradas}
             reunioes={reunioesVisiveis}
+            vencimentos={vencimentosVisiveis}
+            onProjetoClick={onProjectClick}
             onNovoHorario={(dados) => {
               // Abre o formulário completo por cima da agenda do dia, com
               // dia, hora e responsável da coluna já preenchidos.
