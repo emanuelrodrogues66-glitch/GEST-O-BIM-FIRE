@@ -176,7 +176,7 @@ export default function TaskCalendar({
                 setDiaAmpliado(v === 'dia')
               }}
               className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${
-                visao === v ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100'
+                visao === v ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
               }`}
             >
               {rotulo}
@@ -391,7 +391,7 @@ function VisaoMes({
   const dias = Array.from({ length: 42 }, (_, i) => somarDias(inicio, i))
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
       <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-200">
         {CABECALHO_SEMANA.map((d) => (
           <div key={d} className="px-2 py-1.5 text-[10px] font-semibold text-slate-500 uppercase text-center">
@@ -490,14 +490,14 @@ function VisaoSemana({
 
   if (responsaveis.length === 0) {
     return (
-      <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl">
+      <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl shadow-sm">
         Nenhuma tarefa para mostrar nesta semana.
       </p>
     )
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
       <div className="min-w-[720px]">
         <div className="grid" style={{ gridTemplateColumns: `140px repeat(7, 1fr)` }}>
           <div className="bg-slate-50 border-b border-r border-slate-200 px-2 py-1.5 text-[10px] font-semibold text-slate-500 uppercase">
@@ -621,7 +621,7 @@ function VisaoDia({
   const semHora = doDia.filter((t) => !t.hora_inicio)
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
       {/* Cabeçalho com os responsáveis */}
       <div className="grid border-b border-slate-200 bg-slate-50" style={{ gridTemplateColumns: `56px repeat(${colunas.length}, 1fr)` }}>
         <div className="px-2 py-1.5 text-[10px] font-semibold text-slate-400 uppercase">Hora</div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { LOGO_BIM_FIRE_JPEG } from '../lib/logoBimFire'
 
 type Mode = 'login' | 'signup' | 'recuperar'
 
@@ -67,9 +68,32 @@ export default function Login() {
     mode === 'login' ? 'Entrar' : mode === 'signup' ? 'Criar conta' : 'Enviar link de recuperação'
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-        <h1 className="text-xl font-semibold text-slate-800 mb-1">Gestão de Projetos</h1>
+    <div className="min-h-screen flex items-center justify-center bg-carvao-900 px-4 relative overflow-hidden">
+      {/* Duas manchas da marca ao fundo: dão identidade sem competir com o
+          formulário, que continua sendo a única coisa clara da tela. */}
+      <div
+        className="absolute rounded-full bg-indigo-600/25 blur-3xl pointer-events-none"
+        style={{ width: 520, height: 520, top: -160, right: -140 }}
+      />
+      <div
+        className="absolute rounded-full bg-cobre-500/20 blur-3xl pointer-events-none"
+        style={{ width: 380, height: 380, bottom: -120, left: -100 }}
+      />
+
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-white/10 p-8 relative">
+        <div className="flex items-center gap-3 mb-5">
+          <img
+            src={LOGO_BIM_FIRE_JPEG}
+            alt="BIM Fire"
+            className="w-12 h-12 rounded-xl object-cover shrink-0"
+          />
+          <div>
+            <h1 className="text-lg font-semibold text-slate-800 leading-tight">
+              Gestão de Projetos
+            </h1>
+            <p className="text-[11px] font-semibold text-indigo-600 tracking-widest">BIM FIRE</p>
+          </div>
+        </div>
         <p className="text-sm text-slate-500 mb-6">{titulo}</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'signup' && (

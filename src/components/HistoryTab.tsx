@@ -258,7 +258,7 @@ export default function HistoryTab({ projectId }: { projectId: string }) {
               disabled={quantos === 0}
               className={`text-[11px] font-medium px-2 py-1 rounded-md border transition disabled:opacity-40 ${
                 ativo
-                  ? 'bg-slate-800 text-white border-slate-800'
+                  ? 'bg-indigo-600 text-white border-indigo-600'
                   : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
               }`}
             >

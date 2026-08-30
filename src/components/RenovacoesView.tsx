@@ -66,7 +66,7 @@ export default function RenovacoesView({
 
   return (
     <div className="space-y-4 max-w-5xl">
-      <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-3">
         <h2 className="text-sm font-semibold text-slate-800">Renovações</h2>
         <select
           value={janela}
@@ -91,7 +91,7 @@ export default function RenovacoesView({
       </p>
 
       {itens.length === 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl py-10 text-center">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm py-10 text-center">
           <p className="text-3xl mb-2">✓</p>
           <p className="text-sm text-slate-600">Nada vencendo nesta janela.</p>
           <p className="text-xs text-slate-400 mt-1">

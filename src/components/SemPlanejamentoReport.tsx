@@ -156,7 +156,7 @@ export default function SemPlanejamentoReport({
       </p>
 
       {/* ---------- Filtros ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-2">
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           {(
             [
@@ -215,12 +215,12 @@ export default function SemPlanejamentoReport({
 
       {/* ---------- Lista ---------- */}
       {filtradas.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl py-10 text-center">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm py-10 text-center">
           <p className="text-3xl mb-2">✓</p>
           <p className="text-sm text-slate-600">Nenhum projeto neste recorte.</p>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-[10px] uppercase text-slate-400 border-b border-slate-200">
@@ -319,7 +319,7 @@ function Caixa({
   destaque?: boolean
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl px-3 py-2.5">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-3 py-2.5">
       <p className="text-[10px] uppercase text-slate-400">{titulo}</p>
       <p
         className={`text-xl font-semibold tabular-nums ${

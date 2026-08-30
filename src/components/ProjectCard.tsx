@@ -33,7 +33,7 @@ export default function ProjectCard({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-white border border-slate-200 rounded-xl p-3 shadow-sm hover:shadow-md hover:border-indigo-300 transition group"
+      className="w-full text-left bg-white border border-slate-200 rounded-xl shadow-sm p-3 shadow-sm hover:shadow-md hover:border-indigo-300 transition group"
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-medium text-slate-800 leading-snug group-hover:text-indigo-700">

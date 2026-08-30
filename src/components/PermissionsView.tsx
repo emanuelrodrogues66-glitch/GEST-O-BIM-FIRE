@@ -122,7 +122,7 @@ export default function PermissionsView() {
       {/* ---------- O que cada papel pode ---------- */}
       <div className="grid md:grid-cols-3 gap-2">
         {PAPEIS.map((p) => (
-          <div key={p.valor} className="bg-white border border-slate-200 rounded-xl p-3">
+          <div key={p.valor} className="bg-white border border-slate-200 rounded-xl shadow-sm p-3">
             <span
               className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded border mb-1 ${
                 CORES_PAPEL[p.valor]
@@ -136,7 +136,7 @@ export default function PermissionsView() {
       </div>
 
       {/* ---------- Lista de contas ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <div className="flex items-baseline justify-between mb-2">
           <h3 className="text-sm font-semibold text-slate-800">Contas com acesso</h3>
           <span className="text-[11px] text-slate-500">

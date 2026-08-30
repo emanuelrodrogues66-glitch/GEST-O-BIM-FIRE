@@ -242,7 +242,7 @@ export default function FinanceReportView({
   return (
     <div className="space-y-4">
       {/* ---------- Filtros ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-2">
         <select
           value={mes}
           onChange={(e) => setMes(e.target.value)}
@@ -414,7 +414,7 @@ export default function FinanceReportView({
 
       {/* ---------- Gráficos ---------- */}
       <div className="grid md:grid-cols-2 gap-3">
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-slate-800 mb-2">Contrato, custo e margem</h3>
           {dadosGrafico.length === 0 ? (
             <p className="text-xs text-slate-400 py-8 text-center">Nada no recorte atual.</p>
@@ -438,7 +438,7 @@ export default function FinanceReportView({
           )}
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-slate-800 mb-2">Horas por pessoa</h3>
           {porPessoa.length === 0 ? (
             <p className="text-xs text-slate-400 py-8 text-center">Nenhuma hora lançada no recorte.</p>
@@ -461,7 +461,7 @@ export default function FinanceReportView({
       </div>
 
       {porMes.length > 1 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-slate-800 mb-2">Por mês de aprovação</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={porMes} margin={{ left: -18 }}>
@@ -479,7 +479,7 @@ export default function FinanceReportView({
       )}
 
       {/* ---------- Tabela ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 overflow-x-auto">
         <div className="flex items-center gap-2 mb-2">
           <h3 className="text-sm font-semibold text-slate-800">Projeto a projeto</h3>
           <select
@@ -610,7 +610,7 @@ function Caixa({
   destaque?: 'bom' | 'ruim'
 }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl px-3 py-2.5">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-3 py-2.5">
       <p className="text-[10px] uppercase text-slate-400">{titulo}</p>
       <p
         className={`text-base font-semibold tabular-nums ${

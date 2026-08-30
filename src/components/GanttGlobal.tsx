@@ -270,7 +270,7 @@ export default function GanttGlobal({
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-slate-700">Gantt global · início e prazo dos projetos</h3>
         <span className="text-xs text-slate-400">

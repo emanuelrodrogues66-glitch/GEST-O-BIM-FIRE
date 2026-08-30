@@ -120,7 +120,7 @@ export default function PendenciesReport({
       </div>
 
       {filtradas.length === 0 && (
-        <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl">
+        <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl shadow-sm">
           {mostrarEncerradas
             ? 'Nenhuma pendência encontrada com os filtros atuais.'
             : 'Nenhum projeto parado no momento. 🎉'}
@@ -205,7 +205,7 @@ export default function PendenciesReport({
 
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3">
       <p className="text-[11px] text-slate-400 uppercase tracking-wide">{label}</p>
       <p className={`text-xl font-semibold mt-0.5 ${accent || 'text-slate-800'}`}>{value}</p>
     </div>

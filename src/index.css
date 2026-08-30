@@ -63,16 +63,39 @@
   --color-emerald-800: #065f46;
   --color-emerald-900: #064e3b;
 
-  --color-indigo-50: #eef2ff;
-  --color-indigo-100: #e0e7ff;
-  --color-indigo-200: #c7d2fe;
-  --color-indigo-300: #a5b4fc;
-  --color-indigo-400: #818cf8;
-  --color-indigo-500: #6366f1;
-  --color-indigo-600: #4f46e5;
-  --color-indigo-700: #4338ca;
-  --color-indigo-800: #3730a3;
-  --color-indigo-900: #312e81;
+  /*
+    Paleta da BIM Fire, tirada da própria logo:
+      #9C0000 vermelho da engrenagem  ·  #840000 sombra
+      #9C4830 cobre da chama          ·  #D8D8D8 prata do anel
+
+    A escala fica no lugar do "indigo" de propósito. O app tem 240 usos de
+    indigo espalhados em 35 telas; redefinir a escala aqui pinta tudo de uma
+    vez e mantém os tons relativos (600 mais forte que 400) que cada tela já
+    escolheu. Trocar 240 classes à mão daria o mesmo resultado com muito mais
+    chance de esquecer alguma.
+  */
+  --color-indigo-50: #FDF2F2;
+  --color-indigo-100: #FBE0E0;
+  --color-indigo-200: #F5BFBF;
+  --color-indigo-300: #E58C8C;
+  --color-indigo-400: #CF5348;
+  --color-indigo-500: #B52318;
+  --color-indigo-600: #9C0000;
+  --color-indigo-700: #840000;
+  --color-indigo-800: #6B0000;
+  --color-indigo-900: #4A0000;
+
+  /* Cobre da chama: acento quente para o que não é ação principal. */
+  --color-cobre-50: #FBF2EE;
+  --color-cobre-100: #F3DED4;
+  --color-cobre-300: #D08F72;
+  --color-cobre-500: #9C4830;
+  --color-cobre-600: #863B26;
+  --color-cobre-700: #6E3120;
+
+  /* Superfícies escuras com um leve calor, para não ficar cinza de escritório. */
+  --color-carvao-800: #241E1C;
+  --color-carvao-900: #191413;
 
   --color-purple-50: #faf5ff;
   --color-purple-100: #f3e8ff;
@@ -150,4 +173,45 @@
   --color-pink-700: #be185d;
   --color-pink-800: #9d174d;
   --color-pink-900: #831843;
+}
+
+
+/*
+  Acabamento geral.
+
+  Fundo levemente quente em vez de branco puro: com muitos cartões brancos na
+  tela, o branco sobre branco some e a interface fica sem hierarquia.
+*/
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: #F7F6F5;
+}
+
+/* Foco visível na cor da marca, para quem navega por teclado. */
+*:focus-visible {
+  outline: 2px solid var(--color-indigo-600);
+  outline-offset: 2px;
+}
+
+/* Barra de rolagem discreta; a padrão do Windows rouba atenção do conteúdo. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #D6D3D1 transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: #D6D3D1;
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #A8A29E;
 }

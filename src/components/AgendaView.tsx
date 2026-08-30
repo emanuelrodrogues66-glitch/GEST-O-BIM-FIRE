@@ -286,7 +286,7 @@ export default function AgendaView({
               key={v}
               onClick={() => setAba(v)}
               className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${
-                aba === v ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100'
+                aba === v ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
               }`}
             >
               {rotulo}
@@ -363,13 +363,13 @@ export default function AgendaView({
       {aba === 'lista' && (
         <>
           {porCategoria.length === 0 && (
-            <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl">
+            <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl shadow-sm">
               Nenhuma tarefa com os filtros atuais.
             </p>
           )}
 
           {porCategoria.map(({ categoria, items }) => (
-            <div key={categoria?.id || 'sem'} className="bg-white border border-slate-200 rounded-xl p-4">
+            <div key={categoria?.id || 'sem'} className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
               <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
                 <span
                   className="w-2.5 h-2.5 rounded-full"
@@ -652,7 +652,7 @@ export default function AgendaView({
       )}
 
       {aba === 'gantt' && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           {ganttItems.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-8">Nenhuma tarefa para mostrar no Gantt.</p>
           ) : (
@@ -805,7 +805,7 @@ function Recorrentes({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <h3 className="text-sm font-semibold text-slate-800 mb-1">Tarefas recorrentes</h3>
         <p className="text-xs text-slate-500 mb-3">
           Cada repetição vira uma tarefa de verdade na agenda, que precisa ser concluída. As próximas
@@ -1044,7 +1044,7 @@ function Recorrentes({
         )}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <h3 className="text-sm font-semibold text-slate-800 mb-1">Categorias</h3>
         <p className="text-xs text-slate-500 mb-3">
           {ehAdmin

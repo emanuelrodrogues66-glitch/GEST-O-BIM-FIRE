@@ -165,7 +165,7 @@ export default function TasksBoard({
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h3 className="text-sm font-semibold text-slate-700">Dashboard de tarefas por colaborador</h3>
           <label className="flex items-center gap-1.5 text-xs text-slate-600">
@@ -243,7 +243,7 @@ export default function TasksBoard({
       </div>
 
       {grouped.length === 0 && (
-        <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl">
+        <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl shadow-sm">
           {mostrarConcluidas
             ? 'Nenhuma tarefa encontrada com os filtros atuais.'
             : 'Nenhuma tarefa pendente encontrada. 🎉'}
@@ -251,7 +251,7 @@ export default function TasksBoard({
       )}
 
       {grouped.map(([key, tasks]) => (
-        <div key={key} className="bg-white border border-slate-200 rounded-xl p-4">
+        <div key={key} className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-slate-800 mb-3">
             {key} <span className="text-xs font-normal text-slate-400">· {tasks.length}</span>
           </h3>

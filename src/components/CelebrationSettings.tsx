@@ -38,7 +38,7 @@ export default function CelebrationSettings() {
           {/* Camada invisível para fechar ao clicar fora */}
           <div className="fixed inset-0 z-20" onClick={() => setAberto(false)} />
 
-          <div className="absolute right-0 top-9 z-30 w-72 bg-white border border-slate-200 rounded-xl shadow-lg p-3">
+          <div className="absolute right-0 top-9 z-30 w-72 bg-white border border-slate-200 rounded-xl shadow-sm shadow-lg p-3">
             <p className="text-xs font-semibold text-slate-700 mb-0.5">Avisos de mudança de status</p>
             <p className="text-[11px] text-slate-400 mb-2.5">Vale só para este computador.</p>
 

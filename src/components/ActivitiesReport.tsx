@@ -85,12 +85,12 @@ export default function ActivitiesReport() {
       </div>
 
       {filtered.length === 0 && (
-        <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl">
+        <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl shadow-sm">
           Nenhuma atividade registrada ainda.
         </p>
       )}
 
-      <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm divide-y divide-slate-100">
         {filtered.map((a) => (
           <div key={a.id} className="px-4 py-2.5 flex items-start gap-3 text-sm">
             <span className="text-xs text-slate-400 w-16 shrink-0 pt-0.5">{formatDate(a.data)}</span>
@@ -114,7 +114,7 @@ export default function ActivitiesReport() {
 
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3">
       <p className="text-[11px] text-slate-400 uppercase tracking-wide">{label}</p>
       <p className={`text-xl font-semibold mt-0.5 ${accent || 'text-slate-800'}`}>{value}</p>
     </div>

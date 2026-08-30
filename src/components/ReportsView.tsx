@@ -27,7 +27,7 @@ export default function ReportsView({
             key={key}
             onClick={() => setAba(key)}
             className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${
-              aba === key ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100'
+              aba === key ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
             }`}
           >
             {label}

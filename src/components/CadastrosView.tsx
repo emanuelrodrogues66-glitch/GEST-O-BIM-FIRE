@@ -235,7 +235,7 @@ export default function CadastrosView({
   return (
     <div className="space-y-4">
       {/* ---------- Cabeçalho ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex flex-wrap items-center gap-2">
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           {(
             [
@@ -289,7 +289,7 @@ export default function CadastrosView({
       </p>
 
       {/* ---------- Tabela ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="text-[10px] uppercase text-slate-400 border-b border-slate-200">

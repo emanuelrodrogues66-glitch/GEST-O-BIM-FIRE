@@ -474,7 +474,7 @@ export default function Dashboard({
   return (
     <div className="space-y-4">
       {/* Filtros exclusivos do Dashboard */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] font-medium text-slate-500">Filtrar só neste painel:</span>
 
@@ -551,7 +551,7 @@ export default function Dashboard({
       </div>
 
       {/* Meta de pontos do mês */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Meta Pontos</h3>
           <span className="text-xs text-slate-400">{mesSel ? monthLabel(mesSel) : 'Todos os meses'}</span>
@@ -593,7 +593,7 @@ export default function Dashboard({
 
       {/* Cards de resumo */}
       {/* Projeção dos próximos meses com base no planejamento */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
             Projeção dos próximos meses
@@ -715,7 +715,7 @@ export default function Dashboard({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Ranking de pontos */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-slate-700 mb-1">Ranking de pontos por responsável</h3>
           <p className="text-[11px] text-slate-400 mb-2">
             Conta só o que foi aprovado no mês — é o que vale para a meta.
@@ -742,7 +742,7 @@ export default function Dashboard({
         </div>
 
         {/* Gráfico de barras - pontos por responsável */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-slate-700 mb-1">Pontos por responsável</h3>
           <p className="text-[11px] text-slate-400 mb-2">
             Projetos aprovados {mesSel ? `em ${monthLabel(mesSel).toLowerCase()}` : 'em qualquer mês'}.
@@ -768,7 +768,7 @@ export default function Dashboard({
         </div>
 
         {/* Pizza de status */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Distribuição por status</h3>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
@@ -784,7 +784,7 @@ export default function Dashboard({
         </div>
 
         {/* Tabela resumo por status */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Resumo por status</h3>
           <table className="w-full text-xs">
             <thead>
@@ -868,7 +868,7 @@ function PreviaDoResponsavel({
 
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-3">
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3">
       <p className="text-[11px] text-slate-400 uppercase tracking-wide">{label}</p>
       <p className={`text-xl font-semibold mt-0.5 ${accent || 'text-slate-800'}`}>{value}</p>
     </div>

@@ -344,7 +344,7 @@ export default function FeedView({
               key={p.dias}
               onClick={() => setPeriodo(p.dias)}
               className={`text-xs font-medium px-3 py-1.5 rounded-md transition ${
-                periodo === p.dias ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100'
+                periodo === p.dias ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
               }`}
             >
               {p.rotulo}
@@ -380,7 +380,7 @@ export default function FeedView({
               disabled={quantos === 0}
               className={`text-[11px] font-medium px-2 py-1 rounded-md border transition disabled:opacity-40 ${
                 ativo
-                  ? 'bg-slate-800 text-white border-slate-800'
+                  ? 'bg-indigo-600 text-white border-indigo-600'
                   : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
               }`}
             >
@@ -398,13 +398,13 @@ export default function FeedView({
       {carregando ? (
         <p className="text-sm text-slate-400 text-center py-10">Montando o feed...</p>
       ) : porDia.length === 0 ? (
-        <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl">
+        <p className="text-sm text-slate-400 text-center py-10 bg-white border border-slate-200 rounded-xl shadow-sm">
           Nada aconteceu no período escolhido.
         </p>
       ) : (
         <div className="space-y-4">
           {porDia.map(([dia, items]) => (
-            <div key={dia} className="bg-white border border-slate-200 rounded-xl p-4">
+            <div key={dia} className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
               <p className="text-xs font-semibold text-slate-700 mb-3">
                 {rotuloDoDia(dia)}
                 <span className="font-normal text-slate-400"> · {items.length} evento(s)</span>

@@ -224,7 +224,7 @@ export default function MoodView() {
   return (
     <div className="space-y-4">
       {/* ---------- Check-in do dia ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <h3 className="text-sm font-semibold text-slate-800">Como você está hoje?</h3>
           <input
@@ -326,7 +326,7 @@ export default function MoodView() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 text-center">
               <p className="text-[11px] text-slate-400 uppercase tracking-wide">Média da equipe</p>
               <div className="text-4xl leading-tight my-1">{emojiDaMedia(mediaGeral)}</div>
               <p className="text-lg font-semibold text-slate-800">
@@ -335,7 +335,7 @@ export default function MoodView() {
               </p>
             </div>
 
-            <div className="md:col-span-2 bg-white border border-slate-200 rounded-xl p-4">
+            <div className="md:col-span-2 bg-white border border-slate-200 rounded-xl shadow-sm p-4">
               <h3 className="text-sm font-semibold text-slate-700 mb-2">Distribuição das respostas</h3>
               <ResponsiveContainer width="100%" height={140}>
                 <BarChart data={distribuicao} layout="vertical" margin={{ left: 10 }}>
@@ -353,7 +353,7 @@ export default function MoodView() {
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Média por colaborador</h3>
             <div className="space-y-2">
               {porColaborador
@@ -387,7 +387,7 @@ export default function MoodView() {
           </div>
 
           {tendencia.length > 1 && (
-            <div className="bg-white border border-slate-200 rounded-xl p-4">
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
               <h3 className="text-sm font-semibold text-slate-700 mb-2">Tendência do humor da equipe</h3>
               <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={tendencia}>
@@ -404,7 +404,7 @@ export default function MoodView() {
             </div>
           )}
 
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
             <h3 className="text-sm font-semibold text-slate-700 mb-1">Equipe</h3>
             <p className="text-xs text-slate-500 mb-3">Quem aparece no check-in diário.</p>
             <div className="flex flex-wrap items-center gap-2 mb-3">

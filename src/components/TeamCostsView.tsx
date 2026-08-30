@@ -190,7 +190,7 @@ export default function TeamCostsView() {
       </div>
 
       {/* ---------- Formulário ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-3">
         <h3 className="text-sm font-semibold text-slate-800">
           {editandoId ? 'Editar custo' : 'Novo custo'}
         </h3>
@@ -361,7 +361,7 @@ export default function TeamCostsView() {
       </div>
 
       {/* ---------- Vigentes ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <div className="flex items-baseline justify-between mb-2">
           <h3 className="text-sm font-semibold text-slate-800">Custo vigente</h3>
           {vigentes.length > 0 && (
@@ -427,7 +427,7 @@ export default function TeamCostsView() {
       </div>
 
       {/* ---------- Quem disputa pontos ---------- */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <h3 className="text-sm font-semibold text-slate-800 mb-1">Quem disputa pontos</h3>
         <p className="text-[10px] text-slate-400 mb-3">
           Quem gerencia entra em projeto para destravar ou revisar. Se pontuasse, apareceria no
@@ -454,7 +454,7 @@ export default function TeamCostsView() {
 
       {/* ---------- Histórico ---------- */}
       {historico.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-slate-800 mb-1">Histórico</h3>
           <p className="text-[10px] text-slate-400 mb-2">
             Valores encerrados. Continuam valendo para os dias em que estavam vigentes — por isso o
