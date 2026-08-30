@@ -12,6 +12,12 @@ export type Project = {
   data_prazo: string | null
   data_inicio: string
   observacoes: string | null
+  /** Serviço que vence: data da próxima renovação. */
+  data_vencimento: string | null
+  /** De quantos em quantos meses o serviço se repete. Nulo = não renova. */
+  renovacao_meses: number | null
+  /** Cartão que deu origem a este — a vistoria sabe de qual projeto veio. */
+  projeto_origem_id: string | null
   created_at: string
   updated_at: string
 }
@@ -589,8 +595,52 @@ export const DOC_POINTS: Record<string, number> = {
   HAB: 1,
   Vistoria: 1,
   FUNC: 1,
+  SPDA: 1,
   MEM: 2,
   TCAC: 3,
+}
+
+/** Todos os tipos de serviço, na ordem em que aparecem no cartão. */
+export const TIPOS_DE_SERVICO = ['PRO', 'MEM', 'TCAC', 'HAB', 'FUNC', 'Vistoria', 'SPDA'] as const
+
+/**
+ * Serviços que vencem e precisam ser refeitos, com o intervalo em meses.
+ *
+ * Cada vencimento é um cliente que precisa contratar de novo — por isso o
+ * sistema acompanha a data em vez de deixar a renovação depender da memória
+ * de alguém.
+ */
+export const RENOVACAO_MESES: Record<string, number> = {
+  Vistoria: 12,
+  SPDA: 12,
+}
+
+/** Serviços que costumam nascer da aprovação de um projeto. */
+export const SERVICOS_DERIVADOS = [
+  { tipo: 'Vistoria', rotulo: 'Vistoria', ajuda: 'Vistoria no local, renova todo ano' },
+  { tipo: 'FUNC', rotulo: 'Funcionamento', ajuda: 'Alvará de funcionamento' },
+  { tipo: 'HAB', rotulo: 'Habite-se', ajuda: 'Habite-se da edificação' },
+  { tipo: 'SPDA', rotulo: 'SPDA', ajuda: 'Laudo de SPDA, renova todo ano' },
+  { tipo: 'TCAC', rotulo: 'TCAC', ajuda: 'Termo de compromisso, com etapas anuais' },
+  { tipo: 'MEM', rotulo: 'Memorial', ajuda: 'Memorial descritivo' },
+] as const
+
+/** Quantos dias antes o vencimento entra na carteira de renovações. */
+export const AVISO_VENCIMENTO_DIAS = 60
+
+/** Soma meses a uma data ISO, sem escorregar de mês. */
+export function somarMeses(iso: string, meses: number): string {
+  const [a, m, d] = iso.split('-').map(Number)
+  const base = new Date(a, m - 1 + meses, d)
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`
+}
+
+/** Dias que faltam até a data. Negativo = já venceu. */
+export function diasAte(iso: string): number {
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  const [a, m, d] = iso.split('-').map(Number)
+  return Math.round((new Date(a, m - 1, d).getTime() - hoje.getTime()) / 86400000)
 }
 
 /** Projeto (PRO) vale por porte: acima deste limite, pontuação cheia. */
@@ -634,6 +684,8 @@ export function tipoColor(tipo: string | null): string {
       return 'bg-lime-100 text-lime-700'
     case 'VISTORIA':
       return 'bg-orange-100 text-orange-700'
+    case 'SPDA':
+      return 'bg-amber-100 text-amber-800'
     default:
       return 'bg-gray-100 text-gray-700'
   }

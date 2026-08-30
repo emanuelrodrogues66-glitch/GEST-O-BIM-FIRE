@@ -7,6 +7,7 @@ import { usePerfil } from '../lib/perfil'
 import type { DailyProgress, Project, ProjectClient } from '../types'
 import {
   MOTIVOS_PENDENCIA,
+  TIPOS_DE_SERVICO,
   STATUS_COLUNAS,
   PRO_LIMITE_M2,
   PRO_PONTOS_GRANDE,
@@ -29,6 +30,7 @@ import ProjectFinanceTab from './ProjectFinanceTab'
 import MeetingsTab from './MeetingsTab'
 import TermoEntregaButton from './TermoEntregaButton'
 import RateioPontos from './RateioPontos'
+import ServicosDerivados from './ServicosDerivados'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -70,10 +72,21 @@ type Props = {
   month: MonthRef
   onClose: () => void
   onSaved: () => void
+  /** Abre outro cartão — usado pelos serviços gerados a partir deste. */
+  onProjectClick?: (id: string) => void
   onDeleted: () => void
 }
 
-export default function ProjectModal({ project, isNew, responsaveis, month, onClose, onSaved, onDeleted }: Props) {
+export default function ProjectModal({
+  project,
+  isNew,
+  responsaveis,
+  month,
+  onClose,
+  onSaved,
+  onDeleted,
+  onProjectClick,
+}: Props) {
   const emptyProject: Partial<Project> = {
     nome: '',
     responsavel: '',
@@ -595,7 +608,7 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
                       }))
                     }}
                   >
-                    {['PRO', 'MEM', 'TCAC', 'HAB', 'FUNC', 'Vistoria'].map((t) => (
+                    {TIPOS_DE_SERVICO.map((t) => (
                       <option key={t} value={t}>
                         {t}
                       </option>
@@ -804,6 +817,19 @@ export default function ProjectModal({ project, isNew, responsaveis, month, onCl
 
               {/* A divisão dos pontos é pública: é ela que permite conferir
                   se a fatia de cada um bate com o trabalho que teve. */}
+              {/* Vistoria, funcionamento e habite-se nascem daqui, sem
+                  redigitar cliente e endereço. */}
+              {!isNew && project && (
+                <div className="border-t border-slate-100 pt-4">
+                  <ServicosDerivados
+                    projeto={project}
+                    aprovacao={clientData.data_aprovacao || null}
+                    onAbrirProjeto={onProjectClick}
+                    onMudou={onSaved}
+                  />
+                </div>
+              )}
+
               {!isNew && project && (
                 <div className="border-t border-slate-100 pt-4">
                   <RateioPontos

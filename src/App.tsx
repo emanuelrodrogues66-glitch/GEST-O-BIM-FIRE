@@ -21,6 +21,7 @@ import AvisoAprovacoes from './components/AvisoAprovacoes'
 import TeamCostsView from './components/TeamCostsView'
 import FinanceReportView from './components/FinanceReportView'
 import PermissionsView from './components/PermissionsView'
+import RenovacoesView from './components/RenovacoesView'
 import { usePerfil } from './lib/perfil'
 import AgendaView from './components/AgendaView'
 import FeedView from './components/FeedView'
@@ -44,6 +45,7 @@ type ViewMode =
   | 'custos'
   | 'financeiro'
   | 'permissoes'
+  | 'renovacoes'
 
 /**
  * O link de recuperação chega com `type=recovery` na URL. O supabase-js
@@ -423,6 +425,7 @@ export default function App() {
                 ['feed', 'Feed'],
                 ['humor', 'Humor da equipe'],
                 ['atividades', 'Atividades'],
+                ['renovacoes', 'Renovações'],
                 ['relatorio', 'Relatório'],
                 ...(ehAdmin
                   ? ([
@@ -492,6 +495,8 @@ export default function App() {
             projetos={projects}
             onProjectClick={openEditById}
           />
+        ) : viewMode === 'renovacoes' ? (
+          <RenovacoesView onProjectClick={openEditById} />
         ) : viewMode === 'permissoes' ? (
           <PermissionsView />
         ) : viewMode === 'financeiro' ? (
@@ -539,6 +544,7 @@ export default function App() {
           onClose={closeModal}
           onSaved={handleSaved}
           onDeleted={handleSaved}
+          onProjectClick={openEditById}
         />
       )}
     </div>
