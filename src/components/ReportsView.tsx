@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import TasksReport from './TasksReport'
 import PendenciesReport from './PendenciesReport'
+import SemPlanejamentoReport from './SemPlanejamentoReport'
 
-type Aba = 'tarefas' | 'pendencias'
+type Aba = 'tarefas' | 'pendencias' | 'planejamento'
 
 /** A visão Relatório reúne os acompanhamentos de atraso e de projeto parado. */
 export default function ReportsView({
@@ -19,6 +20,7 @@ export default function ReportsView({
           [
             ['tarefas', 'Tarefas atrasadas'],
             ['pendencias', 'Projetos pendentes'],
+            ['planejamento', 'Sem planejamento'],
           ] as [Aba, string][]
         ).map(([key, label]) => (
           <button
@@ -35,8 +37,10 @@ export default function ReportsView({
 
       {aba === 'tarefas' ? (
         <TasksReport onProjectClick={onProjectClick} />
-      ) : (
+      ) : aba === 'pendencias' ? (
         <PendenciesReport onProjectClick={onProjectClick} />
+      ) : (
+        <SemPlanejamentoReport onProjectClick={onProjectClick} />
       )}
     </div>
   )
