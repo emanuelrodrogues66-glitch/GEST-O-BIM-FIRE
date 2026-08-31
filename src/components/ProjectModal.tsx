@@ -31,6 +31,7 @@ import MeetingsTab from './MeetingsTab'
 import TermoEntregaButton from './TermoEntregaButton'
 import RateioPontos from './RateioPontos'
 import ServicosDerivados from './ServicosDerivados'
+import CronogramaTcac from './CronogramaTcac'
 import SeletorCadastro from './SeletorCadastro'
 
 const LETRA_OPTIONS = [
@@ -111,6 +112,18 @@ export default function ProjectModal({
   const { ehAdmin } = usePerfil()
   // Equipe do escritório: alimenta a escolha de participantes das reuniões.
   const [equipeDoEscritorio, setEquipeDoEscritorio] = useState<string[]>([])
+  // Projeto que não é TCAC mas já tem etapas continua mostrando o cronograma —
+  // senão mudar o tipo por engano esconderia o que já foi preenchido.
+  const [temEtapas, setTemEtapas] = useState(false)
+
+  useEffect(() => {
+    if (!project) return
+    supabase
+      .from('project_stages')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', project.id)
+      .then(({ count }) => setTemEtapas((count || 0) > 0))
+  }, [project])
 
   useEffect(() => {
     supabase
@@ -824,6 +837,14 @@ export default function ProjectModal({
 
               {/* A divisão dos pontos é pública: é ela que permite conferir
                   se a fatia de cada um bate com o trabalho que teve. */}
+              {/* O TCAC tem cronograma próprio: etapas do cliente, com prazo
+                  e custo. Aparece só onde existe, para não poluir o resto. */}
+              {!isNew && project && (form.tipo === 'TCAC' || temEtapas) && (
+                <div className="border-t border-slate-100 pt-4">
+                  <CronogramaTcac projectId={project.id} />
+                </div>
+              )}
+
               {/* Vistoria, funcionamento e habite-se nascem daqui, sem
                   redigitar cliente e endereço. */}
               {!isNew && project && (
