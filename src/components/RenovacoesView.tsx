@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { VencimentoProximo } from '../lib/renovacoes'
 import { carregarVencimentos, descreverVencimento, renovarServico } from '../lib/renovacoes'
-import { AVISO_VENCIMENTO_DIAS, tipoColor } from '../types'
+import { AVISO_VENCIMENTO_DIAS, diasAte, tipoColor } from '../types'
 import { corDoResponsavel } from '../lib/agenda'
+import type { EtapaTcac } from '../lib/etapasTcac'
+import { carregarEtapasAVencer } from '../lib/etapasTcac'
+import { reais } from '../lib/financeiro'
+
+type EtapaComProjeto = EtapaTcac & {
+  projects: {
+    id: string
+    nome: string
+    numero: number | null
+    tipo: string | null
+    responsavel: string | null
+  } | null
+}
 
 function dataBR(iso: string | null) {
   if (!iso) return '—'
@@ -26,6 +39,9 @@ export default function RenovacoesView({
   const [carregando, setCarregando] = useState(true)
   const [janela, setJanela] = useState(AVISO_VENCIMENTO_DIAS)
   const [renovando, setRenovando] = useState<string | null>(null)
+  // Etapa de TCAC vencendo entra aqui junto: para o cliente é o mesmo tipo de
+  // prazo — passar da data deixa ele irregular perante o Corpo de Bombeiros.
+  const [etapas, setEtapas] = useState<EtapaComProjeto[]>([])
 
   useEffect(() => {
     recarregar()
@@ -34,7 +50,12 @@ export default function RenovacoesView({
 
   async function recarregar() {
     setCarregando(true)
-    setItens(await carregarVencimentos(janela))
+    const [venc, et] = await Promise.all([
+      carregarVencimentos(janela),
+      carregarEtapasAVencer(janela),
+    ])
+    setItens(venc)
+    setEtapas(et as EtapaComProjeto[])
     setCarregando(false)
   }
 
@@ -82,6 +103,7 @@ export default function RenovacoesView({
         <span className="text-[11px] text-slate-500 ml-auto">
           {itens.length} serviço{itens.length === 1 ? '' : 's'} · {vencidos.length} vencido
           {vencidos.length === 1 ? '' : 's'}
+          {etapas.length > 0 && ` · ${etapas.length} etapa(s) de TCAC`}
         </span>
       </div>
 
@@ -90,7 +112,78 @@ export default function RenovacoesView({
         contratar de novo — ligue antes de o prazo virar irregularidade.
       </p>
 
-      {itens.length === 0 && (
+      {/* ---------- Etapas de TCAC ---------- */}
+      {etapas.length > 0 && (
+        <div className="border border-cobre-300 rounded-xl overflow-hidden">
+          <div className="px-4 py-2 bg-cobre-50">
+            <h3 className="text-xs font-semibold text-cobre-700">
+              Etapas de TCAC ({etapas.length})
+            </h3>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Obrigação do cliente, com prazo no termo. Passar da data não atrasa entrega nossa —
+              deixa o cliente irregular.
+            </p>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {etapas.map((e) => {
+              const dias = e.data_termino ? diasAte(e.data_termino) : 0
+              return (
+                <div
+                  key={e.id}
+                  className={`px-4 py-2.5 flex flex-wrap items-center gap-2 ${
+                    dias < 0 ? 'bg-red-50/40' : 'bg-white'
+                  }`}
+                >
+                  <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded shrink-0 bg-cyan-100 text-cyan-700">
+                    TCAC
+                  </span>
+
+                  <button
+                    onClick={() => e.projects && onProjectClick?.(e.projects.id)}
+                    className="text-xs font-medium text-slate-800 hover:text-indigo-700 hover:underline text-left min-w-[140px] truncate"
+                  >
+                    {e.projects?.numero ? `${e.projects.numero} · ` : ''}
+                    {e.projects?.nome || 'Projeto'}
+                  </button>
+
+                  <span className="text-[11px] text-slate-500 flex-1 min-w-[160px] truncate">
+                    Etapa {e.ordem}: {e.descricao}
+                  </span>
+
+                  {e.custo !== null && (
+                    <span className="text-[11px] text-slate-500 tabular-nums">
+                      {reais(e.custo)}
+                    </span>
+                  )}
+
+                  {e.projects?.responsavel && (
+                    <span
+                      className="text-[10px] font-medium"
+                      style={{ color: corDoResponsavel(e.projects.responsavel) }}
+                    >
+                      {e.projects.responsavel}
+                    </span>
+                  )}
+
+                  <span className="text-[11px] text-slate-400 tabular-nums">
+                    {dataBR(e.data_termino)}
+                  </span>
+                  <span
+                    className={`text-[11px] font-medium w-32 text-right ${
+                      dias < 0 ? 'text-red-700' : 'text-cobre-700'
+                    }`}
+                  >
+                    {descreverVencimento(dias)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {itens.length === 0 && etapas.length === 0 && (
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm py-10 text-center">
           <p className="text-3xl mb-2">✓</p>
           <p className="text-sm text-slate-600">Nada vencendo nesta janela.</p>
