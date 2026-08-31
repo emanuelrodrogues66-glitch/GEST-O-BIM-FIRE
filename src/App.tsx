@@ -470,6 +470,19 @@ export default function App() {
                 {label}
               </button>
             ))}
+
+            {/* O ponto tem endereço próprio, então é link e não botão de visão:
+                abre numa aba separada e continua funcionando se a pessoa
+                deixar essa aba fixa no navegador o dia inteiro. */}
+            <a
+              href="/ponto"
+              target="_blank"
+              rel="noopener"
+              className="text-xs font-medium px-3 py-1.5 rounded-md transition text-slate-500 hover:bg-slate-100 hover:text-slate-700 flex items-center gap-1"
+              title="Cartão ponto — abre em uma nova página"
+            >
+              Ponto <span className="text-[9px] text-slate-400">↗</span>
+            </a>
           </div>
 
           <div className="flex gap-2 ml-auto text-xs">
