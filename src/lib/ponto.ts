@@ -183,16 +183,38 @@ export function jornadaNoDia(jornadas: Jornada[], colaborador: string, dia: stri
   )
 }
 
+/**
+ * O PostgREST devolve no máximo 1000 linhas por consulta, calado. Oito meses
+ * de ponto da equipe passam disso — e o que sumia virava dia sem batida, ou
+ * seja, falta, o que jogava o banco de horas para centenas de horas negativas.
+ * Por isso toda leitura de batida vem paginada.
+ */
+const PAGINA = 1000
+
+async function paginado<T>(monta: () => any): Promise<T[]> {
+  const todas: T[] = []
+  for (let inicio = 0; ; inicio += PAGINA) {
+    const { data, error } = await monta().range(inicio, inicio + PAGINA - 1)
+    if (error) throw new Error(error.message)
+    const lote = (data as T[]) || []
+    todas.push(...lote)
+    if (lote.length < PAGINA) break
+  }
+  return todas
+}
+
 export async function carregarBatidas(de: string, ate: string, colaborador?: string) {
-  let q = supabase.from('time_entries').select('*').gte('dia', de).lte('dia', ate)
-  if (colaborador) q = q.eq('colaborador', colaborador)
-  const { data } = await q.order('dia').order('momento')
-  return (data as Batida[]) || []
+  return paginado<Batida>(() => {
+    let q = supabase.from('time_entries').select('*').gte('dia', de).lte('dia', ate)
+    if (colaborador) q = q.eq('colaborador', colaborador)
+    return q.order('dia').order('momento')
+  })
 }
 
 export async function carregarSituacoes(de: string, ate: string) {
-  const { data } = await supabase.from('time_days').select('*').gte('dia', de).lte('dia', ate)
-  return (data as SituacaoDia[]) || []
+  return paginado<SituacaoDia>(() =>
+    supabase.from('time_days').select('*').gte('dia', de).lte('dia', ate).order('dia')
+  )
 }
 
 export async function carregarFeriados(de: string, ate: string) {
