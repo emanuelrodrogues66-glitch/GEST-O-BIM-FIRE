@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { usePerfil } from '../lib/perfil'
+import { usePermissoes } from '../lib/permissoes'
 import { corDoResponsavel } from '../lib/agenda'
 import { pct, reais } from '../lib/financeiro'
 import type { Apuracao, LinhaFinanceira } from '../lib/relatorioFinanceiro'
@@ -54,7 +54,8 @@ export default function FinanceReportView({
 }: {
   onProjectClick?: (projectId: string) => void
 }) {
-  const { ehAdmin, carregando: carregandoPerfil } = usePerfil()
+  const { pode, carregando: carregandoPerfil } = usePermissoes()
+  const ehAdmin = pode('fin.relatorio.ver')
   const [dados, setDados] = useState<Apuracao | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')

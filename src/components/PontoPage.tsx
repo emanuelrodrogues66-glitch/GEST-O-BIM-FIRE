@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { usePerfil } from '../lib/perfil'
+import { usePermissoes } from '../lib/permissoes'
 import { LOGO_BIM_FIRE_JPEG } from '../lib/logoBimFire'
 import Login from './Login'
 import PontoBater from './PontoBater'
@@ -22,8 +22,8 @@ type Aba = 'bater' | 'espelho' | 'horarios' | 'admin'
 export default function PontoPage() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [aba, setAba] = useState<Aba>('bater')
-  const { ehAdmin, ehProprietario } = usePerfil()
-  const podeAdministrar = ehAdmin || ehProprietario
+  const { pode } = usePermissoes()
+  const podeAdministrar = pode('ponto.administrar')
   const [pendentes, setPendentes] = useState(0)
 
   useEffect(() => {

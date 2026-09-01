@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { usePerfil } from '../lib/perfil'
+import { usePermissoes } from '../lib/permissoes'
 import type { Gatilho, ProjectExpense, ProjectFinance, ProjectInstallment, TeamCost } from '../lib/financeiro'
 import { horasLegiveis } from '../types'
 import {
@@ -38,7 +38,12 @@ type DatasDoProjeto = {
  * Só o ADM chega aqui, e o bloqueio de verdade está nas políticas do banco.
  */
 export default function ProjectFinanceTab({ projectId }: { projectId: string }) {
-  const { ehAdmin, carregando: carregandoPerfil } = usePerfil()
+  const { pode, carregando: carregandoPerfil } = usePermissoes()
+  // Quem só lança custo indireto entra por aqui: vê a aba, mas não o contrato.
+  const ehAdmin = pode('fin.contrato.ver') || pode('fin.despesas.ver')
+  const podeContrato = pode('fin.contrato.editar')
+  const podeDespesas = pode('fin.despesas.editar')
+  const veContrato = pode('fin.contrato.ver')
 
   const [ficha, setFicha] = useState<ProjectFinance | null>(null)
   const [parcelas, setParcelas] = useState<ProjectInstallment[]>([])
@@ -293,6 +298,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
   return (
     <div className="space-y-4">
       {/* ---------- Valor do contrato ---------- */}
+      {veContrato && (
       <div className="border border-slate-200 rounded-lg p-3">
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1">
@@ -301,6 +307,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
               type="number"
               step="0.01"
               value={valor}
+              disabled={!podeContrato}
               onChange={(e) => setValor(e.target.value)}
               onBlur={salvarValor}
               placeholder="0,00"
@@ -312,6 +319,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
           <label className="flex items-center gap-1.5 text-[10px] text-slate-500 pb-2 ml-auto">
             <input
               type="checkbox"
+              disabled={!podeContrato}
               checked={!!ficha?.sem_custo_apurado}
               onChange={alternarSemCusto}
             />
@@ -329,7 +337,10 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
         )}
       </div>
 
+      )}
+
       {/* ---------- Resultado ---------- */}
+      {veContrato && (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <Caixa titulo="Contrato" valor={reais(valorContrato)} />
         <Caixa
@@ -349,6 +360,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
           ajuda={aReceber > 0 ? `Falta ${reais(aReceber)}` : 'Tudo recebido'}
         />
       </div>
+      )}
 
       <p className="text-[10px] text-slate-400">
         <b>Margem de contribuição</b>, e não lucro: é o que sobrou depois da mão de obra e das
@@ -382,6 +394,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
       )}
 
       {/* ---------- Parcelas ---------- */}
+      {veContrato && (
       <div className="border border-slate-200 rounded-lg p-3">
         <div className="flex flex-wrap items-center gap-2 mb-2">
           <h4 className="text-xs font-semibold text-slate-700">Parcelas</h4>
@@ -486,6 +499,8 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
         )}
       </div>
 
+      )}
+
       {/* ---------- Despesas diretas ---------- */}
       <div className="border border-slate-200 rounded-lg p-3">
         <h4 className="text-xs font-semibold text-slate-700 mb-2">
@@ -504,12 +519,18 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
             <span className="text-slate-600 w-40 truncate">{d.categoria}</span>
             <span className="text-slate-500 flex-1 truncate">{d.descricao}</span>
             <span className="tabular-nums text-slate-700">{reais(d.valor)}</span>
-            <button onClick={() => excluirDespesa(d)} className="text-slate-300 hover:text-red-500 px-1">
-              ×
-            </button>
+            {podeDespesas && (
+              <button
+                onClick={() => excluirDespesa(d)}
+                className="text-slate-300 hover:text-red-500 px-1"
+              >
+                ×
+              </button>
+            )}
           </div>
         ))}
 
+        {podeDespesas && (
         <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-dashed border-slate-200">
           <input
             type="date"
@@ -550,6 +571,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
             Lançar
           </button>
         </div>
+        )}
       </div>
     </div>
   )

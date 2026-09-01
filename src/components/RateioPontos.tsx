@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { usePerfil } from '../lib/perfil'
+import { usePermissoes } from '../lib/permissoes'
 import { corDoResponsavel } from '../lib/agenda'
 import { horasLegiveis } from '../types'
 import type { RateioDoProjeto, SemPontuacao } from '../lib/rateioPontos'
@@ -50,7 +50,8 @@ export default function RateioPontos({
   responsavel: string | null
   aprovacao: string | null
 }) {
-  const { ehAdmin } = usePerfil()
+  const { pode } = usePermissoes()
+  const ehAdmin = pode('projetos.pontos')
   const [rateio, setRateio] = useState<RateioDoProjeto | null>(null)
   // Quem trabalhou no projeto mas está fora do ranking, para o cartão explicar
   // por que aquelas horas não viraram fatia.

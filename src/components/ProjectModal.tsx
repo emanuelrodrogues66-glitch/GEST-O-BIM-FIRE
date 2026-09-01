@@ -4,6 +4,7 @@ import { syncDailyProgressForStatus } from '../lib/statusSync'
 import { abrirPendencia, fecharPendencia, nomeDoUsuario, pendenciaAberta } from '../lib/pendencias'
 import { alertarCorrecao, comemorarConclusao } from '../lib/celebracao'
 import { usePerfil } from '../lib/perfil'
+import { usePermissoes } from '../lib/permissoes'
 import type { DailyProgress, Project, ProjectClient } from '../types'
 import {
   MOTIVOS_PENDENCIA,
@@ -110,6 +111,7 @@ export default function ProjectModal({
   // Pontuação e exclusão são do administrador. Na criação o campo continua
   // liberado, porque aí ele só recebe a sugestão automática do tipo.
   const { ehAdmin } = usePerfil()
+  const { pode } = usePermissoes()
   // Equipe do escritório: alimenta a escolha de participantes das reuniões.
   const [equipeDoEscritorio, setEquipeDoEscritorio] = useState<string[]>([])
   // Projeto que não é TCAC mas já tem etapas continua mostrando o cronograma —
@@ -133,7 +135,7 @@ export default function ProjectModal({
       .order('ordem')
       .then(({ data }) => setEquipeDoEscritorio(((data as { nome: string }[]) || []).map((m) => m.nome)))
   }, [])
-  const podeEditarPontos = ehAdmin || isNew
+  const podeEditarPontos = pode('projetos.pontos') || isNew
   const [progress, setProgress] = useState<Record<number, string>>({})
 
   // O progresso diário navega por mês por conta própria: projetos antigos
@@ -441,7 +443,9 @@ export default function ProjectModal({
                 ['reunioes', 'Reuniões'],
                 ['historico', 'Histórico'],
                 // Valor e custo são do ADM; a aba nem aparece para os demais.
-                ...(ehAdmin ? ([['financeiro', 'Financeiro']] as const) : []),
+                ...(pode('fin.contrato.ver') || pode('fin.despesas.ver')
+                  ? ([['financeiro', 'Financeiro']] as const)
+                  : []),
               ] as [
                 'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico' | 'reunioes' | 'financeiro',
                 string,

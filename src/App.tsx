@@ -23,7 +23,7 @@ import FinanceReportView from './components/FinanceReportView'
 import PermissionsView from './components/PermissionsView'
 import RenovacoesView from './components/RenovacoesView'
 import CadastrosView from './components/CadastrosView'
-import { usePerfil } from './lib/perfil'
+import { usePermissoes } from './lib/permissoes'
 import { LOGO_BIM_FIRE_JPEG } from './lib/logoBimFire'
 import AgendaView from './components/AgendaView'
 import FeedView from './components/FeedView'
@@ -79,7 +79,8 @@ export default function App() {
   const [isNew, setIsNew] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('kanban')
   // Custo da equipe é do ADM; a aba nem aparece para os demais.
-  const { ehAdmin, ehProprietario } = usePerfil()
+  // A navegação segue a permissão, não mais o papel fixo.
+  const { pode } = usePermissoes()
   // O aviso de atrasadas espera a comemoração das aprovações terminar.
   const [comemoracaoPassou, setComemoracaoPassou] = useState(false)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
@@ -461,23 +462,34 @@ export default function App() {
               [
                 ['kanban', 'Kanban'],
                 ['lista', 'Lista'],
-                ['dashboard', 'Dashboard'],
-                ['gantt', 'Gantt'],
-                ['agenda', 'Tarefas e agenda'],
-                ['feed', 'Feed'],
-                ['humor', 'Humor da equipe'],
-                ['atividades', 'Atividades'],
-                ['renovacoes', 'Renovações'],
-                ['cadastros', 'Clientes e parceiros'],
-                ['relatorio', 'Relatório'],
-                ...(ehAdmin
+                ...(pode('dashboard.ver')
+                  ? ([['dashboard', 'Dashboard']] as [ViewMode, string][])
+                  : []),
+                ...(pode('tarefas.ver')
                   ? ([
-                      ['financeiro', 'Financeiro'],
-                      ['custos', 'Custo da equipe'],
+                      ['gantt', 'Gantt'],
+                      ['agenda', 'Tarefas e agenda'],
                     ] as [ViewMode, string][])
                   : []),
-                // Gestão de permissões é só do dono do escritório.
-                ...(ehProprietario ? ([['permissoes', 'Permissões']] as [ViewMode, string][]) : []),
+                ['feed', 'Feed'],
+                ...(pode('humor.ver') ? ([['humor', 'Humor da equipe']] as [ViewMode, string][]) : []),
+                ['atividades', 'Atividades'],
+                ['renovacoes', 'Renovações'],
+                ...(pode('cadastros.ver')
+                  ? ([['cadastros', 'Clientes e parceiros']] as [ViewMode, string][])
+                  : []),
+                ...(pode('relatorios.ver')
+                  ? ([['relatorio', 'Relatório']] as [ViewMode, string][])
+                  : []),
+                ...(pode('fin.relatorio.ver')
+                  ? ([['financeiro', 'Financeiro']] as [ViewMode, string][])
+                  : []),
+                ...(pode('fin.salarios.ver')
+                  ? ([['custos', 'Custo da equipe']] as [ViewMode, string][])
+                  : []),
+                ...(pode('permissoes.gerenciar')
+                  ? ([['permissoes', 'Permissões']] as [ViewMode, string][])
+                  : []),
               ] as [ViewMode, string][]
             ).map(([mode, label]) => (
               <button

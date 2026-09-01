@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { usePerfil } from '../lib/perfil'
+import { usePermissoes } from '../lib/permissoes'
 import type { TeamCost } from '../lib/financeiro'
 import { VINCULOS, custoComEncargos, custoPorDia, custoPorHora, reais, vigente } from '../lib/financeiro'
 
@@ -36,7 +36,9 @@ const VAZIO = {
  * sozinho a vigência anterior da mesma pessoa.
  */
 export default function TeamCostsView() {
-  const { ehAdmin, carregando: carregandoPerfil } = usePerfil()
+  const { pode, carregando: carregandoPerfil } = usePermissoes()
+  const ehAdmin = pode('fin.salarios.ver')
+  const podeEditar = pode('fin.salarios.editar')
   const [custos, setCustos] = useState<TeamCost[]>([])
   const [equipe, setEquipe] = useState<string[]>([])
   // Quem entra no ranking de pontos. Gerente entra em projeto para destravar,
@@ -352,7 +354,8 @@ export default function TeamCostsView() {
           )}
           <button
             onClick={salvar}
-            disabled={salvando}
+            disabled={salvando || !podeEditar}
+            title={podeEditar ? undefined : 'Seu perfil vê os custos, mas não altera.'}
             className="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md font-medium"
           >
             {salvando ? 'Salvando...' : editandoId ? 'Salvar' : 'Cadastrar'}
