@@ -1,5 +1,6 @@
 import { forwardRef } from 'react'
 import type { Project } from '../types'
+import type { RankingRow } from '../lib/stats'
 import { rankingPorResponsavel, statusDistribution, STATUS_CHART_COLORS } from '../lib/stats'
 import { letraColor, weekdayLetter } from '../lib/pdfColors'
 import type { MonthRef } from '../lib/month'
@@ -19,11 +20,17 @@ type Props = {
   projects: Project[]
   progressMap: Record<string, Record<number, string>>
   month: MonthRef
+  /**
+   * Ranking já repartido pelas horas, igual ao do Dashboard. Quando não vem,
+   * cai no cálculo antigo (pts cru no responsável cadastrado) para o PDF nunca
+   * ficar sem o bloco.
+   */
+  ranking?: RankingRow[]
 }
 
-const PdfReportView = forwardRef<HTMLDivElement, Props>(({ categoria, projects, progressMap, month }, ref) => {
+const PdfReportView = forwardRef<HTMLDivElement, Props>(({ categoria, projects, progressMap, month, ranking: rankingPronto }, ref) => {
   const DAYS = Array.from({ length: daysInMonth(month) }, (_, i) => i + 1)
-  const ranking = rankingPorResponsavel(projects)
+  const ranking = rankingPronto ?? rankingPorResponsavel(projects)
   const statusRows = statusDistribution(projects)
   const totalPontos = projects.reduce((s, p) => s + (p.pts || 0), 0)
   const totalM2 = projects.reduce((s, p) => s + (p.m2 || 0), 0)
@@ -195,7 +202,9 @@ const PdfReportView = forwardRef<HTMLDivElement, Props>(({ categoria, projects, 
                 <span className="flex items-center gap-1 truncate">
                   <span>{MEDALS[i] || `${i + 1}º`}</span> {r.responsavel}
                 </span>
-                <span className="font-semibold">{r.pontos} pts</span>
+                <span className="font-semibold">
+                  {Number.isInteger(r.pontos) ? r.pontos : r.pontos.toFixed(2)} pts
+                </span>
               </div>
             ))}
           </div>

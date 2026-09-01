@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { exportElementToPdf } from '../lib/pdfExport'
+import type { BasesDoRateio } from '../lib/rankingPontos'
+import { carregarBasesDoRateio, carregarProgressoDoMes, rankingComRateio } from '../lib/rankingPontos'
 import type { Project } from '../types'
 import { CATEGORIAS } from '../types'
 import type { MonthRef } from '../lib/month'
-import { monthRange } from '../lib/month'
+import { monthLabel, monthRange } from '../lib/month'
 import PdfReportView from './PdfReportView'
 
 export default function PdfExportAllModal({
@@ -17,6 +18,7 @@ export default function PdfExportAllModal({
   onClose: () => void
 }) {
   const [progressMap, setProgressMap] = useState<Record<string, Record<number, string>>>({})
+  const [bases, setBases] = useState<BasesDoRateio | null>(null)
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [currentIndex, setCurrentIndex] = useState<number | null>(null)
@@ -32,26 +34,13 @@ export default function PdfExportAllModal({
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const ids = projects.map((p) => p.id)
-      if (ids.length === 0) {
-        setProgressMap({})
-        setLoading(false)
-        return
-      }
       const { start, end } = monthRange(month)
-      const { data } = await supabase
-        .from('daily_progress')
-        .select('*')
-        .in('project_id', ids)
-        .gte('data', start)
-        .lte('data', end)
-      const map: Record<string, Record<number, string>> = {}
-      data?.forEach((d: any) => {
-        const day = Number(d.data.split('-')[2])
-        if (!map[d.project_id]) map[d.project_id] = {}
-        map[d.project_id][day] = d.letra
-      })
-      setProgressMap(map)
+      const [mapa, b] = await Promise.all([
+        carregarProgressoDoMes(projects.map((p) => p.id), start, end),
+        carregarBasesDoRateio(),
+      ])
+      setProgressMap(mapa)
+      setBases(b)
       setLoading(false)
     }
     load()
@@ -67,7 +56,7 @@ export default function PdfExportAllModal({
         setCurrentIndex(i)
         const el = refs.current[i]
         if (!el) continue
-        const filename = `relatorio-${grupos[i].categoria.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.pdf`
+        const filename = `Relatorio ${grupos[i].categoria} - ${monthLabel(month)}.pdf`
         await exportElementToPdf(el, filename)
         setDoneIndexes((d) => [...d, i])
         // pequena pausa entre downloads para o navegador processar cada um
@@ -139,6 +128,7 @@ export default function PdfExportAllModal({
                 projects={g.projetos}
                 progressMap={progressMap}
                 month={month}
+                ranking={bases ? rankingComRateio(g.projetos, bases) : undefined}
               />
             ))}
           </div>
