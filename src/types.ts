@@ -308,6 +308,7 @@ export type ProjectClient = {
   nome_responsavel: string | null
   contato_responsavel: string | null
   email_cliente: string | null
+  email_parceiro: string | null
   nome_dono_imovel: string | null
   contato_dono: string | null
   memorial_ou_projeto: string | null
@@ -545,6 +546,9 @@ export const CLIENT_FIELDS: ClientField[] = [
   // --- Parceiro ---
   { key: 'nome_parceiro', label: 'Nome do parceiro (Eng., Arq. e outros)', secao: 'Parceiro' },
   { key: 'contato_parceiro', label: 'Contato do parceiro', secao: 'Parceiro' },
+  // Opcional de propósito: exigir e-mail do parceiro travaria a conclusão de
+  // todos os projetos antigos, que nunca tiveram esse campo.
+  { key: 'email_parceiro', label: 'E-mail do parceiro', secao: 'Parceiro', opcional: true },
   { key: 'endereco_parceiro', label: 'Endereço completo do parceiro', secao: 'Parceiro', largura: 'inteira' },
 
   // --- Entrega ---

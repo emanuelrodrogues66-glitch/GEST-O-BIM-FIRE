@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase, carregarTabelaCompleta } from '../lib/supabase'
 import type { Cliente, Parceiro } from '../lib/cadastros'
-import { carregarClientes, carregarParceiros } from '../lib/cadastros'
+import { carregarClientes, carregarParceiros, renomearCadastro } from '../lib/cadastros'
 import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 import type { Project } from '../types'
 import { tipoColor } from '../types'
@@ -216,6 +216,21 @@ export default function CadastrosView({
     })
   }
 
+  async function renomear(tabela: 'clientes' | 'parceiros', id: string, atual: string, novo: string) {
+    const nome = novo.trim()
+    if (!nome || nome === atual) return
+    try {
+      const cartoes = await renomearCadastro(tabela, id, nome)
+      await carregar()
+      if (cartoes > 0) {
+        alert(`Nome atualizado aqui e em ${cartoes} cartão(ões) de projeto ligado(s) a este cadastro.`)
+      }
+    } catch (e: any) {
+      alert(e.message)
+      carregar()
+    }
+  }
+
   async function salvarCampo(tabela: 'clientes' | 'parceiros', id: string, patch: any) {
     await supabase
       .from(tabela)
@@ -285,7 +300,8 @@ export default function CadastrosView({
 
       <p className="text-[11px] text-slate-500">
         {lista.length} {aba} · {totalProjetos} vínculo{totalProjetos === 1 ? '' : 's'} com projetos.
-        Clique numa linha para editar os dados e ver os projetos.
+        Clique numa linha para editar os dados e ver os projetos. Corrigir o nome aqui corrige
+        também nos cartões ligados a este cadastro.
       </p>
 
       {/* ---------- Tabela ---------- */}
@@ -342,6 +358,11 @@ export default function CadastrosView({
                       <td colSpan={aba === 'clientes' ? 8 : 7} className="px-4 py-3">
                         <div className="grid md:grid-cols-2 gap-4">
                           <div className="space-y-2">
+                            <Campo
+                              rotulo="Nome"
+                              valor={item.nome}
+                              onSalvar={(v) => renomear(tabela, item.id, item.nome, v)}
+                            />
                             <Campo
                               rotulo="Contato"
                               valor={item.contato || ''}

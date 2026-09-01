@@ -62,6 +62,7 @@ export function camposDoParceiro(p: Parceiro): Partial<ProjectClient> {
     parceiro_id: p.id,
     nome_parceiro: p.nome,
     contato_parceiro: p.contato || '',
+    email_parceiro: p.email || '',
     endereco_parceiro: p.endereco || '',
   }
 }
@@ -113,6 +114,7 @@ export async function salvarParceiroDoCartao(
       {
         nome,
         contato: ficha.contato_parceiro?.trim() || null,
+        email: ficha.email_parceiro?.trim() || null,
         endereco: ficha.endereco_parceiro?.trim() || null,
         updated_at: new Date().toISOString(),
       },
@@ -144,4 +146,42 @@ export function divergencias(
       return a && b && a !== b
     })
     .map(([campo]) => campo)
+}
+
+/**
+ * Renomeia um cadastro e leva o nome novo para os cartões ligados a ele.
+ *
+ * Nome é identidade, não histórico: corrigir "LUIZ" para "Luiz Silva" precisa
+ * valer nos projetos dele também, senão a lista para de casar por nome e o
+ * contador de projetos desmonta. Endereço e contato continuam presos ao
+ * projeto — esses sim são a foto da época.
+ */
+export async function renomearCadastro(
+  tabela: 'clientes' | 'parceiros',
+  id: string,
+  novoNome: string
+): Promise<number> {
+  const nome = novoNome.trim()
+  if (!nome) throw new Error('O nome não pode ficar vazio.')
+
+  const { error } = await supabase.from(tabela).update({ nome, updated_at: new Date().toISOString() }).eq('id', id)
+  if (error) {
+    if (/duplicate key|unique/i.test(error.message)) {
+      throw new Error(
+        `Já existe um cadastro chamado "${nome}". Renomeie ou junte os dois manualmente.`
+      )
+    }
+    throw new Error(error.message)
+  }
+
+  const coluna = tabela === 'clientes' ? 'nome_responsavel' : 'nome_parceiro'
+  const ligacao = tabela === 'clientes' ? 'cliente_id' : 'parceiro_id'
+  const { data, error: erroFichas } = await supabase
+    .from('project_clients')
+    .update({ [coluna]: nome, updated_at: new Date().toISOString() })
+    .eq(ligacao, id)
+    .select('project_id')
+  if (erroFichas) throw new Error(erroFichas.message)
+
+  return (data as { project_id: string }[] | null)?.length || 0
 }
