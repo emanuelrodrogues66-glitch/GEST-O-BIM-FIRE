@@ -138,10 +138,32 @@ export default function App() {
 
   function passaNosFiltros(p: Project): boolean {
     if (categoria && p.categoria !== categoria) return false
+    return passaSemCategoria(p)
+  }
+
+  function passaSemCategoria(p: Project): boolean {
     if (responsavelFiltro && p.responsavel !== responsavelFiltro) return false
     if (busca && !p.nome.toLowerCase().includes(busca.toLowerCase())) return false
     return true
   }
+
+  /**
+   * Os PDFs recebem todos os projetos, sem cortar por mês de início.
+   *
+   * Cortar por `data_inicio` deixava de fora justamente o que o relatório
+   * precisa mostrar: o projeto que começou em junho e continua andando. Quem
+   * decide o que entra é o próprio modal, pela movimentação do mês.
+   */
+  const paraPdfDaCategoria = useMemo(
+    () => projects.filter(passaNosFiltros),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, categoria, responsavelFiltro, busca]
+  )
+  const paraPdfDeTodasCategorias = useMemo(
+    () => projects.filter(passaSemCategoria),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, responsavelFiltro, busca]
+  )
 
   // Lista e relatórios continuam agrupados por mês.
   const filtered = useMemo(
@@ -556,11 +578,20 @@ export default function App() {
       {comemoracaoPassou && <AvisoAtrasadas onVerRelatorio={() => setViewMode('relatorio')} />}
 
       {pdfModalOpen && (
-        <PdfExportModal categoria={categoria} projects={filtered} month={month} onClose={() => setPdfModalOpen(false)} />
+        <PdfExportModal
+          categoria={categoria}
+          projects={paraPdfDaCategoria}
+          month={month}
+          onClose={() => setPdfModalOpen(false)}
+        />
       )}
 
       {pdfAllModalOpen && (
-        <PdfExportAllModal projects={projectsDoMes} month={month} onClose={() => setPdfAllModalOpen(false)} />
+        <PdfExportAllModal
+          projects={paraPdfDeTodasCategorias}
+          month={month}
+          onClose={() => setPdfAllModalOpen(false)}
+        />
       )}
 
       {pedirPendencia && (

@@ -1,7 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { exportElementToPdf } from '../lib/pdfExport'
 import type { BasesDoRateio } from '../lib/rankingPontos'
-import { carregarBasesDoRateio, carregarProgressoDoMes, rankingComRateio } from '../lib/rankingPontos'
+import {
+  carregarBasesDoRateio,
+  carregarProgressoDoMes,
+  projetosComMovimentoNoMes,
+  rankingComRateio,
+} from '../lib/rankingPontos'
 import type { Project } from '../types'
 import type { MonthRef } from '../lib/month'
 import { monthLabel, monthRange } from '../lib/month'
@@ -9,7 +14,7 @@ import PdfReportView from './PdfReportView'
 
 export default function PdfExportModal({
   categoria,
-  projects,
+  projects: todosDaCategoria,
   month,
   onClose,
 }: {
@@ -30,7 +35,7 @@ export default function PdfExportModal({
       setLoading(true)
       const { start, end } = monthRange(month)
       const [mapa, b] = await Promise.all([
-        carregarProgressoDoMes(projects.map((p) => p.id), start, end),
+        carregarProgressoDoMes(todosDaCategoria.map((p) => p.id), start, end),
         carregarBasesDoRateio(),
       ])
       setProgressMap(mapa)
@@ -38,7 +43,12 @@ export default function PdfExportModal({
       setLoading(false)
     }
     load()
-  }, [projects, month])
+  }, [todosDaCategoria, month])
+
+  const projects = useMemo(
+    () => projetosComMovimentoNoMes(todosDaCategoria, progressMap, month),
+    [todosDaCategoria, progressMap, month]
+  )
 
   async function handleExport() {
     if (!reportRef.current) return
@@ -62,7 +72,8 @@ export default function PdfExportModal({
           <div>
             <h2 className="text-lg font-semibold text-slate-800">Exportar relatório em PDF</h2>
             <p className="text-xs text-slate-500">
-              {categoria} · {projects.length} projeto{projects.length !== 1 ? 's' : ''}
+              {categoria} · {monthLabel(month)} · {projects.length} projeto
+              {projects.length !== 1 ? 's' : ''} com movimentação
             </p>
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
           </div>

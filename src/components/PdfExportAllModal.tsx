@@ -1,7 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { exportElementToPdf } from '../lib/pdfExport'
 import type { BasesDoRateio } from '../lib/rankingPontos'
-import { carregarBasesDoRateio, carregarProgressoDoMes, rankingComRateio } from '../lib/rankingPontos'
+import {
+  carregarBasesDoRateio,
+  carregarProgressoDoMes,
+  projetosComMovimentoNoMes,
+  rankingComRateio,
+} from '../lib/rankingPontos'
 import type { Project } from '../types'
 import { CATEGORIAS } from '../types'
 import type { MonthRef } from '../lib/month'
@@ -9,7 +14,7 @@ import { monthLabel, monthRange } from '../lib/month'
 import PdfReportView from './PdfReportView'
 
 export default function PdfExportAllModal({
-  projects,
+  projects: todosOsProjetos,
   month,
   onClose,
 }: {
@@ -26,17 +31,26 @@ export default function PdfExportAllModal({
   const [error, setError] = useState<string | null>(null)
   const refs = useRef<(HTMLDivElement | null)[]>([])
 
-  const grupos = CATEGORIAS.map((cat) => ({
-    categoria: cat,
-    projetos: projects.filter((p) => p.categoria === cat),
-  }))
+  // Só entra no PDF quem andou no mês; ver a regra em projetosComMovimentoNoMes.
+  const grupos = useMemo(
+    () =>
+      CATEGORIAS.map((cat) => ({
+        categoria: cat,
+        projetos: projetosComMovimentoNoMes(
+          todosOsProjetos.filter((p) => p.categoria === cat),
+          progressMap,
+          month
+        ),
+      })),
+    [todosOsProjetos, progressMap, month]
+  )
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       const { start, end } = monthRange(month)
       const [mapa, b] = await Promise.all([
-        carregarProgressoDoMes(projects.map((p) => p.id), start, end),
+        carregarProgressoDoMes(todosOsProjetos.map((p) => p.id), start, end),
         carregarBasesDoRateio(),
       ])
       setProgressMap(mapa)
@@ -44,7 +58,7 @@ export default function PdfExportAllModal({
       setLoading(false)
     }
     load()
-  }, [projects, month])
+  }, [todosOsProjetos, month])
 
   async function handleExportAll() {
     setExporting(true)
@@ -78,8 +92,8 @@ export default function PdfExportAllModal({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
         <h2 className="text-lg font-semibold text-slate-800 mb-1">Gerar todos os PDFs</h2>
         <p className="text-xs text-slate-500 mb-4">
-          Baixa um arquivo PDF separado para cada categoria ({grupos.filter((g) => g.projetos.length > 0).length} no
-          total).
+          {monthLabel(month)} · um arquivo por categoria, com os projetos que tiveram movimentação no
+          mês ({grupos.filter((g) => g.projetos.length > 0).length} arquivo(s)).
         </p>
 
         <ul className="space-y-1.5 mb-4">

@@ -12,6 +12,8 @@
 import { supabase, carregarTabelaCompleta } from './supabase'
 import type { Project } from '../types'
 import { normalizeStatus } from '../types'
+import type { MonthRef } from './month'
+import { dateInMonth } from './month'
 import type { LancamentoDeHora, SemPontuacao } from './rateioPontos'
 import { calcularRateio, carregarQuemNaoPontua } from './rateioPontos'
 import type { RankingRow } from './stats'
@@ -145,4 +147,22 @@ export async function carregarProgressoDoMes(
     if (lote.length < PAGINA) break
   }
   return mapa
+}
+
+/**
+ * Quem entra no relatório do mês.
+ *
+ * Não é "quem começou no mês" — essa era a regra antiga e ela escondia
+ * exatamente o que o relatório existe para mostrar: o projeto que começou em
+ * junho e continua andando hoje. Entra quem teve movimentação no mês, ou quem
+ * começou nele (mesmo que ainda sem nenhum dia preenchido).
+ */
+export function projetosComMovimentoNoMes(
+  projetos: Project[],
+  progresso: Record<string, Record<number, string>>,
+  mes: MonthRef
+): Project[] {
+  return projetos.filter(
+    (p) => dateInMonth(p.data_inicio, mes) || Object.keys(progresso[p.id] || {}).length > 0
+  )
 }
