@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { carregarTabelaCompleta } from '../lib/supabase'
 import { corDoResponsavel } from '../lib/agenda'
 import type { Batida, DiaApurado, Jornada, TipoBatida } from '../lib/ponto'
+import PontoDoDia from './PontoDoDia'
 import {
   ROTULO_TIPO,
   TIPOS,
@@ -38,6 +39,9 @@ export default function PontoBater() {
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState<{ tipo: TipoBatida; hora: string } | null>(null)
+  // Painel do dia: abre logo depois da batida, que é o único momento em que se
+  // tem certeza de que a pessoa está olhando a tela.
+  const [mostrarDia, setMostrarDia] = useState<{ tipo: TipoBatida; hora: string } | null>(null)
 
   const [jornadas, setJornadas] = useState<Jornada[]>([])
   const [batidasHoje, setBatidasHoje] = useState<Batida[]>([])
@@ -105,7 +109,9 @@ export default function PontoBater() {
     setSalvando(true)
     try {
       const r = await baterPonto({ colaborador, pin })
-      setSucesso({ tipo: r.tipo, hora: horaDoMomento(r.momento) })
+      const marcada = { tipo: r.tipo, hora: horaDoMomento(r.momento) }
+      setSucesso(marcada)
+      setMostrarDia(marcada)
       setPin('')
       await recarregarDia()
     } catch (e: any) {
@@ -270,6 +276,15 @@ export default function PontoBater() {
       <p className="text-[10px] text-slate-400 text-center">
         Esqueceu de bater? Fale com o ADM. Todo ajuste fica registrado com o motivo e o autor.
       </p>
+
+      {mostrarDia && (
+        <PontoDoDia
+          colaborador={colaborador}
+          tipo={mostrarDia.tipo}
+          hora={mostrarDia.hora}
+          onFechar={() => setMostrarDia(null)}
+        />
+      )}
     </div>
   )
 }
