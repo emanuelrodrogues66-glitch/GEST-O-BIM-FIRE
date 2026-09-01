@@ -15,6 +15,17 @@ const MESES = [
   'Dezembro',
 ]
 
+/**
+ * O mês em que estamos, pelo relógio de quem abriu o app.
+ *
+ * O padrão do filtro era fixo em agosto/2026, então na virada do mês o
+ * escritório inteiro abria o sistema num mês que já passou.
+ */
+export function mesDeHoje(): MonthRef {
+  const agora = new Date()
+  return { year: agora.getFullYear(), month: agora.getMonth() + 1 }
+}
+
 export function monthLabel(m: MonthRef): string {
   return `${MESES[m.month - 1]} ${m.year}`
 }

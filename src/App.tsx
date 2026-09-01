@@ -32,7 +32,7 @@ import ActivitiesReport from './components/ActivitiesReport'
 import PendencyDialog from './components/PendencyDialog'
 import CelebrationSettings from './components/CelebrationSettings'
 import type { MonthRef } from './lib/month'
-import { addMonths, dateInMonth, monthLabel } from './lib/month'
+import { addMonths, dateInMonth, mesDeHoje, monthLabel } from './lib/month'
 
 type ViewMode =
   | 'kanban'
@@ -84,7 +84,7 @@ export default function App() {
   const [comemoracaoPassou, setComemoracaoPassou] = useState(false)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
   const [pdfAllModalOpen, setPdfAllModalOpen] = useState(false)
-  const [month, setMonth] = useState<MonthRef>({ year: 2026, month: 8 })
+  const [month, setMonth] = useState<MonthRef>(mesDeHoje())
   const [dragOverCategoria, setDragOverCategoria] = useState<string | null>(null)
   // No Kanban, permite ver projetos de todos os meses (trabalho em andamento
   // nao se encerra na virada do mes).
