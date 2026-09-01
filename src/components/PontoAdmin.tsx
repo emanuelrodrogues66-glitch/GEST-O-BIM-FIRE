@@ -10,6 +10,7 @@ import {
   carregarFeriados,
   carregarJornadas,
   carregarSituacoes,
+  carregarSolicitacoes,
   dataBR,
   definirPin,
   diasDoMes,
@@ -86,22 +87,25 @@ function Equipe() {
     const de = dias[0]
     const ate = dias[dias.length - 1]
 
-    const [membros, jornadas, batidas, situacoes, feriados, fechamentos] = await Promise.all([
-      carregarTabelaCompleta<Membro>('team_members', 'nome, ativo'),
-      carregarJornadas(),
-      carregarBatidas(de, ate),
-      carregarSituacoes(de, ate),
-      carregarFeriados(de, ate),
-      carregarFechamentos(),
-    ])
+    const [membros, jornadas, batidas, situacoes, feriados, fechamentos, solicitacoes] =
+      await Promise.all([
+        carregarTabelaCompleta<Membro>('team_members', 'nome, ativo'),
+        carregarJornadas(),
+        carregarBatidas(de, ate),
+        carregarSituacoes(de, ate),
+        carregarFeriados(de, ate),
+        carregarFechamentos(),
+        carregarSolicitacoes({ de, ate, status: ['aprovada'] }),
+      ])
 
     // O saldo anterior de cada um: do último fechamento até a véspera do mês.
     const inicioHistorico = '2026-01-01'
     const vespera = anterior(de)
-    const [batAntes, sitAntes, ferAntes] = await Promise.all([
+    const [batAntes, sitAntes, ferAntes, solAntes] = await Promise.all([
       carregarBatidas(inicioHistorico, vespera),
       carregarSituacoes(inicioHistorico, vespera),
       carregarFeriados(inicioHistorico, vespera),
+      carregarSolicitacoes({ de: inicioHistorico, ate: vespera, status: ['aprovada'] }),
     ])
 
     const resultado = membros
@@ -114,6 +118,7 @@ function Equipe() {
           batidas,
           situacoes,
           feriados,
+          solicitacoes,
         })
 
         const fech = fechamentos.filter((f) => f.colaborador === m.nome).find((f) => f.ate_dia < de)
@@ -131,6 +136,7 @@ function Equipe() {
           batidas: batAntes,
           situacoes: sitAntes,
           feriados: ferAntes,
+          solicitacoes: solAntes,
         })
 
         return {

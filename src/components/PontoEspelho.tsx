@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { carregarTabelaCompleta } from '../lib/supabase'
 import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
-import type { Batida, DiaApurado, Feriado, Jornada, MesApurado, SituacaoDia, TipoBatida } from '../lib/ponto'
+import type {
+  Batida,
+  DiaApurado,
+  Feriado,
+  Jornada,
+  MesApurado,
+  SituacaoDia,
+  Solicitacao,
+  TipoBatida,
+} from '../lib/ponto'
 import {
   ROTULO_TIPO,
   SITUACOES,
@@ -13,6 +22,7 @@ import {
   carregarFeriados,
   carregarJornadas,
   carregarSituacoes,
+  carregarSolicitacoes,
   diasDoMes,
   hojeLocal,
   horaDoMomento,
@@ -52,6 +62,7 @@ export default function PontoEspelho({
   const [batidas, setBatidas] = useState<Batida[]>([])
   const [situacoes, setSituacoes] = useState<SituacaoDia[]>([])
   const [feriados, setFeriados] = useState<Feriado[]>([])
+  const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([])
   const [saldoAnterior, setSaldoAnterior] = useState(0)
   const [carregando, setCarregando] = useState(true)
 
@@ -76,16 +87,18 @@ export default function PontoEspelho({
 
   async function recarregar() {
     setCarregando(true)
-    const [j, b, s, f] = await Promise.all([
+    const [j, b, s, f, sol] = await Promise.all([
       carregarJornadas(),
       carregarBatidas(de, ate, colaborador),
       carregarSituacoes(de, ate),
       carregarFeriados(de, ate),
+      carregarSolicitacoes({ de, ate, colaborador, status: ['aprovada'] }),
     ])
     setJornadas(j)
     setBatidas(b)
     setSituacoes(s)
     setFeriados(f)
+    setSolicitacoes(sol)
     setSaldoAnterior(await saldoAteVespera(colaborador, de))
     setCarregando(false)
   }
@@ -123,8 +136,8 @@ export default function PontoEspelho({
 
   const apurado: MesApurado | null = useMemo(() => {
     if (!colaborador) return null
-    return apurarMes({ colaborador, dias, jornadas, batidas, situacoes, feriados })
-  }, [colaborador, dias, jornadas, batidas, situacoes, feriados])
+    return apurarMes({ colaborador, dias, jornadas, batidas, situacoes, feriados, solicitacoes })
+  }, [colaborador, dias, jornadas, batidas, situacoes, feriados, solicitacoes])
 
   async function mudarSituacao(dia: string, situacao: string) {
     if (situacao === 'normal') {
@@ -372,7 +385,14 @@ export default function PontoEspelho({
                       </td>
 
                       <td className="pl-2 pr-3">
-                        {d.feriado ? (
+                        {d.acordo ? (
+                          <span
+                            className="text-[10px] text-cyan-700"
+                            title={`Horário combinado: ${d.acordo.motivo}`}
+                          >
+                            horário combinado{d.acordo.abona_horas ? ' (abonado)' : ''}
+                          </span>
+                        ) : d.feriado ? (
                           <span className="text-[10px] text-cobre-700">{d.feriado}</span>
                         ) : podeAjustar && !fimDeSemana ? (
                           <select

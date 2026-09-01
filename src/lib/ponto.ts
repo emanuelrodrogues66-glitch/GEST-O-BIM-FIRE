@@ -77,6 +77,23 @@ export type SituacaoDia = {
 
 export type Feriado = { dia: string; nome: string }
 
+export type Solicitacao = {
+  id: string
+  colaborador: string
+  dia: string
+  entrada_manha: string | null
+  saida_manha: string | null
+  entrada_tarde: string | null
+  saida_tarde: string | null
+  motivo: string
+  status: 'pendente' | 'aprovada' | 'recusada' | 'cancelada'
+  abona_horas: boolean
+  resposta: string | null
+  decidido_por: string | null
+  decidido_em: string | null
+  created_at: string
+}
+
 export type Fechamento = {
   id: string
   colaborador: string
@@ -222,6 +239,75 @@ export async function carregarFeriados(de: string, ate: string) {
   return (data as Feriado[]) || []
 }
 
+export async function carregarSolicitacoes(params: {
+  de?: string
+  ate?: string
+  colaborador?: string
+  status?: Solicitacao['status'][]
+}): Promise<Solicitacao[]> {
+  let q = supabase.from('time_requests').select('*')
+  if (params.de) q = q.gte('dia', params.de)
+  if (params.ate) q = q.lte('dia', params.ate)
+  if (params.colaborador) q = q.eq('colaborador', params.colaborador)
+  if (params.status?.length) q = q.in('status', params.status)
+  const { data } = await q.order('dia')
+  return (data as Solicitacao[]) || []
+}
+
+export async function solicitarHorario(params: {
+  colaborador: string
+  pin: string
+  dia: string
+  entrada_manha?: string | null
+  saida_manha?: string | null
+  entrada_tarde?: string | null
+  saida_tarde?: string | null
+  motivo: string
+}) {
+  const { error } = await supabase.rpc('solicitar_horario', {
+    p_colaborador: params.colaborador,
+    p_pin: params.pin,
+    p_dia: params.dia,
+    p_entrada_manha: params.entrada_manha || null,
+    p_saida_manha: params.saida_manha || null,
+    p_entrada_tarde: params.entrada_tarde || null,
+    p_saida_tarde: params.saida_tarde || null,
+    p_motivo: params.motivo,
+  })
+  if (error) throw new Error(traduzirErro(error.message))
+}
+
+export async function decidirSolicitacao(params: {
+  id: string
+  aprovar: boolean
+  resposta?: string | null
+  abonaHoras?: boolean
+}) {
+  const { error } = await supabase.rpc('decidir_solicitacao', {
+    p_id: params.id,
+    p_aprovar: params.aprovar,
+    p_resposta: params.resposta || null,
+    p_abona_horas: !!params.abonaHoras,
+  })
+  if (error) throw new Error(traduzirErro(error.message))
+}
+
+export async function cancelarSolicitacao(id: string, colaborador: string, pin: string) {
+  const { error } = await supabase.rpc('cancelar_solicitacao', {
+    p_id: id,
+    p_colaborador: colaborador,
+    p_pin: pin,
+  })
+  if (error) throw new Error(traduzirErro(error.message))
+}
+
+/** Primeiro dia que aceita pedido: a regra é avisar com um dia de antecedência. */
+export function primeiroDiaSolicitavel(): string {
+  const d = new Date(`${hojeLocal()}T12:00:00`)
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 export async function carregarFechamentos(colaborador?: string) {
   let q = supabase.from('time_closures').select('*')
   if (colaborador) q = q.eq('colaborador', colaborador)
@@ -328,6 +414,8 @@ export type DiaApurado = {
   faltando: TipoBatida[]
   /** Entradas em atraso: é o "vermelho" da planilha. */
   vermelhos: number
+  /** Horário especial aprovado que valeu neste dia. */
+  acordo: Solicitacao | null
 }
 
 export function apurarDia(params: {
@@ -337,8 +425,11 @@ export function apurarDia(params: {
   batidas: Batida[]
   situacao: string
   feriado: string | null
+  /** Horário especial já aprovado pelo ADM para este dia. */
+  solicitacao?: Solicitacao | null
 }): DiaApurado {
   const { dia, colaborador, jornada, situacao, feriado } = params
+  const acordo = params.solicitacao?.status === 'aprovada' ? params.solicitacao : null
 
   const porTipo: Partial<Record<TipoBatida, Batida>> = {}
   for (const b of params.batidas) porTipo[b.tipo] = b
@@ -349,13 +440,28 @@ export function apurarDia(params: {
 
   const tol = jornada?.tolerancia_min ?? 5
 
+  // O horário combinado vale só onde foi combinado: o que a pessoa não pediu
+  // continua sendo cobrado pela jornada normal.
+  const combinado = (campo: keyof Jornada & keyof Solicitacao) =>
+    (acordo?.[campo] as string | null | undefined) ?? (jornada?.[campo] as string | null) ?? null
+
   // ---- previsto
   let previsto = 0
   if (util && jornada) {
-    const m1 = minutosDaHora(jornada.entrada_manha)
-    const m2 = minutosDaHora(jornada.saida_manha)
-    const t1 = minutosDaHora(jornada.entrada_tarde)
-    const t2 = minutosDaHora(jornada.saida_tarde)
+    // Sem abono, o previsto continua sendo a jornada cheia: combinar de entrar
+    // mais tarde não apaga a hora devida, só tira o vermelho do atraso.
+    const fonte = acordo?.abona_horas
+      ? {
+          entrada_manha: combinado('entrada_manha'),
+          saida_manha: combinado('saida_manha'),
+          entrada_tarde: combinado('entrada_tarde'),
+          saida_tarde: combinado('saida_tarde'),
+        }
+      : jornada
+    const m1 = minutosDaHora(fonte.entrada_manha)
+    const m2 = minutosDaHora(fonte.saida_manha)
+    const t1 = minutosDaHora(fonte.entrada_tarde)
+    const t2 = minutosDaHora(fonte.saida_tarde)
     if (m1 !== null && m2 !== null) previsto += m2 - m1
     if (t1 !== null && t2 !== null) previsto += t2 - t1
   }
@@ -387,15 +493,15 @@ export function apurarDia(params: {
         vermelhos++
       }
     }
-    checa('entrada_manha', jornada.entrada_manha)
-    checa('entrada_tarde', jornada.entrada_tarde)
+    checa('entrada_manha', combinado('entrada_manha'))
+    checa('entrada_tarde', combinado('entrada_tarde'))
   }
 
   // ---- saída antecipada
   let saidaAntecipada = 0
   if (util && jornada) {
     const b = porTipo['saida_tarde']
-    const p = minutosDaHora(jornada.saida_tarde)
+    const p = minutosDaHora(combinado('saida_tarde'))
     if (b && p !== null) {
       const diff = p - minutosDoMomento(b.momento)
       if (diff > tol) saidaAntecipada = diff
@@ -406,12 +512,7 @@ export function apurarDia(params: {
   const faltando: TipoBatida[] = []
   if (util && jornada) {
     for (const t of TIPOS) {
-      const temNaJornada =
-        (t === 'entrada_manha' && jornada.entrada_manha) ||
-        (t === 'saida_manha' && jornada.saida_manha) ||
-        (t === 'entrada_tarde' && jornada.entrada_tarde) ||
-        (t === 'saida_tarde' && jornada.saida_tarde)
-      if (temNaJornada && !porTipo[t]) faltando.push(t)
+      if (combinado(t) && !porTipo[t]) faltando.push(t)
     }
   }
 
@@ -441,6 +542,7 @@ export function apurarDia(params: {
     saldo,
     faltando,
     vermelhos,
+    acordo,
   }
 }
 
@@ -465,6 +567,7 @@ export function apurarMes(params: {
   batidas: Batida[]
   situacoes: SituacaoDia[]
   feriados: Feriado[]
+  solicitacoes?: Solicitacao[]
 }): MesApurado {
   const { colaborador, dias, jornadas, batidas, situacoes, feriados } = params
 
@@ -479,6 +582,11 @@ export function apurarMes(params: {
     situacoes.filter((s) => s.colaborador === colaborador).map((s) => [s.dia, s.situacao])
   )
   const feriadoPorDia = new Map(feriados.map((f) => [f.dia, f.nome]))
+  const acordoPorDia = new Map(
+    (params.solicitacoes || [])
+      .filter((s) => s.colaborador === colaborador && s.status === 'aprovada')
+      .map((s) => [s.dia, s])
+  )
 
   const apurados = dias.map((dia) =>
     apurarDia({
@@ -488,6 +596,7 @@ export function apurarMes(params: {
       batidas: porDia.get(dia) || [],
       situacao: sitPorDia.get(dia) || 'normal',
       feriado: feriadoPorDia.get(dia) || null,
+      solicitacao: acordoPorDia.get(dia) || null,
     })
   )
 

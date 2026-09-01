@@ -7,8 +7,10 @@ import Login from './Login'
 import PontoBater from './PontoBater'
 import PontoEspelho from './PontoEspelho'
 import PontoAdmin from './PontoAdmin'
+import PontoSolicitacoes from './PontoSolicitacoes'
+import { carregarSolicitacoes } from '../lib/ponto'
 
-type Aba = 'bater' | 'espelho' | 'admin'
+type Aba = 'bater' | 'espelho' | 'horarios' | 'admin'
 
 /**
  * Página do cartão ponto, em endereço próprio (/ponto).
@@ -22,6 +24,12 @@ export default function PontoPage() {
   const [aba, setAba] = useState<Aba>('bater')
   const { ehAdmin, ehProprietario } = usePerfil()
   const podeAdministrar = ehAdmin || ehProprietario
+  const [pendentes, setPendentes] = useState(0)
+
+  useEffect(() => {
+    if (!session) return
+    carregarSolicitacoes({ status: ['pendente'] }).then((p) => setPendentes(p.length))
+  }, [session, aba])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -37,6 +45,7 @@ export default function PontoPage() {
   const abas: [Aba, string][] = [
     ['bater', 'Bater ponto'],
     ['espelho', 'Espelho do mês'],
+    ['horarios', 'Horário diferente'],
   ]
   if (podeAdministrar) abas.push(['admin', 'Administração'])
 
@@ -77,6 +86,11 @@ export default function PontoPage() {
               }`}
             >
               {rotulo}
+              {v === 'horarios' && pendentes > 0 && (
+                <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                  {pendentes}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -85,6 +99,7 @@ export default function PontoPage() {
       <main className="max-w-6xl mx-auto px-4 py-5">
         {aba === 'bater' && <PontoBater />}
         {aba === 'espelho' && <PontoEspelho podeAjustar={podeAdministrar} />}
+        {aba === 'horarios' && <PontoSolicitacoes ehAdm={podeAdministrar} />}
         {aba === 'admin' && podeAdministrar && <PontoAdmin />}
       </main>
     </div>
