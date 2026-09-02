@@ -309,7 +309,7 @@ export default function ComercialPage() {
         {carregando ? (
           <p className="text-sm text-slate-400 text-center py-20">Carregando negócios...</p>
         ) : aba === 'cadastros' ? (
-          <CadastrosView />
+          <CadastrosView leads={leads} />
         ) : aba === 'comissoes' ? (
           <CrmComissoes
             leads={leads}

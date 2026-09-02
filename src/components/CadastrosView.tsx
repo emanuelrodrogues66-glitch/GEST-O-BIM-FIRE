@@ -46,8 +46,17 @@ function chave(t: string): string {
  */
 export default function CadastrosView({
   onProjectClick,
+  leads,
 }: {
   onProjectClick?: (id: string) => void
+  /**
+   * Quando o comercial passa os leads, a lista ganha a coluna de negociações.
+   *
+   * Contato que só negociou e ainda não fechou existe na base do mesmo jeito —
+   * é justamente ele que o comercial precisa achar. Na gestão de projetos essa
+   * coluna não aparece, porque lá o assunto é projeto.
+   */
+  leads?: { cliente_id: string | null; parceiro_id: string | null; estado: string }[]
 }) {
   const [aba, setAba] = useState<'clientes' | 'parceiros'>('clientes')
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -231,6 +240,21 @@ export default function CadastrosView({
     }
   }
 
+  /** Negociações por cadastro: quantas ao todo e quantas ainda em aberto. */
+  const negocios = useMemo(() => {
+    const mapa = new Map<string, { total: number; abertas: number }>()
+    for (const l of leads || []) {
+      for (const id of [l.cliente_id, l.parceiro_id]) {
+        if (!id) continue
+        const atual = mapa.get(id) || { total: 0, abertas: 0 }
+        atual.total += 1
+        if (l.estado === 'aberta') atual.abertas += 1
+        mapa.set(id, atual)
+      }
+    }
+    return mapa
+  }, [leads])
+
   async function salvarCampo(tabela: 'clientes' | 'parceiros', id: string, patch: any) {
     await supabase
       .from(tabela)
@@ -314,6 +338,7 @@ export default function CadastrosView({
               <th className="text-left">E-mail</th>
               <th className="text-left">CNPJ / CPF</th>
               {aba === 'clientes' && <th className="text-left">Cidade</th>}
+              {leads && <th className="text-right">Negociações</th>}
               <th className="text-right">Projetos</th>
               <th className="text-right">Concl.</th>
               <th className="text-left pl-3 pr-4">Último</th>
@@ -344,6 +369,22 @@ export default function CadastrosView({
                         {[cliente.cidade, cliente.estado].filter(Boolean).join(' - ') || '—'}
                       </td>
                     )}
+                    {leads && (
+                      <td className="text-right tabular-nums">
+                        {negocios.get(item.id) ? (
+                          <>
+                            <span className="text-slate-700">{negocios.get(item.id)!.total}</span>
+                            {negocios.get(item.id)!.abertas > 0 && (
+                              <span className="text-[10px] text-cobre-600 ml-1">
+                                {negocios.get(item.id)!.abertas} em aberto
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="text-right tabular-nums font-semibold text-slate-800">
                       {h.projetos || '—'}
                     </td>
@@ -355,7 +396,7 @@ export default function CadastrosView({
 
                   {aberto && (
                     <tr key={`${item.id}-detalhe`} className="bg-slate-50/60">
-                      <td colSpan={aba === 'clientes' ? 8 : 7} className="px-4 py-3">
+                      <td colSpan={(aba === 'clientes' ? 8 : 7) + (leads ? 1 : 0)} className="px-4 py-3">
                         <div className="grid md:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Campo
