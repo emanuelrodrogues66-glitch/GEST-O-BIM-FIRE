@@ -214,8 +214,9 @@ export default function CrmDashboard({
           <div className="px-4 py-2.5 bg-slate-50">
             <h3 className="text-xs font-semibold text-slate-700">Comissão por responsável</h3>
             <p className="text-[10px] text-slate-400">
-              5% em cliente novo · 2,5% em quem já comprou · memorial simplificado paga o que passar
-              de R$ 1.500
+              Vale desde abril/2026. Até junho, Matheus tinha 5% / 2,5% e Emanuel 2,5% / 1,25%, com
+              memorial acima de R$ 1.200. De julho em diante, 5% em cliente novo, 2,25% em quem já
+              comprou e memorial acima de R$ 1.500 para os dois.
             </p>
           </div>
           <table className="w-full text-xs">
@@ -249,9 +250,10 @@ export default function CrmDashboard({
             </tbody>
           </table>
           <p className="px-4 py-2 text-[10px] text-slate-400 border-t border-slate-100">
-            "Cliente novo" é quem não tinha venda ganha nem projeto anterior no sistema. Boa parte
-            do histórico do RD veio sem o nome do cliente preenchido, então esses caem em novo por
-            falta de dado — vale conferir os valores altos antes de pagar.
+            Venda anterior a abril/2026 aparece sem comissão de propósito: a regra não valia ainda.
+            "Cliente novo" é quem não tinha venda ganha nem projeto anterior no sistema — e boa
+            parte do histórico do RD veio sem o nome do cliente, então esses caem em novo por falta
+            de dado. Confira os valores altos antes de pagar.
           </p>
         </div>
       )}

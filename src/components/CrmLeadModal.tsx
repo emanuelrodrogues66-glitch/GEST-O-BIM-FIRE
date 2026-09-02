@@ -224,11 +224,16 @@ export default function CrmLeadModal({
                 <p className="text-[10px] font-semibold uppercase text-emerald-800">Comissão</p>
                 <p className="text-[10px] text-slate-500 mb-1.5">
                   {form.tipo_venda === 'memorial'
-                    ? 'Memorial simplificado: paga o que passar de R$ 1.500.'
+                    ? 'Memorial simplificado: paga o excedente.'
                     : form.tipo_venda === 'recompra'
-                      ? 'Cliente que já comprou: 2,5%.'
-                      : 'Cliente novo: 5%.'}
-                  {form.comissao_manual && ' Ajustada à mão.'}
+                      ? 'Cliente que já comprou'
+                      : 'Cliente novo'}
+                  {form.comissao_percentual
+                    ? ` · ${(form.comissao_percentual * 100).toLocaleString('pt-BR')}%`
+                    : form.comissao_valor === null && !form.comissao_manual
+                      ? ' · sem regra vigente na data do fechamento'
+                      : ''}
+                  {form.comissao_manual && ' · ajustada à mão'}
                 </p>
                 <div className="flex items-center gap-2">
                   <span className="text-base font-semibold text-emerald-700 tabular-nums">
