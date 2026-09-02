@@ -268,7 +268,7 @@ export default function CrmLeadModal({
                       if (v === null) return
                       const n = v.trim() === '' ? null : Number(v.replace(',', '.'))
                       if (n !== null && Number.isNaN(n)) return alert('Valor inválido.')
-                      await ajustarComissao(lead.id, n)
+                      await ajustarComissao(lead.id, { valor: n })
                       setForm((f) => ({ ...f, comissao_valor: n, comissao_manual: n !== null }))
                       onMudou()
                     }}
@@ -277,6 +277,11 @@ export default function CrmLeadModal({
                     ajustar
                   </button>
                 </div>
+                {form.comissao_paga_em && (
+                  <p className="text-[10px] text-emerald-700 mt-1">
+                    Paga em {dataBR(form.comissao_paga_em)}
+                  </p>
+                )}
               </div>
             )}
 

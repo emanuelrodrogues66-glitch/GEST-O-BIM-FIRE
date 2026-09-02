@@ -7,6 +7,7 @@ import Login from './Login'
 import CrmLeadModal from './CrmLeadModal'
 import CadastrosView from './CadastrosView'
 import CrmDashboard from './CrmDashboard'
+import CrmComissoes from './CrmComissoes'
 import type { Etapa, Funil, Lead } from '../lib/crm'
 import {
   carregarEtapas,
@@ -21,7 +22,7 @@ import {
 } from '../lib/crm'
 import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 
-type Aba = 'funil' | 'lista' | 'painel' | 'cadastros'
+type Aba = 'funil' | 'lista' | 'painel' | 'comissoes' | 'cadastros'
 
 /** Filtros de CRM: cada um responde a uma pergunta de quem vende. */
 type Filtros = {
@@ -285,6 +286,7 @@ export default function ComercialPage() {
               ['funil', 'Funil'],
               ['lista', 'Lista'],
               ['painel', 'Painel e relatórios'],
+              ...(pode('comercial.comissao') ? ([['comissoes', 'Comissões']] as [Aba, string][]) : []),
               ['cadastros', 'Clientes e parceiros'],
             ] as [Aba, string][]
           ).map(([v, rotulo]) => (
@@ -308,6 +310,12 @@ export default function ComercialPage() {
           <p className="text-sm text-slate-400 text-center py-20">Carregando negócios...</p>
         ) : aba === 'cadastros' ? (
           <CadastrosView />
+        ) : aba === 'comissoes' ? (
+          <CrmComissoes
+            leads={leads}
+            podeEditar={pode('comercial.comissao')}
+            onMudou={carregar}
+          />
         ) : (
           <>
             {/* ---------- filtros ---------- */}

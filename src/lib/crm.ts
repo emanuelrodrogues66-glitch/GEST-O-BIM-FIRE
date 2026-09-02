@@ -263,15 +263,54 @@ export async function excluirLeads(ids: string[]): Promise<number> {
   return (data as number) || 0
 }
 
-/** Ajuste manual: trava o valor para o cálculo automático não sobrescrever. */
-export async function ajustarComissao(leadId: string, valor: number | null) {
-  await salvarLead(leadId, {
-    comissao_valor: valor,
-    comissao_manual: valor !== null,
-  } as Partial<Lead>)
+/**
+ * Ajuste manual da comissão.
+ *
+ * Passar percentual e valor nulos devolve o lead à regra vigente — é o desfazer.
+ * Enquanto estiver travado, `recalcularComissoes` não encosta nele: foi alguém
+ * que decidiu, e decisão de pessoa não se apaga sozinha.
+ */
+export async function ajustarComissao(
+  leadId: string,
+  opcoes: { percentual?: number | null; valor?: number | null }
+) {
+  const { error } = await supabase.rpc('definir_comissao', {
+    p_lead: leadId,
+    p_percentual: opcoes.percentual ?? null,
+    p_valor: opcoes.valor ?? null,
+  })
+  if (error) throw new Error(error.message.replace(/^.*?:\s*/, ''))
+
+  const volta = opcoes.percentual == null && opcoes.valor == null
   await registrarAtividade(
     leadId,
     'sistema',
-    valor === null ? 'Comissão voltou ao cálculo automático.' : `Comissão ajustada à mão: ${reais(valor)}.`
+    volta
+      ? 'Comissão voltou ao cálculo automático.'
+      : opcoes.percentual != null
+        ? `Percentual da comissão ajustado à mão: ${(opcoes.percentual * 100).toLocaleString('pt-BR')}%.`
+        : `Comissão ajustada à mão: ${reais(opcoes.valor!)}.`
   )
+}
+
+/** Marca a comissão como paga (guarda a data) ou desmarca. */
+export async function marcarComissaoPaga(leadId: string, pago: boolean, data?: string) {
+  const { error } = await supabase.rpc('marcar_comissao_paga', {
+    p_lead: leadId,
+    p_pago: pago,
+    p_data: data ?? null,
+  })
+  if (error) throw new Error(error.message.replace(/^.*?:\s*/, ''))
+  await registrarAtividade(
+    leadId,
+    'sistema',
+    pago ? 'Comissão marcada como paga.' : 'Comissão desmarcada: voltou a pagar.'
+  )
+}
+
+/** Muda o valor fechado e recalcula a comissão junto — os dois andam colados. */
+export async function definirValorFechado(leadId: string, valor: number | null) {
+  const { error } = await supabase.rpc('definir_valor_fechado', { p_lead: leadId, p_valor: valor })
+  if (error) throw new Error(error.message.replace(/^.*?:\s*/, ''))
+  await registrarAtividade(leadId, 'sistema', `Valor fechado alterado para ${reais(valor)}.`)
 }
