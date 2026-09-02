@@ -7,6 +7,7 @@ import {
   converterEmProjeto,
   dataBR,
   ajustarComissao,
+  excluirLeads,
   ligarAoProjeto,
   moverEtapa,
   reais,
@@ -43,6 +44,7 @@ export default function CrmLeadModal({
   const { pode } = usePermissoes()
   const podeEditar = pode('comercial.editar')
   const podeConverter = pode('comercial.converter')
+  const podeExcluir = pode('comercial.excluir')
   const veComissao = pode('comercial.comissao')
 
   const [form, setForm] = useState<Lead>(lead)
@@ -86,6 +88,21 @@ export default function CrmLeadModal({
       setForm((f) => ({ ...f, stage_id: nova.id, estado: nova.tipo === 'aberta' ? 'aberta' : nova.tipo }))
       setAtividades(await carregarAtividades(lead.id))
       onMudou()
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
+
+  async function excluir() {
+    const aviso = form.project_id
+      ? 'Este negócio já virou projeto. Desligue do projeto antes de apagar.'
+      : `Apagar "${form.nome}" e todo o histórico dele? Não tem desfazer.`
+    if (form.project_id) return alert(aviso)
+    if (!confirm(aviso)) return
+    try {
+      await excluirLeads([lead.id])
+      onMudou()
+      onFechar()
     } catch (e: any) {
       alert(e.message)
     }
@@ -366,6 +383,11 @@ export default function CrmLeadModal({
             <span>
               Fechado <strong className="text-emerald-700">{reais(form.valor_fechado)}</strong>
             </span>
+          )}
+          {podeExcluir && (
+            <button onClick={excluir} className="text-red-700 hover:underline">
+              Excluir negociação
+            </button>
           )}
           <button onClick={onFechar} className="ml-auto px-3 py-1.5 rounded-lg border border-slate-300">
             Fechar

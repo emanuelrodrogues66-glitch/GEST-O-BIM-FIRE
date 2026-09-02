@@ -181,6 +181,13 @@ export const PERMISSOES: Permissao[] = [
     sensivel: true,
   },
   {
+    codigo: 'comercial.excluir',
+    rotulo: 'Excluir negociações',
+    descricao: 'Apagar lead e todo o histórico dele. Não tem desfazer.',
+    grupo: 'Comercial',
+    sensivel: true,
+  },
+  {
     codigo: 'comercial.converter',
     rotulo: 'Transformar lead em projeto',
     descricao: 'O botão "Vendeu": cria o cartão na gestão e liga os dois.',

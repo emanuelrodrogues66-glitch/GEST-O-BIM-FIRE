@@ -250,6 +250,19 @@ export async function recalcularComissoes(): Promise<number> {
   return (data as number) || 0
 }
 
+/**
+ * Apaga negociações.
+ *
+ * Não tem desfazer, então o banco recusa apagar lead que já virou projeto —
+ * o cartão da gestão ficaria órfão. Nesse caso é preciso desligar do projeto
+ * antes, o que obriga a pessoa a pensar duas vezes.
+ */
+export async function excluirLeads(ids: string[]): Promise<number> {
+  const { data, error } = await supabase.rpc('excluir_leads', { p_ids: ids })
+  if (error) throw new Error(error.message.replace(/^.*?:\s*/, ''))
+  return (data as number) || 0
+}
+
 /** Ajuste manual: trava o valor para o cálculo automático não sobrescrever. */
 export async function ajustarComissao(leadId: string, valor: number | null) {
   await salvarLead(leadId, {

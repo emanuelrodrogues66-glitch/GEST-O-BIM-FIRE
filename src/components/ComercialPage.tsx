@@ -14,6 +14,7 @@ import {
   carregarLeads,
   criarLead,
   dataBR,
+  excluirLeads,
   moverEtapa,
   reais,
   sincronizarRecorrencias,
@@ -49,6 +50,7 @@ const FILTRO_VAZIO: Filtros = {
 export default function ComercialPage() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const { pode, carregando: carregandoPerm } = usePermissoes()
+  const podeExcluir = pode('comercial.excluir')
   const [aba, setAba] = useState<Aba>('funil')
 
   const [funis, setFunis] = useState<Funil[]>([])
@@ -61,6 +63,7 @@ export default function ComercialPage() {
   const [filtros, setFiltros] = useState<Filtros>(FILTRO_VAZIO)
   const [maisFiltros, setMaisFiltros] = useState(false)
   const [aberto, setAberto] = useState<Lead | null>(null)
+  const [marcados, setMarcados] = useState<Set<string>>(new Set())
   const [arrastando, setArrastando] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
 
@@ -137,6 +140,42 @@ export default function ComercialPage() {
     }
     return mapa
   }, [filtrados])
+
+  /** A lista só desenha 400 linhas; o "marcar todas" precisa concordar com isso. */
+  const visiveis = useMemo(() => filtrados.slice(0, 400), [filtrados])
+
+  function alternarMarca(id: string) {
+    setMarcados((s) => {
+      const n = new Set(s)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+  }
+
+  async function excluirMarcados() {
+    const alvos = leads.filter((l) => marcados.has(l.id))
+    const comProjeto = alvos.filter((l) => l.project_id)
+    if (comProjeto.length) {
+      return alert(
+        `${comProjeto.length} destas já viraram projeto e não podem ser apagadas:\n\n` +
+          comProjeto.slice(0, 10).map((l) => `• ${l.nome}`).join('\n')
+      )
+    }
+    if (
+      !confirm(
+        `Apagar ${alvos.length} negociaç${alvos.length === 1 ? 'ão' : 'ões'} e todo o histórico delas?\n\nNão tem desfazer.`
+      )
+    )
+      return
+    try {
+      const n = await excluirLeads(alvos.map((l) => l.id))
+      setMarcados(new Set())
+      await carregar()
+      alert(`${n} apagada${n === 1 ? '' : 's'}.`)
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
 
   async function soltar(etapa: Etapa) {
     const lead = leads.find((l) => l.id === arrastando)
@@ -471,9 +510,37 @@ export default function ComercialPage() {
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-x-auto">
+                {podeExcluir && marcados.size > 0 && (
+                  <div className="flex items-center gap-3 px-4 py-2 bg-red-50 border-b border-red-200 text-xs">
+                    <span className="text-red-800 font-medium">
+                      {marcados.size} selecionad{marcados.size === 1 ? 'a' : 'as'}
+                    </span>
+                    <button onClick={() => setMarcados(new Set())} className="text-slate-500 hover:underline">
+                      limpar seleção
+                    </button>
+                    <button
+                      onClick={excluirMarcados}
+                      className="ml-auto px-3 py-1 rounded-lg bg-red-700 hover:bg-red-800 text-white font-medium"
+                    >
+                      Excluir selecionadas
+                    </button>
+                  </div>
+                )}
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-[10px] uppercase text-slate-400 border-b border-slate-200">
+                      {podeExcluir && (
+                        <th className="w-8 pl-3">
+                          <input
+                            type="checkbox"
+                            checked={marcados.size > 0 && marcados.size === visiveis.length}
+                            onChange={(e) =>
+                              setMarcados(e.target.checked ? new Set(visiveis.map((l) => l.id)) : new Set())
+                            }
+                            className="align-middle"
+                          />
+                        </th>
+                      )}
                       <th className="text-left py-2 pl-4">Negócio</th>
                       <th className="text-left">Etapa</th>
                       <th className="text-left">Cliente / parceiro</th>
@@ -486,14 +553,26 @@ export default function ComercialPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtrados.slice(0, 400).map((l) => {
+                    {visiveis.map((l) => {
                       const e = etapas.find((x) => x.id === l.stage_id)
                       return (
                         <tr
                           key={l.id}
                           onClick={() => setAberto(l)}
-                          className="border-b border-slate-100 last:border-0 hover:bg-slate-50 cursor-pointer"
+                          className={`border-b border-slate-100 last:border-0 cursor-pointer ${
+                            marcados.has(l.id) ? 'bg-red-50/60' : 'hover:bg-slate-50'
+                          }`}
                         >
+                          {podeExcluir && (
+                            <td className="pl-3" onClick={(ev) => ev.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={marcados.has(l.id)}
+                                onChange={() => alternarMarca(l.id)}
+                                className="align-middle"
+                              />
+                            </td>
+                          )}
                           <td className="py-2 pl-4 max-w-[280px] truncate font-medium text-slate-800">
                             {l.nome}
                             {l.project_id && (
