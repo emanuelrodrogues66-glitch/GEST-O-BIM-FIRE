@@ -58,6 +58,11 @@ export type Lead = {
   origem: 'app' | 'rd' | 'planilha'
   origem_id: string | null
   project_id: string | null
+  tipo_venda: 'novo' | 'recompra' | 'memorial' | null
+  comissao_percentual: number | null
+  comissao_valor: number | null
+  comissao_manual: boolean
+  comissao_paga_em: string | null
 }
 
 export type AtividadeLead = {
@@ -224,5 +229,36 @@ export async function ligarAoProjeto(leadId: string, projectId: string | null) {
     leadId,
     'sistema',
     projectId ? 'Ligado a um projeto da gestão.' : 'Desligado do projeto.'
+  )
+}
+
+/**
+ * Traz para o funil de recorrência os vencimentos que já existem na gestão.
+ *
+ * Não cria lista paralela: vistoria, SPDA e funcionamento continuam vencendo lá,
+ * com a data no cartão. Aqui vira só a conversa de renovar.
+ */
+export async function sincronizarRecorrencias(dias = 90): Promise<number> {
+  const { data, error } = await supabase.rpc('sincronizar_recorrencias', { p_dias: dias })
+  if (error) throw new Error(error.message)
+  return (data as number) || 0
+}
+
+export async function recalcularComissoes(): Promise<number> {
+  const { data, error } = await supabase.rpc('recalcular_comissoes')
+  if (error) throw new Error(error.message.replace(/^.*?:\s*/, ''))
+  return (data as number) || 0
+}
+
+/** Ajuste manual: trava o valor para o cálculo automático não sobrescrever. */
+export async function ajustarComissao(leadId: string, valor: number | null) {
+  await salvarLead(leadId, {
+    comissao_valor: valor,
+    comissao_manual: valor !== null,
+  } as Partial<Lead>)
+  await registrarAtividade(
+    leadId,
+    'sistema',
+    valor === null ? 'Comissão voltou ao cálculo automático.' : `Comissão ajustada à mão: ${reais(valor)}.`
   )
 }

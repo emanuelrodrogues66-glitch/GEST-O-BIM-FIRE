@@ -6,6 +6,7 @@ import {
   carregarAtividades,
   converterEmProjeto,
   dataBR,
+  ajustarComissao,
   ligarAoProjeto,
   moverEtapa,
   reais,
@@ -42,6 +43,7 @@ export default function CrmLeadModal({
   const { pode } = usePermissoes()
   const podeEditar = pode('comercial.editar')
   const podeConverter = pode('comercial.converter')
+  const veComissao = pode('comercial.comissao')
 
   const [form, setForm] = useState<Lead>(lead)
   const [atividades, setAtividades] = useState<AtividadeLead[]>([])
@@ -194,6 +196,8 @@ export default function CrmLeadModal({
               <Campo rotulo="E-mail" valor={form.email} onSalvar={(v) => campo({ email: v })} travado={!podeEditar} />
               <Campo rotulo="Cidade" valor={form.cidade} onSalvar={(v) => campo({ cidade: v })} travado={!podeEditar} />
               <Campo rotulo="Fonte" valor={form.fonte} onSalvar={(v) => campo({ fonte: v })} travado={!podeEditar} />
+              <Campo rotulo="Responsável pela negociação" valor={form.responsavel} onSalvar={(v) => campo({ responsavel: v })} travado={!podeEditar} />
+              <Campo rotulo="Fechado em" valor={form.data_fechamento} tipo="date" onSalvar={(v) => campo({ data_fechamento: v || null })} travado={!podeEditar} />
             </div>
 
             <div className="border border-slate-200 rounded-lg p-3 space-y-2">
@@ -213,6 +217,46 @@ export default function CrmLeadModal({
                 </p>
               )}
             </div>
+
+            {/* ---------- comissão ---------- */}
+            {veComissao && form.estado === 'ganho' && (
+              <div className="border border-emerald-200 bg-emerald-50/40 rounded-lg p-3">
+                <p className="text-[10px] font-semibold uppercase text-emerald-800">Comissão</p>
+                <p className="text-[10px] text-slate-500 mb-1.5">
+                  {form.tipo_venda === 'memorial'
+                    ? 'Memorial simplificado: paga o que passar de R$ 1.500.'
+                    : form.tipo_venda === 'recompra'
+                      ? 'Cliente que já comprou: 2,5%.'
+                      : 'Cliente novo: 5%.'}
+                  {form.comissao_manual && ' Ajustada à mão.'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-semibold text-emerald-700 tabular-nums">
+                    {reais(form.comissao_valor)}
+                  </span>
+                  <span className="text-[10px] text-slate-500 flex-1">
+                    sobre {reais(form.valor_fechado ?? form.valor)} · {form.responsavel || 'sem responsável'}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      const v = prompt(
+                        'Valor da comissão (deixe vazio para voltar ao cálculo automático):',
+                        form.comissao_valor?.toString() || ''
+                      )
+                      if (v === null) return
+                      const n = v.trim() === '' ? null : Number(v.replace(',', '.'))
+                      if (n !== null && Number.isNaN(n)) return alert('Valor inválido.')
+                      await ajustarComissao(lead.id, n)
+                      setForm((f) => ({ ...f, comissao_valor: n, comissao_manual: n !== null }))
+                      onMudou()
+                    }}
+                    className="text-[10px] text-slate-500 hover:underline"
+                  >
+                    ajustar
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ---------- ligação com a gestão ---------- */}
             {!form.project_id && sugestoes.length > 0 && (

@@ -174,6 +174,13 @@ export const PERMISSOES: Permissao[] = [
     grupo: 'Comercial',
   },
   {
+    codigo: 'comercial.comissao',
+    rotulo: 'Ver e ajustar comissões',
+    descricao: 'Quanto cada vendedor tem a receber e a regra de percentual.',
+    grupo: 'Comercial',
+    sensivel: true,
+  },
+  {
     codigo: 'comercial.converter',
     rotulo: 'Transformar lead em projeto',
     descricao: 'O botão "Vendeu": cria o cartão na gestão e liga os dois.',

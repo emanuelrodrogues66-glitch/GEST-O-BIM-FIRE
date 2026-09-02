@@ -6,6 +6,7 @@ import { LOGO_BIM_FIRE_JPEG } from '../lib/logoBimFire'
 import Login from './Login'
 import CrmLeadModal from './CrmLeadModal'
 import CadastrosView from './CadastrosView'
+import CrmDashboard from './CrmDashboard'
 import type { Etapa, Funil, Lead } from '../lib/crm'
 import {
   carregarEtapas,
@@ -15,10 +16,28 @@ import {
   dataBR,
   moverEtapa,
   reais,
+  sincronizarRecorrencias,
 } from '../lib/crm'
 import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 
-type Aba = 'funil' | 'lista' | 'cadastros'
+type Aba = 'funil' | 'lista' | 'painel' | 'cadastros'
+
+/** Filtros de CRM: cada um responde a uma pergunta de quem vende. */
+type Filtros = {
+  responsavel: string
+  fonte: string
+  tipoCliente: string
+  motivo: string
+  cidade: string
+  de: string
+  ate: string
+  valorMin: string
+  soComRetorno: boolean
+}
+const FILTRO_VAZIO: Filtros = {
+  responsavel: '', fonte: '', tipoCliente: '', motivo: '', cidade: '',
+  de: '', ate: '', valorMin: '', soComRetorno: false,
+}
 
 /**
  * Comercial, em endereço próprio (/comercial).
@@ -38,6 +57,9 @@ export default function ComercialPage() {
   const [funilSel, setFunilSel] = useState<string>('')
   const [busca, setBusca] = useState('')
   const [verEncerrados, setVerEncerrados] = useState(false)
+  const [todosFunis, setTodosFunis] = useState(false)
+  const [filtros, setFiltros] = useState<Filtros>(FILTRO_VAZIO)
+  const [maisFiltros, setMaisFiltros] = useState(false)
   const [aberto, setAberto] = useState<Lead | null>(null)
   const [arrastando, setArrastando] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -71,14 +93,40 @@ export default function ComercialPage() {
 
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase()
+    const min = Number(filtros.valorMin) || 0
     return leads.filter((l) => {
-      if (l.funnel_id !== funilSel) return false
+      if (!todosFunis && l.funnel_id !== funilSel) return false
       if (!verEncerrados && l.estado !== 'aberta') return false
+      if (filtros.responsavel && (l.responsavel || 'Sem responsável') !== filtros.responsavel) return false
+      if (filtros.fonte && (l.fonte || 'Sem fonte') !== filtros.fonte) return false
+      if (filtros.tipoCliente && l.tipo_cliente !== filtros.tipoCliente) return false
+      if (filtros.motivo && l.motivo_perda !== filtros.motivo) return false
+      if (filtros.cidade && !(l.cidade || '').toLowerCase().includes(filtros.cidade.toLowerCase())) return false
+      // A data que importa muda com o estado: negócio aberto se mede pela
+      // abertura, fechado pela data em que fechou.
+      const ref = l.estado === 'aberta' ? l.criado_em : l.data_fechamento || l.criado_em
+      if (filtros.de && ref < filtros.de) return false
+      if (filtros.ate && ref > filtros.ate) return false
+      if (min && (l.valor_fechado ?? l.valor ?? 0) < min) return false
+      if (filtros.soComRetorno && !l.retorno_em) return false
       if (!t) return true
-      return [l.nome, l.nome_cliente, l.nome_parceiro, l.cidade, l.contato]
+      return [l.nome, l.nome_cliente, l.nome_parceiro, l.nome_projeto, l.cidade, l.contato, l.email]
         .some((c) => (c || '').toLowerCase().includes(t))
     })
-  }, [leads, funilSel, busca, verEncerrados])
+  }, [leads, funilSel, busca, verEncerrados, todosFunis, filtros])
+
+  const opcoes = useMemo(() => {
+    const unicos = (f: (l: Lead) => string | null) =>
+      Array.from(new Set(leads.map((l) => f(l)).filter(Boolean) as string[])).sort()
+    return {
+      responsaveis: unicos((l) => l.responsavel || 'Sem responsável'),
+      fontes: unicos((l) => l.fonte || 'Sem fonte'),
+      motivos: unicos((l) => l.motivo_perda),
+    }
+  }, [leads])
+
+  const filtrosLigados =
+    Object.entries(filtros).filter(([, v]) => v !== '' && v !== false).length + (todosFunis ? 1 : 0)
 
   const porEtapa = useMemo(() => {
     const mapa = new Map<string, Lead[]>()
@@ -144,6 +192,8 @@ export default function ComercialPage() {
         { titulo: 'Motivo da perda', valor: (l) => l.motivo_perda || '', largura: 28 },
         { titulo: 'Aberto em', valor: (l) => dataBR(l.criado_em), largura: 12 },
         { titulo: 'Fechado em', valor: (l) => dataBR(l.data_fechamento), largura: 12 },
+        { titulo: 'Tipo de venda', valor: (l) => l.tipo_venda || '', largura: 13 },
+        { titulo: 'Comissão', valor: (l) => l.comissao_valor ?? '', largura: 11 },
         { titulo: 'Origem', valor: (l) => l.origem, largura: 10 },
         { titulo: 'Virou projeto', valor: (l) => (l.project_id ? 'Sim' : 'Não'), largura: 12 },
       ],
@@ -194,7 +244,8 @@ export default function ComercialPage() {
           {(
             [
               ['funil', 'Funil'],
-              ['lista', 'Todos os negócios'],
+              ['lista', 'Lista'],
+              ['painel', 'Painel e relatórios'],
               ['cadastros', 'Clientes e parceiros'],
             ] as [Aba, string][]
           ).map(([v, rotulo]) => (
@@ -252,6 +303,17 @@ export default function ComercialPage() {
                 Incluir ganhos e perdidos
               </label>
 
+              <button
+                onClick={() => setMaisFiltros((v) => !v)}
+                className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border ${
+                  filtrosLigados > 0
+                    ? 'border-indigo-500 text-indigo-700 bg-indigo-50'
+                    : 'border-slate-300 text-slate-600'
+                }`}
+              >
+                Filtros{filtrosLigados > 0 ? ` (${filtrosLigados})` : ''}
+              </button>
+
               <span className="text-[11px] text-slate-500">{filtrados.length} negócio(s)</span>
 
               <button
@@ -260,6 +322,24 @@ export default function ComercialPage() {
               >
                 ⬇ Excel
               </button>
+              {funis.find((f) => f.id === funilSel)?.tipo === 'recorrencia' &&
+                pode('comercial.editar') && (
+                  <button
+                    onClick={async () => {
+                      const n = await sincronizarRecorrencias(90)
+                      alert(
+                        n > 0
+                          ? `${n} vencimento(s) da gestão entraram no funil.`
+                          : 'Nenhum vencimento novo nos próximos 90 dias.'
+                      )
+                      carregar()
+                    }}
+                    className="text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-cobre-500 text-cobre-700 hover:bg-cobre-50"
+                    title="Traz vistorias, SPDA e funcionamento que vencem nos próximos 90 dias"
+                  >
+                    ↻ Puxar vencimentos
+                  </button>
+                )}
               {pode('comercial.editar') && (
                 <button
                   onClick={novo}
@@ -270,7 +350,56 @@ export default function ComercialPage() {
               )}
             </div>
 
-            {aba === 'funil' ? (
+            {maisFiltros && (
+              <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 mb-4 flex flex-wrap items-end gap-2">
+                <Filtro rotulo="Responsável" valor={filtros.responsavel} opcoes={opcoes.responsaveis} onMudar={(v) => setFiltros({ ...filtros, responsavel: v })} />
+                <Filtro rotulo="Fonte" valor={filtros.fonte} opcoes={opcoes.fontes} onMudar={(v) => setFiltros({ ...filtros, fonte: v })} />
+                <Filtro rotulo="Tipo" valor={filtros.tipoCliente} opcoes={['CLIENTE FINAL', 'PARCEIRO']} onMudar={(v) => setFiltros({ ...filtros, tipoCliente: v })} />
+                <Filtro rotulo="Motivo da perda" valor={filtros.motivo} opcoes={opcoes.motivos} onMudar={(v) => setFiltros({ ...filtros, motivo: v })} />
+
+                <label className="block">
+                  <span className="text-[10px] uppercase text-slate-400">Cidade</span>
+                  <input value={filtros.cidade} onChange={(e) => setFiltros({ ...filtros, cidade: e.target.value })}
+                    className="block w-28 mt-0.5 text-xs border border-slate-300 rounded-md px-2 py-1.5" />
+                </label>
+                <label className="block">
+                  <span className="text-[10px] uppercase text-slate-400">De</span>
+                  <input type="date" value={filtros.de} onChange={(e) => setFiltros({ ...filtros, de: e.target.value })}
+                    className="block mt-0.5 text-xs border border-slate-300 rounded-md px-2 py-1.5" />
+                </label>
+                <label className="block">
+                  <span className="text-[10px] uppercase text-slate-400">Até</span>
+                  <input type="date" value={filtros.ate} onChange={(e) => setFiltros({ ...filtros, ate: e.target.value })}
+                    className="block mt-0.5 text-xs border border-slate-300 rounded-md px-2 py-1.5" />
+                </label>
+                <label className="block">
+                  <span className="text-[10px] uppercase text-slate-400">Valor mínimo</span>
+                  <input type="number" value={filtros.valorMin} onChange={(e) => setFiltros({ ...filtros, valorMin: e.target.value })}
+                    className="block w-24 mt-0.5 text-xs border border-slate-300 rounded-md px-2 py-1.5" />
+                </label>
+
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-600 pb-1.5">
+                  <input type="checkbox" checked={filtros.soComRetorno}
+                    onChange={(e) => setFiltros({ ...filtros, soComRetorno: e.target.checked })} />
+                  Só com retorno marcado
+                </label>
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-600 pb-1.5">
+                  <input type="checkbox" checked={todosFunis} onChange={(e) => setTodosFunis(e.target.checked)} />
+                  Todos os funis
+                </label>
+
+                <button
+                  onClick={() => { setFiltros(FILTRO_VAZIO); setTodosFunis(false) }}
+                  className="ml-auto text-[11px] text-slate-500 hover:underline pb-1.5"
+                >
+                  limpar
+                </button>
+              </div>
+            )}
+
+            {aba === 'painel' ? (
+              <CrmDashboard leads={filtrados} etapas={etapas} verComissao={pode('comercial.comissao')} />
+            ) : aba === 'funil' ? (
               <div className="flex gap-3 overflow-x-auto pb-4">
                 {doFunil.map((etapa) => {
                   const lista = porEtapa.get(etapa.id) || []
@@ -350,7 +479,9 @@ export default function ComercialPage() {
                       <th className="text-left">Cliente / parceiro</th>
                       <th className="text-left">Cidade</th>
                       <th className="text-right">Valor</th>
+                      {pode('comercial.comissao') && <th className="text-right">Comissão</th>}
                       <th className="text-left">Responsável</th>
+                      <th className="text-left">Fonte</th>
                       <th className="text-left pr-4">Aberto</th>
                     </tr>
                   </thead>
@@ -386,7 +517,13 @@ export default function ComercialPage() {
                           <td className="text-right tabular-nums text-slate-700">
                             {reais(l.valor_fechado ?? l.valor)}
                           </td>
+                          {pode('comercial.comissao') && (
+                            <td className="text-right tabular-nums text-emerald-700">
+                              {l.comissao_valor ? reais(l.comissao_valor) : ''}
+                            </td>
+                          )}
                           <td className="text-slate-500">{l.responsavel || '—'}</td>
+                          <td className="text-slate-400 max-w-[130px] truncate">{l.fonte || '—'}</td>
                           <td className="pr-4 text-slate-400 tabular-nums">{dataBR(l.criado_em)}</td>
                         </tr>
                       )
@@ -416,5 +553,35 @@ export default function ComercialPage() {
         />
       )}
     </div>
+  )
+}
+
+function Filtro({
+  rotulo,
+  valor,
+  opcoes,
+  onMudar,
+}: {
+  rotulo: string
+  valor: string
+  opcoes: string[]
+  onMudar: (v: string) => void
+}) {
+  return (
+    <label className="block">
+      <span className="text-[10px] uppercase text-slate-400">{rotulo}</span>
+      <select
+        value={valor}
+        onChange={(e) => onMudar(e.target.value)}
+        className="block mt-0.5 text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white max-w-[170px]"
+      >
+        <option value="">Todos</option>
+        {opcoes.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }
