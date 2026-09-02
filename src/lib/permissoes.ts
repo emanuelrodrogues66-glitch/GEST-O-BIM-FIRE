@@ -160,6 +160,27 @@ export const PERMISSOES: Permissao[] = [
     grupo: 'Visão geral',
   },
 
+  // -------------------------------------------------------------- comercial
+  {
+    codigo: 'comercial.ver',
+    rotulo: 'Ver o comercial',
+    descricao: 'Funil de vendas, leads e histórico de negociação.',
+    grupo: 'Comercial',
+  },
+  {
+    codigo: 'comercial.editar',
+    rotulo: 'Trabalhar no comercial',
+    descricao: 'Criar lead, mover de etapa, registrar contato e anotar.',
+    grupo: 'Comercial',
+  },
+  {
+    codigo: 'comercial.converter',
+    rotulo: 'Transformar lead em projeto',
+    descricao: 'O botão "Vendeu": cria o cartão na gestão e liga os dois.',
+    grupo: 'Comercial',
+    sensivel: true,
+  },
+
   // ---------------------------------------------------------- administração
   {
     codigo: 'equipe.editar',
