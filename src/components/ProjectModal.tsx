@@ -12,6 +12,7 @@ import {
   STATUS_COLUNAS,
   PONTOS_PISO_CORRECAO,
   anexosObrigatoriosFaltando,
+  categoriaDoTipo,
   isClientDataComplete,
   pontosBase,
   suggestedPoints,
@@ -97,7 +98,7 @@ export default function ProjectModal({
     // PRO só tem pontuação depois que a área é informada.
     pts: null,
     m2: null,
-    categoria: 'PROJETOS EM ANDAMENTO',
+    categoria: categoriaDoTipo('PRO'),
     prazo_categoria: null,
     data_prazo: null,
     data_inicio: monthRange(month).start,
@@ -633,6 +634,11 @@ export default function ProjectModal({
                         ...f,
                         tipo,
                         pts: podeEditarPontos && suggested != null ? suggested : f.pts,
+                        // Vistoria, SPDA e TCAC vivem na carteira própria. Projeto
+                        // já concluído não sai de PROJETOS FINALIZADOS por troca
+                        // de tipo — lá é arquivo, não fila de trabalho.
+                        categoria:
+                          f.status === 'Concluído' ? f.categoria : categoriaDoTipo(tipo),
                       }))
                     }}
                   >

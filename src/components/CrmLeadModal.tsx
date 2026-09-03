@@ -17,7 +17,7 @@ import {
 } from '../lib/crm'
 import { usePermissoes } from '../lib/permissoes'
 import BuscaCadastro from './BuscaCadastro'
-import { TIPOS_DE_SERVICO } from '../types'
+import { TIPOS_DE_SERVICO, categoriaDoTipo } from '../types'
 
 /**
  * O cartão do lead.
@@ -130,7 +130,8 @@ export default function CrmLeadModal({
       const projeto = await converterEmProjeto({
         leadId: lead.id,
         tipo,
-        categoria: 'PROJETOS EM ANDAMENTO',
+        // Vistoria, SPDA e TCAC nascem na carteira própria, não na fila de projetos.
+        categoria: categoriaDoTipo(tipo),
         responsavel,
         dataPrazo: prazo,
       })

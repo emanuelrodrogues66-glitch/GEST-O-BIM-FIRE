@@ -9,7 +9,7 @@
 
 import { supabase } from './supabase'
 import type { Project, ProjectClient } from '../types'
-import { RENOVACAO_MESES, diasAte, somarMeses, suggestedPoints } from '../types'
+import { RENOVACAO_MESES, categoriaDoTipo, diasAte, somarMeses, suggestedPoints } from '../types'
 
 export type VencimentoProximo = {
   projeto: Project
@@ -59,11 +59,8 @@ export async function duplicarParaServico(params: {
       nome,
       tipo,
       responsavel: origem.responsavel,
-      // Vistoria e TCAC têm quadro próprio; o resto acompanha a origem.
-      categoria:
-        tipo === 'Vistoria' || tipo === 'TCAC' || tipo === 'SPDA'
-          ? 'VISTORIAS E TCAC'
-          : 'PROJETOS EM ANDAMENTO',
+      // Vistoria, SPDA e TCAC têm quadro próprio; o resto vai para a fila.
+      categoria: categoriaDoTipo(tipo),
       status: 'Pendente',
       m2: origem.m2,
       pts: suggestedPoints(tipo, origem.m2),

@@ -597,7 +597,7 @@ export function prazoColor(categoria: string | null): string {
 
 // Pontuação automática por tipo de documento. "Vistoria" cobre também o que
 // era chamado de "Fiscalização" na tabela de referência.
-// PRO não entra aqui: depende da área, ver PRO_FAIXAS abaixo.
+// PRO não entra aqui: depende da área, ver PRO_LIMITE_M2 abaixo.
 export const DOC_POINTS: Record<string, number> = {
   HAB: 1,
   Vistoria: 1,
@@ -609,6 +609,23 @@ export const DOC_POINTS: Record<string, number> = {
 
 /** Todos os tipos de serviço, na ordem em que aparecem no cartão. */
 export const TIPOS_DE_SERVICO = ['PRO', 'MEM', 'TCAC', 'HAB', 'FUNC', 'Vistoria', 'SPDA'] as const
+
+/** Serviços com quadro próprio: não se misturam com os projetos em andamento. */
+export const TIPOS_DA_CARTEIRA = ['TCAC', 'Vistoria', 'SPDA'] as const
+
+/**
+ * Em que quadro o cartão nasce, pelo tipo de serviço.
+ *
+ * Vistoria, SPDA e TCAC vivem na carteira própria porque são recorrentes: o
+ * assunto ali é vencimento, não prazo de entrega. Antes só o caminho de
+ * "serviço derivado" sabia disso, e quem criava o cartão à mão caía sempre em
+ * PROJETOS EM ANDAMENTO.
+ */
+export function categoriaDoTipo(tipo: string | null | undefined): string {
+  return (TIPOS_DA_CARTEIRA as readonly string[]).includes(tipo || '')
+    ? 'VISTORIAS E TCAC'
+    : 'PROJETOS EM ANDAMENTO'
+}
 
 /**
  * Serviços que vencem e precisam ser refeitos, com o intervalo em meses.
