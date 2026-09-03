@@ -69,9 +69,41 @@ export default function CronogramaTcac({ projectId }: { projectId: string }) {
     recarregar()
   }
 
+  /**
+   * Apaga uma etapa lançada errado.
+   *
+   * Renumera as seguintes para o cronograma não ficar com buraco (1, 2, 4),
+   * porque a ordem aqui é a numeração do termo — e um TCAC com etapa faltando
+   * na sequência levanta dúvida na hora de prestar contas ao Bombeiro.
+   */
   async function excluir(e: EtapaTcac) {
-    if (!confirm(`Apagar a etapa "${e.descricao}"?`)) return
-    await supabase.from('project_stages').delete().eq('id', e.id)
+    const detalhes = [
+      e.data_inicio && `início ${dataBR(e.data_inicio)}`,
+      e.data_termino && `término ${dataBR(e.data_termino)}`,
+      e.custo != null && reais(e.custo),
+    ]
+      .filter(Boolean)
+      .join(' · ')
+
+    if (
+      !confirm(
+        `Apagar a etapa ${e.ordem} — "${e.descricao}"?` +
+          (detalhes ? `\n${detalhes}` : '') +
+          '\n\nAs etapas seguintes são renumeradas. Não tem desfazer.'
+      )
+    )
+      return
+
+    const { error } = await supabase.from('project_stages').delete().eq('id', e.id)
+    if (error) {
+      alert(`Não foi possível apagar: ${error.message}`)
+      return
+    }
+
+    const seguintes = etapas.filter((x) => x.ordem > e.ordem)
+    for (const s of seguintes) {
+      await supabase.from('project_stages').update({ ordem: s.ordem - 1 }).eq('id', s.id)
+    }
     recarregar()
   }
 
@@ -272,7 +304,7 @@ export default function CronogramaTcac({ projectId }: { projectId: string }) {
                 <th className="text-right">Prazo</th>
                 <th className="text-right">Custo</th>
                 <th className="text-center w-20">Concluída</th>
-                <th className="w-6" />
+                <th className="text-center w-16">Apagar</th>
               </tr>
             </thead>
             <tbody>
@@ -347,12 +379,13 @@ export default function CronogramaTcac({ projectId }: { projectId: string }) {
                         )}
                       </label>
                     </td>
-                    <td>
+                    <td className="text-center">
                       <button
                         onClick={() => excluir(e)}
-                        className="text-slate-300 hover:text-red-500 px-1"
+                        title={`Excluir a etapa ${e.ordem}`}
+                        className="text-[10px] font-medium px-1.5 py-0.5 rounded border border-slate-200 text-slate-500 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
                       >
-                        ×
+                        excluir
                       </button>
                     </td>
                   </tr>
