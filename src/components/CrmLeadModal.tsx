@@ -17,6 +17,7 @@ import {
 } from '../lib/crm'
 import { usePermissoes } from '../lib/permissoes'
 import BuscaCadastro from './BuscaCadastro'
+import CrmProposta from './CrmProposta'
 import { TIPOS_DE_SERVICO, categoriaDoTipo } from '../types'
 
 /**
@@ -54,6 +55,7 @@ export default function CrmLeadModal({
   const [texto, setTexto] = useState('')
   const [tipoAtividade, setTipoAtividade] = useState('nota')
   const [salvando, setSalvando] = useState(false)
+  const [propondo, setPropondo] = useState(false)
 
   const doFunil = etapas.filter((e) => e.funnel_id === form.funnel_id)
   const etapaAtual = etapas.find((e) => e.id === form.stage_id)
@@ -147,6 +149,16 @@ export default function CrmLeadModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 overflow-auto">
+      {propondo && (
+        <CrmProposta
+          lead={form}
+          onFechar={() => setPropondo(false)}
+          onMudou={() => {
+            carregarAtividades(lead.id).then(setAtividades)
+            onMudou()
+          }}
+        />
+      )}
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl my-8">
         {/* ---------- cabeçalho ---------- */}
         <div className="px-5 py-4 border-b border-slate-200 flex items-start gap-3">
@@ -164,6 +176,16 @@ export default function CrmLeadModal({
               {form.responsavel && ` · ${form.responsavel}`}
             </p>
           </div>
+
+          {podeEditar && (
+            <button
+              onClick={() => setPropondo(true)}
+              title="Monta a proposta no modelo do escritório"
+              className="text-[11px] font-medium px-3 py-1.5 rounded-lg border border-slate-300 hover:border-slate-400 text-slate-700"
+            >
+              📄 Proposta
+            </button>
+          )}
 
           {form.project_id ? (
             <button

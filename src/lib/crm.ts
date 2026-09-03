@@ -55,6 +55,8 @@ export type Lead = {
   data_fechamento: string | null
   retorno_em: string | null
   criado_em: string
+  /** Endereço da obra: vai para a capa da proposta. */
+  endereco_obra: string | null
   origem: 'app' | 'rd' | 'planilha'
   origem_id: string | null
   project_id: string | null
