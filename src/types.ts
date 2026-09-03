@@ -597,7 +597,7 @@ export function prazoColor(categoria: string | null): string {
 
 // Pontuação automática por tipo de documento. "Vistoria" cobre também o que
 // era chamado de "Fiscalização" na tabela de referência.
-// PRO não entra aqui: depende da área, ver PRO_LIMITE_M2 abaixo.
+// PRO não entra aqui: depende da área, ver PRO_FAIXAS abaixo.
 export const DOC_POINTS: Record<string, number> = {
   HAB: 1,
   Vistoria: 1,
@@ -650,19 +650,27 @@ export function diasAte(iso: string): number {
   return Math.round((new Date(a, m - 1, d).getTime() - hoje.getTime()) / 86400000)
 }
 
-/** Projeto (PRO) vale por porte: acima deste limite, pontuação cheia. */
-export const PRO_LIMITE_M2 = 1000
-export const PRO_PONTOS_GRANDE = 5
-export const PRO_PONTOS_PEQUENO = 2.5
-
 /**
- * Pontos sugeridos para o projeto.
+ * Faixas de pontuação do PRO por área, valendo de setembro/2026.
  *
- * PRO depende da área: acima de 1.000 m² vale 5, até 1.000 m² vale 2,5.
- * Sem a área informada não há como decidir, então não sugerimos nada —
- * melhor o campo ficar em branco do que chutar o valor errado.
+ * Antes eram dois degraus (2,5 e 5) e um projeto de 50.000 m² valia o mesmo
+ * que um de 1.100. A escala existe para que o porte apareça no ranking.
  */
-export function suggestedPoints(
+export const PRO_FAIXAS: { ate: number; pontos: number }[] = [
+  { ate: 1000, pontos: 5 },
+  { ate: 2500, pontos: 7 },
+  { ate: 5000, pontos: 8 },
+  { ate: 10000, pontos: 9 },
+]
+/** Acima de 10.000 m²: 10 pontos e mais 1 a cada 5.000 m² inteiros. */
+export const PRO_BASE_ACIMA = 10
+export const PRO_DEGRAU_M2 = 5000
+
+/** Piso do desconto por correção. Só PRO desconta, e nunca abaixo disto. */
+export const PONTOS_PISO_CORRECAO = 5
+
+/** Pontuação do tipo e da área, antes de descontar retorno para correção. */
+export function pontosBase(
   tipo: string | null | undefined,
   m2?: number | string | null
 ): number | null {
@@ -671,10 +679,31 @@ export function suggestedPoints(
   if (tipo === 'PRO') {
     const area = m2 === '' || m2 === null || m2 === undefined ? null : Number(m2)
     if (area === null || Number.isNaN(area)) return null
-    return area > PRO_LIMITE_M2 ? PRO_PONTOS_GRANDE : PRO_PONTOS_PEQUENO
+    const faixa = PRO_FAIXAS.find((f) => area <= f.ate)
+    if (faixa) return faixa.pontos
+    return PRO_BASE_ACIMA + Math.floor((area - 10000) / PRO_DEGRAU_M2)
   }
 
   return DOC_POINTS[tipo] ?? null
+}
+
+/**
+ * Pontos do projeto: a base menos um ponto por retorno para correção.
+ *
+ * O desconto só atinge PRO e para em 5. Um projeto grande que voltou cinco
+ * vezes ainda vale mais que um pequeno de primeira — o retorno pesa, mas não
+ * apaga o tamanho do trabalho. MEM (2) e vistoria (1) já valem menos que o
+ * piso, então não descontam: seria zerar o serviço por um detalhe de ofício.
+ */
+export function suggestedPoints(
+  tipo: string | null | undefined,
+  m2?: number | string | null,
+  retornosCorrecao = 0
+): number | null {
+  const base = pontosBase(tipo, m2)
+  if (base === null) return null
+  if (tipo !== 'PRO') return base
+  return Math.max(base - retornosCorrecao, PONTOS_PISO_CORRECAO)
 }
 
 export function tipoColor(tipo: string | null): string {
