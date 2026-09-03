@@ -4,6 +4,7 @@ import type { EtapaTcac } from '../lib/etapasTcac'
 import { carregarEtapas, gerarEtapas, lerTabelaColada, prazoEmDias } from '../lib/etapasTcac'
 import { reais } from '../lib/financeiro'
 import { diasAte } from '../types'
+import CampoData from './CampoData'
 
 function dataBR(iso: string | null) {
   if (!iso) return '—'
@@ -333,21 +334,17 @@ export default function CronogramaTcac({ projectId }: { projectId: string }) {
                       />
                     </td>
                     <td>
-                      <input
-                        type="date"
-                        value={e.data_inicio || ''}
-                        onChange={(ev) => atualizar(e.id, { data_inicio: ev.target.value || null })}
-                        className="border border-slate-200 rounded px-1 py-0.5"
+                      <CampoData
+                        valor={e.data_inicio}
+                        onSalvar={(v) => atualizar(e.id, { data_inicio: v })}
+                        className="border-slate-200"
                       />
                     </td>
                     <td>
-                      <input
-                        type="date"
-                        value={e.data_termino || ''}
-                        onChange={(ev) => atualizar(e.id, { data_termino: ev.target.value || null })}
-                        className={`border rounded px-1 py-0.5 ${
-                          alerta ? 'border-amber-400' : 'border-slate-200'
-                        }`}
+                      <CampoData
+                        valor={e.data_termino}
+                        onSalvar={(v) => atualizar(e.id, { data_termino: v })}
+                        className={alerta ? 'border-amber-400' : 'border-slate-200'}
                       />
                     </td>
                     <td className="text-right tabular-nums text-slate-500">

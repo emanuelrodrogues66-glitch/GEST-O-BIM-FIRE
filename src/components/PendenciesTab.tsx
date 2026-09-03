@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { ProjectPendency } from '../types'
 import { MOTIVOS_PENDENCIA, diasDePendencia, gravidadePendencia } from '../types'
+import CampoData from './CampoData'
 
 function formatDate(d: string | null): string {
   if (!d) return '—'
@@ -134,11 +135,10 @@ export default function PendenciesTab({ projectId }: { projectId: string }) {
                 </select>
                 <label className="flex items-center gap-1 text-[10px] text-slate-500">
                   Previsão de retorno
-                  <input
-                    type="date"
-                    className="border border-slate-300 rounded px-1.5 py-1 text-[11px]"
-                    value={p.previsao_retorno || ''}
-                    onChange={(e) => atualizar(p.id, { previsao_retorno: e.target.value || null })}
+                  <CampoData
+                    className="border-slate-300 px-1.5 py-1 text-[11px]"
+                    valor={p.previsao_retorno}
+                    onSalvar={(v) => atualizar(p.id, { previsao_retorno: v })}
                   />
                 </label>
                 {emAberto && p.previsao_retorno && p.previsao_retorno < new Date().toISOString().slice(0, 10) && (
