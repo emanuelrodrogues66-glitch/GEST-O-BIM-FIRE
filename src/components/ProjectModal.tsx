@@ -10,11 +10,10 @@ import {
   MOTIVOS_PENDENCIA,
   TIPOS_DE_SERVICO,
   STATUS_COLUNAS,
-  PRO_LIMITE_M2,
-  PRO_PONTOS_GRANDE,
-  PRO_PONTOS_PEQUENO,
+  PONTOS_PISO_CORRECAO,
   anexosObrigatoriosFaltando,
   isClientDataComplete,
+  pontosBase,
   suggestedPoints,
 } from '../types'
 import type { MonthRef } from '../lib/month'
@@ -117,6 +116,8 @@ export default function ProjectModal({
   // Projeto que não é TCAC mas já tem etapas continua mostrando o cronograma —
   // senão mudar o tipo por engano esconderia o que já foi preenchido.
   const [temEtapas, setTemEtapas] = useState(false)
+  // Quantas vezes o projeto voltou para correção: cada retorno tira um ponto.
+  const [retornos, setRetornos] = useState(0)
 
   useEffect(() => {
     if (!project) return
@@ -125,6 +126,9 @@ export default function ProjectModal({
       .select('id', { count: 'exact', head: true })
       .eq('project_id', project.id)
       .then(({ count }) => setTemEtapas((count || 0) > 0))
+    supabase
+      .rpc('contar_retornos_correcao', { p_projeto: project.id })
+      .then(({ data }) => setRetornos(Number(data) || 0))
   }, [project])
 
   useEffect(() => {
@@ -622,7 +626,7 @@ export default function ProjectModal({
                     value={form.tipo || ''}
                     onChange={(e) => {
                       const tipo = e.target.value
-                      const suggested = suggestedPoints(tipo, form.m2)
+                      const suggested = suggestedPoints(tipo, form.m2, retornos)
                       // Sem permissão para mexer nos pontos, trocar o tipo não
                       // pode arrastar a pontuação junto — o banco recusaria.
                       setForm((f) => ({
@@ -664,23 +668,31 @@ export default function ProjectModal({
                     <p className="text-[10px] text-amber-700 mt-1">
                       Alteração só com autorização do administrador.
                     </p>
+                  ) : pontosBase(form.tipo, form.m2) != null ? (
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      {pontosBase(form.tipo, form.m2)} pts pela tabela
+                      {form.tipo === 'PRO' && retornos > 0 && (
+                        <>
+                          {' '}
+                          <span className="text-amber-700">
+                            − {retornos} por {retornos === 1 ? 'retorno' : 'retornos'} de correção
+                          </span>{' '}
+                          ={' '}
+                          <b className="text-slate-600">
+                            {suggestedPoints(form.tipo, form.m2, retornos)} pts
+                          </b>
+                          {suggestedPoints(form.tipo, form.m2, retornos) === PONTOS_PISO_CORRECAO &&
+                            ` (no piso de ${PONTOS_PISO_CORRECAO})`}
+                        </>
+                      )}
+                    </p>
                   ) : (
-                    (suggestedPoints(form.tipo, form.m2) != null ? (
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Sugestão automática para {form.tipo}
-                        {form.tipo === 'PRO' &&
-                          ` (${Number(form.m2) > PRO_LIMITE_M2 ? 'acima de' : 'até'} ${PRO_LIMITE_M2.toLocaleString('pt-BR')} m²)`}
-                        : {suggestedPoints(form.tipo, form.m2)} pts
+                    form.tipo === 'PRO' && (
+                      <p className="text-[10px] text-amber-700 mt-1">
+                        Informe a área: o PRO pontua por porte, de 5 (até 1.000 m²) a 10 e mais 1 a
+                        cada 5.000 m² acima de 10.000.
                       </p>
-                    ) : (
-                      form.tipo === 'PRO' && (
-                        <p className="text-[10px] text-amber-700 mt-1">
-                          Informe a área para calcular os pontos: acima de{' '}
-                          {PRO_LIMITE_M2.toLocaleString('pt-BR')} m² vale {PRO_PONTOS_GRANDE}, até isso vale{' '}
-                          {PRO_PONTOS_PEQUENO.toLocaleString('pt-BR')}.
-                        </p>
-                      )
-                    ))
+                    )
                   )}
                 </div>
                 <div>
@@ -694,7 +706,7 @@ export default function ProjectModal({
                       const m2 = e.target.value
                       // A área é que define a pontuação do PRO, então mexer
                       // nela recalcula os pontos junto.
-                      const suggested = suggestedPoints(form.tipo, m2)
+                      const suggested = suggestedPoints(form.tipo, m2, retornos)
                       setForm((f) => ({
                         ...f,
                         m2: m2 as any,
