@@ -16,6 +16,7 @@ import {
   sugerirProjetos,
 } from '../lib/crm'
 import { usePermissoes } from '../lib/permissoes'
+import BuscaCadastro from './BuscaCadastro'
 import { TIPOS_DE_SERVICO } from '../types'
 
 /**
@@ -207,8 +208,34 @@ export default function CrmLeadModal({
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <Campo rotulo="Cliente" valor={form.nome_cliente} onSalvar={(v) => campo({ nome_cliente: v })} travado={!podeEditar} />
-              <Campo rotulo="Parceiro" valor={form.nome_parceiro} onSalvar={(v) => campo({ nome_parceiro: v })} travado={!podeEditar} />
+              <BuscaCadastro
+                tipo="cliente"
+                valor={form.nome_cliente}
+                travado={!podeEditar}
+                onEscolher={(e) => {
+                  campo({
+                    nome_cliente: e.nome || null,
+                    cliente_id: e.id,
+                    // completa só o que está em branco: não sobrescreve o que já foi anotado
+                    ...(!form.contato && e.contato ? { contato: e.contato } : {}),
+                    ...(!form.email && e.email ? { email: e.email } : {}),
+                    ...(!form.cidade && e.cidade ? { cidade: e.cidade } : {}),
+                  })
+                }}
+              />
+              <BuscaCadastro
+                tipo="parceiro"
+                valor={form.nome_parceiro}
+                travado={!podeEditar}
+                onEscolher={(e) =>
+                  campo({
+                    nome_parceiro: e.nome || null,
+                    parceiro_id: e.id,
+                    ...(!form.contato && e.contato ? { contato: e.contato } : {}),
+                    ...(!form.email && e.email ? { email: e.email } : {}),
+                  })
+                }
+              />
               <Campo rotulo="Contato" valor={form.contato} onSalvar={(v) => campo({ contato: v })} travado={!podeEditar} />
               <Campo rotulo="E-mail" valor={form.email} onSalvar={(v) => campo({ email: v })} travado={!podeEditar} />
               <Campo rotulo="Cidade" valor={form.cidade} onSalvar={(v) => campo({ cidade: v })} travado={!podeEditar} />

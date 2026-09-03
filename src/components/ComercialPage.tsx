@@ -8,12 +8,12 @@ import CrmLeadModal from './CrmLeadModal'
 import CadastrosView from './CadastrosView'
 import CrmDashboard from './CrmDashboard'
 import CrmComissoes from './CrmComissoes'
+import CrmNovaNegociacao from './CrmNovaNegociacao'
 import type { Etapa, Funil, Lead } from '../lib/crm'
 import {
   carregarEtapas,
   carregarFunis,
   carregarLeads,
-  criarLead,
   dataBR,
   excluirLeads,
   moverEtapa,
@@ -65,6 +65,7 @@ export default function ComercialPage() {
   const [maisFiltros, setMaisFiltros] = useState(false)
   const [aberto, setAberto] = useState<Lead | null>(null)
   const [marcados, setMarcados] = useState<Set<string>>(new Set())
+  const [criando, setCriando] = useState(false)
   const [arrastando, setArrastando] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
 
@@ -191,22 +192,8 @@ export default function ComercialPage() {
     }
   }
 
-  async function novo() {
-    const nome = prompt('Nome do negócio:')
-    if (!nome?.trim()) return
-    try {
-      const l = await criarLead({
-        nome: nome.trim(),
-        funnel_id: funilSel,
-        stage_id: doFunil[0]?.id,
-        origem: 'app',
-        responsavel: session?.user.email?.split('@')[0],
-      })
-      await carregar()
-      setAberto(l)
-    } catch (e: any) {
-      alert(e.message)
-    }
+  function novo() {
+    setCriando(true)
   }
 
   function exportar() {
@@ -628,6 +615,21 @@ export default function ComercialPage() {
           </>
         )}
       </main>
+
+      {criando && (
+        <CrmNovaNegociacao
+          funis={funis}
+          etapas={etapas}
+          funilInicial={funilSel}
+          responsavelPadrao={session?.user.email?.split('@')[0]}
+          onFechar={() => setCriando(false)}
+          onCriado={async (l) => {
+            setCriando(false)
+            await carregar()
+            setAberto(l)
+          }}
+        />
+      )}
 
       {aberto && (
         <CrmLeadModal
