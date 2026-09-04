@@ -1,5 +1,6 @@
 import type { Project } from '../types'
 import { prazoColor, tipoColor } from '../types'
+import type { FichaResumo } from '../lib/fichas'
 
 function initials(name: string | null) {
   if (!name) return '?'
@@ -25,10 +26,13 @@ export default function ProjectCard({
   project,
   onClick,
   mostrarMes,
+  ficha,
 }: {
   project: Project
   onClick: () => void
   mostrarMes?: boolean
+  /** Cliente e parceiro, para saber de quem é o projeto sem abrir o cartão. */
+  ficha?: FichaResumo
 }) {
   return (
     <button
@@ -43,6 +47,22 @@ export default function ProjectCard({
           {initials(project.responsavel)}
         </span>
       </div>
+
+      {(ficha?.cliente || ficha?.parceiro) && (
+        <div className="mt-1 space-y-0.5">
+          {ficha.cliente && (
+            <p className="text-[11px] text-slate-600 truncate" title={`Cliente: ${ficha.cliente}`}>
+              <span className="text-slate-400">C:</span> {ficha.cliente}
+            </p>
+          )}
+          {ficha.parceiro && (
+            <p className="text-[11px] text-cobre-700 truncate" title={`Parceiro: ${ficha.parceiro}`}>
+              <span className="text-slate-400">P:</span> {ficha.parceiro}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-1.5 mt-2">
         {project.tipo && (
           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${tipoColor(project.tipo)}`}>

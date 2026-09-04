@@ -5,8 +5,18 @@ import { alertarCorrecao, comemorarConclusao } from '../lib/celebracao'
 import PendencyDialog from './PendencyDialog'
 import type { Project } from '../types'
 import { prazoColor, STATUS_COLUNAS, statusColor, tipoColor } from '../types'
+import type { FichaResumo } from '../lib/fichas'
 
-type SortKey = 'numero' | 'nome' | 'responsavel' | 'status' | 'pts' | 'm2' | 'data_prazo'
+type SortKey =
+  | 'numero'
+  | 'nome'
+  | 'cliente'
+  | 'parceiro'
+  | 'responsavel'
+  | 'status'
+  | 'pts'
+  | 'm2'
+  | 'data_prazo'
 
 function formatDate(d: string | null) {
   if (!d) return '—'
@@ -28,12 +38,15 @@ export default function ListView({
   onRowClick,
   onBulkUpdated,
   mostrarMes,
+  fichas,
 }: {
   projects: Project[]
   onRowClick: (p: Project) => void
   onBulkUpdated?: () => void
   /** Com projetos de vários meses na lista, mostra de qual mês cada um é. */
   mostrarMes?: boolean
+  /** Cliente e parceiro por projeto, para as colunas e a ordenação. */
+  fichas?: Map<string, FichaResumo>
 }) {
   const [sortKey, setSortKey] = useState<SortKey>('numero')
   const [sortDir, setSortDir] = useState<1 | -1>(1)
@@ -53,18 +66,26 @@ export default function ListView({
     responsavel: string | null
   } | null>(null)
 
+  /** Cliente e parceiro vivem na ficha, não no projeto: ordenar precisa deles. */
+  function valorDaColuna(p: Project, chave: SortKey): any {
+    if (chave === 'cliente') return fichas?.get(p.id)?.cliente ?? null
+    if (chave === 'parceiro') return fichas?.get(p.id)?.parceiro ?? null
+    return (p as any)[chave]
+  }
+
   const sorted = useMemo(() => {
     const arr = [...projects]
     arr.sort((a, b) => {
-      let av: any = a[sortKey]
-      let bv: any = b[sortKey]
+      let av: any = valorDaColuna(a, sortKey)
+      let bv: any = valorDaColuna(b, sortKey)
       if (av == null) av = sortDir === 1 ? Infinity : -Infinity
       if (bv == null) bv = sortDir === 1 ? Infinity : -Infinity
       if (typeof av === 'string') return av.localeCompare(bv) * sortDir
       return (av - bv) * sortDir
     })
     return arr
-  }, [projects, sortKey, sortDir])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, sortKey, sortDir, fichas])
 
   // Se a lista de projetos mudar (troca de filtro/categoria/mês), descarta seleções
   // que não existem mais na visão atual.
@@ -193,6 +214,8 @@ export default function ListView({
   const columns: { key: SortKey; label: string; align?: string }[] = [
     { key: 'numero', label: 'Nº' },
     { key: 'nome', label: 'Projeto' },
+    { key: 'cliente', label: 'Cliente' },
+    { key: 'parceiro', label: 'Parceiro' },
     { key: 'responsavel', label: 'Responsável' },
     { key: 'status', label: 'Status' },
     { key: 'pts', label: 'Pts', align: 'text-right' },
@@ -301,6 +324,18 @@ export default function ListView({
                   </td>
                   <td className="px-3 py-2 text-slate-400">{p.numero ?? '—'}</td>
                   <td className="px-3 py-2 font-medium text-slate-800">{p.nome}</td>
+                  <td
+                    className="px-3 py-2 text-slate-600 max-w-[180px] truncate"
+                    title={fichas?.get(p.id)?.cliente || ''}
+                  >
+                    {fichas?.get(p.id)?.cliente || '—'}
+                  </td>
+                  <td
+                    className="px-3 py-2 text-cobre-700 max-w-[180px] truncate"
+                    title={fichas?.get(p.id)?.parceiro || ''}
+                  >
+                    {fichas?.get(p.id)?.parceiro || '—'}
+                  </td>
                   <td className="px-3 py-2 text-slate-600">{p.responsavel || '—'}</td>
                   <td className="px-3 py-2">
                     <span

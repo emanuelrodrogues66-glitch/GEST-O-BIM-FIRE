@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Project } from '../types'
 import { STATUS_COLUNAS, normalizeStatus, statusColor } from '../types'
 import ProjectCard from './ProjectCard'
+import type { FichaResumo } from '../lib/fichas'
 
 export default function Board({
   projects,
@@ -9,6 +10,7 @@ export default function Board({
   onDropCard,
   colunas,
   mostrarMes,
+  fichas,
 }: {
   projects: Project[]
   onCardClick: (p: Project) => void
@@ -16,6 +18,8 @@ export default function Board({
   colunas?: readonly string[]
   /** Com projetos de varios meses no quadro, o cartao mostra de qual mes e. */
   mostrarMes?: boolean
+  /** Cliente e parceiro por projeto, para o cartão mostrar de quem é. */
+  fichas?: Map<string, FichaResumo>
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
@@ -84,7 +88,12 @@ export default function Board({
                       draggingId === p.id ? 'opacity-40' : ''
                     }`}
                   >
-                    <ProjectCard project={p} onClick={() => onCardClick(p)} mostrarMes={mostrarMes} />
+                    <ProjectCard
+                      project={p}
+                      onClick={() => onCardClick(p)}
+                      mostrarMes={mostrarMes}
+                      ficha={fichas?.get(p.id)}
+                    />
                   </div>
                 ))}
                 {items.length === 0 && (

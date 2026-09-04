@@ -23,6 +23,7 @@ import FinanceReportView from './components/FinanceReportView'
 import PermissionsView from './components/PermissionsView'
 import RenovacoesView from './components/RenovacoesView'
 import CadastrosView from './components/CadastrosView'
+import { useFichas } from './lib/fichas'
 import { usePermissoes } from './lib/permissoes'
 import { LOGO_BIM_FIRE_JPEG } from './lib/logoBimFire'
 import AgendaView from './components/AgendaView'
@@ -70,6 +71,8 @@ export default function App() {
   const [redefinindoSenha, setRedefinindoSenha] = useState(CHEGOU_PARA_TROCAR_SENHA)
   const [nome, setNome] = useState<string>('')
   const [projects, setProjects] = useState<Project[]>([])
+  // Cliente e parceiro de cada projeto: o quadro e a lista mostram de quem é.
+  const fichas = useFichas()
   const [loading, setLoading] = useState(true)
   const [categoria, setCategoria] = useState<string>(CATEGORIAS[0])
   const [responsavelFiltro, setResponsavelFiltro] = useState<string>('')
@@ -144,7 +147,14 @@ export default function App() {
 
   function passaSemCategoria(p: Project): boolean {
     if (responsavelFiltro && p.responsavel !== responsavelFiltro) return false
-    if (busca && !p.nome.toLowerCase().includes(busca.toLowerCase())) return false
+    if (busca) {
+      // Procurar por "ELIAS" tem que achar os projetos dele, e não só o
+      // projeto que por acaso se chama ELIAS.
+      const t = busca.toLowerCase()
+      const f = fichas.get(p.id)
+      const alvo = [p.nome, f?.cliente, f?.parceiro].filter(Boolean).join(' ').toLowerCase()
+      if (!alvo.includes(t)) return false
+    }
     return true
   }
 
@@ -158,19 +168,19 @@ export default function App() {
   const paraPdfDaCategoria = useMemo(
     () => projects.filter(passaNosFiltros),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, categoria, responsavelFiltro, busca]
+    [projects, categoria, responsavelFiltro, busca, fichas]
   )
   const paraPdfDeTodasCategorias = useMemo(
     () => projects.filter(passaSemCategoria),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, responsavelFiltro, busca]
+    [projects, responsavelFiltro, busca, fichas]
   )
 
   // Lista e relatórios continuam agrupados por mês.
   const filtered = useMemo(
     () => projectsDoMes.filter(passaNosFiltros),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projectsDoMes, categoria, responsavelFiltro, busca]
+    [projectsDoMes, categoria, responsavelFiltro, busca, fichas]
   )
 
   /**
@@ -180,7 +190,7 @@ export default function App() {
   const filteredTodosMeses = useMemo(
     () => (verTodosMeses ? projects.filter(passaNosFiltros) : filtered),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [verTodosMeses, projects, filtered, categoria, responsavelFiltro, busca]
+    [verTodosMeses, projects, filtered, categoria, responsavelFiltro, busca, fichas]
   )
 
   // O botão "Todos os meses" vale para o quadro e para a lista.
@@ -552,6 +562,7 @@ export default function App() {
             onCardClick={openEdit}
             onDropCard={handleDropCard}
             colunas={categoria === 'PROJETOS FINALIZADOS' ? ['Concluído'] : undefined}
+            fichas={fichas}
           />
         ) : viewMode === 'lista' ? (
           <ListView
@@ -559,6 +570,7 @@ export default function App() {
             mostrarMes={verTodosMeses}
             onRowClick={openEdit}
             onBulkUpdated={fetchProjects}
+            fichas={fichas}
           />
         ) : viewMode === 'dashboard' ? (
           // O Dashboard recebe tudo e aplica os próprios filtros de status e mês.
