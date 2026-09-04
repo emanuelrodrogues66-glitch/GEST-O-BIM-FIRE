@@ -56,6 +56,8 @@ export default function CrmProposta({
   const [carregando, setCarregando] = useState(true)
   const [vindoDe, setVindoDe] = useState<string | null>(null)
   const [numero, setNumero] = useState('')
+  /** Falso quando o número já veio da negociação ou foi digitado à mão. */
+  const [numeroAutomatico, setNumeroAutomatico] = useState(true)
 
   /**
    * Retoma o que já foi preenchido.
@@ -76,10 +78,14 @@ export default function CrmProposta({
         .limit(1)
         .maybeSingle()
 
-      // Mostra o número antes de gerar: o já reservado, ou o que vai sair.
+      // Mostra o número antes de gerar: o que já existe na negociação — mesmo
+      // digitado à mão fora do padrão — ou a sugestão do próximo da fila.
       const jaTem = (lead.numero_orcamento || '').trim()
-      if (/^\d{6}$/.test(jaTem)) {
-        if (ativo) setNumero(jaTem)
+      if (jaTem) {
+        if (ativo) {
+          setNumero(jaTem)
+          setNumeroAutomatico(false)
+        }
       } else {
         const { data: prox } = await supabase.rpc('proximo_numero_orcamento')
         if (ativo && prox) setNumero(prox as string)
@@ -217,18 +223,17 @@ export default function CrmProposta({
         condicoes: condicoes.trim(),
       }
 
+      const numeroFinal = numero.trim()
+      if (!numeroFinal) throw new Error('Informe o número do orçamento.')
+
       // O número é do orçamento, não da versão: reemitir a proposta do mesmo
       // negócio mantém o número que o cliente já conhece.
-      let numero = (lead.numero_orcamento || '').trim()
-      if (!/^\d{6}$/.test(numero)) {
-        const { data, error } = await supabase.rpc('proximo_numero_orcamento')
-        if (error) throw new Error(error.message)
-        numero = data as string
-        await salvarLead(lead.id, { numero_orcamento: numero })
+      if (numeroFinal !== (lead.numero_orcamento || '').trim()) {
+        await salvarLead(lead.id, { numero_orcamento: numeroFinal })
       }
 
       const blob = await gerarProposta(dados)
-      const nome = nomeDoArquivo(numero, cliente, 'pptx')
+      const nome = nomeDoArquivo(numeroFinal, cliente, 'pptx')
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -267,7 +272,7 @@ export default function CrmProposta({
       await registrarAtividade(
         lead.id,
         'proposta',
-        `Orçamento ${numero} · proposta v${versao} — ${reaisProposta(dados.valor)} · ${medidas.length} medida(s).`
+        `Orçamento ${numeroFinal} · proposta v${versao} — ${reaisProposta(dados.valor)} · ${medidas.length} medida(s).`
       )
       onMudou()
       onFechar()
@@ -283,21 +288,7 @@ export default function CrmProposta({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8">
         <div className="px-5 py-4 border-b border-slate-200 flex items-center">
           <div className="flex-1">
-            <h3 className="text-sm font-semibold text-slate-800">
-              Gerar proposta
-              {numero && (
-                <span
-                  className="ml-2 text-[11px] font-mono font-normal px-1.5 py-0.5 rounded bg-slate-100 text-slate-600"
-                  title={
-                    /^\d{6}$/.test((lead.numero_orcamento || '').trim())
-                      ? 'Número já reservado para esta negociação'
-                      : 'Número que será reservado ao gerar'
-                  }
-                >
-                  {numero}
-                </span>
-              )}
-            </h3>
+            <h3 className="text-sm font-semibold text-slate-800">Gerar proposta</h3>
             <p className="text-[10px] text-slate-400">
               {vindoDe === 'rascunho'
                 ? 'Retomado do que você tinha preenchido.'
@@ -315,6 +306,47 @@ export default function CrmProposta({
         </div>
 
         <div className="p-5 space-y-4">
+          {/* ---------- número ---------- */}
+          <Bloco titulo="Número do orçamento">
+            <div className="flex items-end gap-2">
+              <label className="block">
+                <span className="text-[10px] font-medium text-slate-500">Número</span>
+                <input
+                  value={numero}
+                  onChange={(e) => {
+                    setNumero(e.target.value)
+                    setNumeroAutomatico(false)
+                  }}
+                  className="w-32 mt-0.5 border border-slate-300 rounded-md px-2 py-1.5 text-xs font-mono tabular-nums"
+                />
+              </label>
+              {!numeroAutomatico && (
+                <button
+                  onClick={async () => {
+                    const { data } = await supabase.rpc('proximo_numero_orcamento')
+                    if (data) {
+                      setNumero(data as string)
+                      setNumeroAutomatico(true)
+                    }
+                  }}
+                  className="text-[10px] text-indigo-600 hover:underline pb-2"
+                >
+                  usar o próximo da fila
+                </button>
+              )}
+              <p className="text-[10px] text-slate-400 pb-2 flex-1">
+                {numeroAutomatico
+                  ? 'Sugerido: sequencial do mês. Só é reservado quando você gerar.'
+                  : (lead.numero_orcamento || '').trim()
+                    ? 'Número já usado nesta negociação.'
+                    : 'Alterado à mão.'}
+              </p>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              O arquivo baixa como <span className="font-mono">{numero || 'NNMMAA'}_PPCI - {cliente || 'Cliente'}.pptx</span>
+            </p>
+          </Bloco>
+
           {/* ---------- capa ---------- */}
           <Bloco titulo="Capa">
             <Campo rotulo="Endereço da obra" valor={endereco} onMudar={setEndereco} largo />
