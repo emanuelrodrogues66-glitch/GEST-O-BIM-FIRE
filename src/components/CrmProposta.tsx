@@ -53,6 +53,58 @@ export default function CrmProposta({
   const [condicoes, setCondicoes] = useState('À combinar')
   const [gerando, setGerando] = useState(false)
   const [erro, setErro] = useState('')
+  const [carregando, setCarregando] = useState(true)
+  const [vindoDe, setVindoDe] = useState<string | null>(null)
+
+  /**
+   * Retoma o que já foi preenchido.
+   *
+   * Pega a proposta mais recente da negociação — o rascunho, se houver, senão
+   * a última que saiu. Assim regerar uma proposta é conferir e clicar, não
+   * remontar tudo. Só cai nos dados da negociação quando é a primeira vez.
+   */
+  useEffect(() => {
+    let ativo = true
+    ;(async () => {
+      const { data } = await supabase
+        .from('crm_proposals')
+        .select('*')
+        .eq('lead_id', lead.id)
+        .order('rascunho', { ascending: false })
+        .order('versao', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (!ativo) return
+      const p = data as any
+      if (p) {
+        if (p.endereco_obra) setEndereco(p.endereco_obra)
+        if (p.nome_cliente) setCliente(p.nome_cliente)
+        if (p.contato) setContato(p.contato)
+        if (p.obra) setObra(p.obra)
+        setMedidas(p.medidas || [])
+        setAreaExistente(p.area_existente || '')
+        setAreaAmpliada(p.area_ampliada || '')
+        setEscopo(p.escopo || [])
+        if (p.entregaveis?.length) {
+          setEntregaveis(p.entregaveis)
+          // Se a lista salva difere do que as medidas gerariam, foi mexida à mão.
+          const igual =
+            JSON.stringify(p.entregaveis) === JSON.stringify(entregaveisSugeridos(p.medidas || []))
+          setEntregaveisNaMao(!igual)
+        }
+        if (p.prazo) setPrazo(p.prazo)
+        if (p.valor !== null && p.valor !== undefined) setValor(String(p.valor))
+        if (p.condicoes) setCondicoes(p.condicoes)
+        setVindoDe(p.rascunho ? 'rascunho' : `v${p.versao}`)
+      }
+      setCarregando(false)
+    })()
+    return () => {
+      ativo = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id])
 
   /**
    * Enquanto ninguém mexer na lista à mão, os entregáveis acompanham as
@@ -68,6 +120,62 @@ export default function CrmProposta({
     const n = Number(t)
     return Number.isNaN(n) ? null : n
   }, [valor])
+
+  /** Os campos como estão agora, no formato que vai para o banco. */
+  function comoEsta() {
+    return {
+      endereco_obra: endereco.trim() || null,
+      nome_cliente: cliente.trim() || null,
+      contato: contato.trim() || null,
+      obra: obra.trim() || null,
+      medidas,
+      area_existente: areaExistente.trim() || null,
+      area_ampliada: areaAmpliada.trim() || null,
+      escopo,
+      entregaveis,
+      prazo: prazo.trim() || null,
+      valor: valorNumero,
+      condicoes: condicoes.trim() || null,
+    }
+  }
+
+  /**
+   * Guarda o rascunho ao sair.
+   *
+   * Sem isto, quem preenche as dezesseis medidas e é interrompido antes de
+   * gerar perde tudo — e da segunda vez preenche com menos cuidado.
+   */
+  async function salvarRascunho() {
+    if (carregando) return
+    try {
+      const { data: existente } = await supabase
+        .from('crm_proposals')
+        .select('id')
+        .eq('lead_id', lead.id)
+        .eq('rascunho', true)
+        .maybeSingle()
+
+      const campos = { ...comoEsta(), atualizado_em: new Date().toISOString() }
+      if (existente) {
+        await supabase.from('crm_proposals').update(campos).eq('id', (existente as any).id)
+      } else {
+        await supabase.from('crm_proposals').insert({
+          ...campos,
+          lead_id: lead.id,
+          versao: 0,
+          rascunho: true,
+          gerado_por: (await supabase.auth.getUser()).data.user?.email,
+        })
+      }
+    } catch {
+      // Rascunho é conveniência: se falhar, não vale travar o fechamento da tela.
+    }
+  }
+
+  async function fecharGuardando() {
+    await salvarRascunho()
+    onFechar()
+  }
 
   function alternarMedida(m: string) {
     setMedidas((prev) =>
@@ -118,29 +226,23 @@ export default function CrmProposta({
         .from('crm_proposals')
         .select('versao')
         .eq('lead_id', lead.id)
+        .eq('rascunho', false)
         .order('versao', { ascending: false })
         .limit(1)
         .maybeSingle()
 
       const versao = ((ultima as { versao: number } | null)?.versao || 0) + 1
       await supabase.from('crm_proposals').insert({
+        ...comoEsta(),
         lead_id: lead.id,
         versao,
-        endereco_obra: dados.enderecoObra,
-        nome_cliente: dados.cliente,
-        contato: dados.contato,
-        obra: dados.obra,
-        medidas: dados.medidas,
-        area_existente: dados.areaExistente,
-        area_ampliada: dados.areaAmpliada,
-        escopo: dados.escopo,
-        entregaveis: dados.entregaveis,
-        prazo: dados.prazo,
-        valor: dados.valor,
-        condicoes: dados.condicoes,
+        rascunho: false,
         arquivo_pptx: nome,
         gerado_por: (await supabase.auth.getUser()).data.user?.email,
       })
+
+      // O rascunho cumpriu o papel: agora existe uma versão de verdade.
+      await supabase.from('crm_proposals').delete().eq('lead_id', lead.id).eq('rascunho', true)
 
       await registrarAtividade(
         lead.id,
@@ -163,10 +265,17 @@ export default function CrmProposta({
           <div className="flex-1">
             <h3 className="text-sm font-semibold text-slate-800">Gerar proposta</h3>
             <p className="text-[10px] text-slate-400">
-              Sai um PowerPoint no modelo do escritório, com o desenho intacto.
+              {vindoDe === 'rascunho'
+                ? 'Retomado do que você tinha preenchido.'
+                : vindoDe
+                  ? `Retomado da proposta ${vindoDe}. Confira e gere a próxima versão.`
+                  : 'Sai um PowerPoint no modelo do escritório, com o desenho intacto.'}
             </p>
           </div>
-          <button onClick={onFechar} className="text-slate-400 hover:text-slate-700 text-xl px-1">
+          <button
+            onClick={fecharGuardando}
+            className="text-slate-400 hover:text-slate-700 text-xl px-1"
+          >
             ×
           </button>
         </div>
@@ -293,10 +402,13 @@ export default function CrmProposta({
 
         <div className="px-5 py-3 border-t border-slate-200 flex items-center gap-2">
           <span className="text-[10px] text-slate-400 flex-1">
-            O que for gerado fica registrado no histórico da negociação.
+            O preenchimento fica guardado — fechar aqui não perde nada.
           </span>
-          <button onClick={onFechar} className="text-xs px-3 py-1.5 rounded-lg border border-slate-300">
-            Cancelar
+          <button
+            onClick={fecharGuardando}
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-300"
+          >
+            Fechar
           </button>
           <button
             onClick={gerar}
