@@ -473,9 +473,24 @@ export default function ComercialPage() {
                             <p className="text-[11px] font-medium text-slate-800 leading-snug line-clamp-2">
                               {l.nome}
                             </p>
-                            <p className="text-[10px] text-slate-400 truncate">
-                              {l.nome_parceiro || l.nome_cliente || l.cidade || '—'}
-                            </p>
+                            {/*
+                              Cliente e parceiro em linhas próprias: antes só
+                              cabia um dos dois, e quem vendia por parceiro
+                              perdia de vista de quem era a obra.
+                            */}
+                            {l.nome_cliente && (
+                              <p className="text-[10px] text-slate-500 truncate" title={`Cliente: ${l.nome_cliente}`}>
+                                <span className="text-slate-300">C:</span> {l.nome_cliente}
+                              </p>
+                            )}
+                            {l.nome_parceiro && (
+                              <p className="text-[10px] text-cobre-600 truncate" title={`Parceiro: ${l.nome_parceiro}`}>
+                                <span className="text-slate-300">P:</span> {l.nome_parceiro}
+                              </p>
+                            )}
+                            {!l.nome_cliente && !l.nome_parceiro && (
+                              <p className="text-[10px] text-slate-400 truncate">{l.cidade || '—'}</p>
+                            )}
                             <div className="flex items-center gap-1.5 mt-1">
                               {(l.valor_fechado ?? l.valor) ? (
                                 <span className="text-[10px] font-medium text-slate-600 tabular-nums">
@@ -538,7 +553,8 @@ export default function ComercialPage() {
                       )}
                       <th className="text-left py-2 pl-4">Negócio</th>
                       <th className="text-left">Etapa</th>
-                      <th className="text-left">Cliente / parceiro</th>
+                      <th className="text-left">Cliente</th>
+                      <th className="text-left">Parceiro</th>
                       <th className="text-left">Cidade</th>
                       <th className="text-right">Valor</th>
                       {pode('comercial.comissao') && <th className="text-right">Comissão</th>}
@@ -584,8 +600,17 @@ export default function ComercialPage() {
                               {e?.nome || '—'}
                             </span>
                           </td>
-                          <td className="text-slate-600 max-w-[200px] truncate">
-                            {l.nome_parceiro || l.nome_cliente || '—'}
+                          <td
+                            className="text-slate-600 max-w-[170px] truncate"
+                            title={l.nome_cliente || ''}
+                          >
+                            {l.nome_cliente || '—'}
+                          </td>
+                          <td
+                            className="text-cobre-700 max-w-[170px] truncate"
+                            title={l.nome_parceiro || ''}
+                          >
+                            {l.nome_parceiro || '—'}
                           </td>
                           <td className="text-slate-500 max-w-[140px] truncate">{l.cidade || '—'}</td>
                           <td className="text-right tabular-nums text-slate-700">
