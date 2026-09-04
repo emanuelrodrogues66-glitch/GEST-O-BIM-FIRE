@@ -55,6 +55,7 @@ export default function CrmProposta({
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [vindoDe, setVindoDe] = useState<string | null>(null)
+  const [numero, setNumero] = useState('')
 
   /**
    * Retoma o que já foi preenchido.
@@ -74,6 +75,15 @@ export default function CrmProposta({
         .order('versao', { ascending: false })
         .limit(1)
         .maybeSingle()
+
+      // Mostra o número antes de gerar: o já reservado, ou o que vai sair.
+      const jaTem = (lead.numero_orcamento || '').trim()
+      if (/^\d{6}$/.test(jaTem)) {
+        if (ativo) setNumero(jaTem)
+      } else {
+        const { data: prox } = await supabase.rpc('proximo_numero_orcamento')
+        if (ativo && prox) setNumero(prox as string)
+      }
 
       if (!ativo) return
       const p = data as any
@@ -207,8 +217,18 @@ export default function CrmProposta({
         condicoes: condicoes.trim(),
       }
 
+      // O número é do orçamento, não da versão: reemitir a proposta do mesmo
+      // negócio mantém o número que o cliente já conhece.
+      let numero = (lead.numero_orcamento || '').trim()
+      if (!/^\d{6}$/.test(numero)) {
+        const { data, error } = await supabase.rpc('proximo_numero_orcamento')
+        if (error) throw new Error(error.message)
+        numero = data as string
+        await salvarLead(lead.id, { numero_orcamento: numero })
+      }
+
       const blob = await gerarProposta(dados)
-      const nome = nomeDoArquivo(cliente, 'pptx')
+      const nome = nomeDoArquivo(numero, cliente, 'pptx')
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -247,7 +267,7 @@ export default function CrmProposta({
       await registrarAtividade(
         lead.id,
         'proposta',
-        `Proposta v${versao} gerada — ${reaisProposta(dados.valor)} · ${medidas.length} medida(s).`
+        `Orçamento ${numero} · proposta v${versao} — ${reaisProposta(dados.valor)} · ${medidas.length} medida(s).`
       )
       onMudou()
       onFechar()
@@ -263,7 +283,21 @@ export default function CrmProposta({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl my-8">
         <div className="px-5 py-4 border-b border-slate-200 flex items-center">
           <div className="flex-1">
-            <h3 className="text-sm font-semibold text-slate-800">Gerar proposta</h3>
+            <h3 className="text-sm font-semibold text-slate-800">
+              Gerar proposta
+              {numero && (
+                <span
+                  className="ml-2 text-[11px] font-mono font-normal px-1.5 py-0.5 rounded bg-slate-100 text-slate-600"
+                  title={
+                    /^\d{6}$/.test((lead.numero_orcamento || '').trim())
+                      ? 'Número já reservado para esta negociação'
+                      : 'Número que será reservado ao gerar'
+                  }
+                >
+                  {numero}
+                </span>
+              )}
+            </h3>
             <p className="text-[10px] text-slate-400">
               {vindoDe === 'rascunho'
                 ? 'Retomado do que você tinha preenchido.'

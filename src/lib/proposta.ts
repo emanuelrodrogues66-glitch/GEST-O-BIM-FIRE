@@ -210,13 +210,14 @@ export async function gerarProposta(
   })
 }
 
-/** Nome do arquivo no padrão que o escritório já usa: DDMMAA_PPCI - Cliente. */
-export function nomeDoArquivo(cliente: string, extensao: string): string {
-  const h = new Date()
-  const carimbo =
-    String(h.getDate()).padStart(2, '0') +
-    String(h.getMonth() + 1).padStart(2, '0') +
-    String(h.getFullYear()).slice(2)
+/**
+ * Nome do arquivo no padrão do escritório: NNMMAA_PPCI - Cliente.
+ *
+ * O NNMMAA não é a data: é o número do orçamento, sequencial dentro do mês.
+ * 050826 foi o quinto orçamento de agosto de 2026 — foi assim que o arquivo
+ * do Verona chegou aqui.
+ */
+export function nomeDoArquivo(numero: string, cliente: string, extensao: string): string {
   const limpo = (cliente || 'Proposta').replace(/[\\/:*?"<>|]/g, '-').trim()
-  return `${carimbo}_PPCI - ${limpo}.${extensao}`
+  return `${numero}_PPCI - ${limpo}.${extensao}`
 }
