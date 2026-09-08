@@ -16,9 +16,17 @@ import {
   sugerirProjetos,
 } from '../lib/crm'
 import { usePermissoes } from '../lib/permissoes'
+import { supabase } from '../lib/supabase'
 import BuscaCadastro from './BuscaCadastro'
 import CrmProposta from './CrmProposta'
 import { TIPOS_DE_SERVICO, categoriaDoTipo } from '../types'
+
+/** Como cada tipo de venda se chama na tela. */
+const ROTULO_TIPO_VENDA: Record<string, string> = {
+  novo: 'cliente novo',
+  recompra: 'cliente ativo',
+  memorial: 'memorial',
+}
 
 /**
  * O cartão do lead.
@@ -56,6 +64,24 @@ export default function CrmLeadModal({
   const [tipoAtividade, setTipoAtividade] = useState('nota')
   const [salvando, setSalvando] = useState(false)
   const [propondo, setPropondo] = useState(false)
+  const [equipe, setEquipe] = useState<string[]>([])
+  /** O que o sistema classificaria sozinho, para mostrar na opção "Automático". */
+  const [tipoSugerido, setTipoSugerido] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase
+      .from('team_members')
+      .select('nome')
+      .eq('ativo', true)
+      .order('ordem')
+      .then(({ data }) => setEquipe(((data as { nome: string }[]) || []).map((m) => m.nome)))
+  }, [])
+
+  useEffect(() => {
+    supabase
+      .rpc('classificar_venda', { p_lead: lead.id })
+      .then(({ data }) => setTipoSugerido((data as string) || null))
+  }, [lead.id, form.nome_cliente, form.nome_parceiro, form.nome, form.nome_projeto])
 
   const doFunil = etapas.filter((e) => e.funnel_id === form.funnel_id)
   const etapaAtual = etapas.find((e) => e.id === form.stage_id)
@@ -263,7 +289,35 @@ export default function CrmLeadModal({
               <Campo rotulo="E-mail" valor={form.email} onSalvar={(v) => campo({ email: v })} travado={!podeEditar} />
               <Campo rotulo="Cidade" valor={form.cidade} onSalvar={(v) => campo({ cidade: v })} travado={!podeEditar} />
               <Campo rotulo="Fonte" valor={form.fonte} onSalvar={(v) => campo({ fonte: v })} travado={!podeEditar} />
-              <Campo rotulo="Responsável pela negociação" valor={form.responsavel} onSalvar={(v) => campo({ responsavel: v })} travado={!podeEditar} />
+              {/*
+                Lista em vez de texto livre: nome digitado errado — "Emanel",
+                "Matheus Pontes" — não casa com a regra de comissão, e a venda
+                fica sem comissão sem ninguém perceber.
+              */}
+              <Select
+                rotulo="Responsável pela negociação"
+                valor={form.responsavel || ''}
+                opcoes={[['', '—'], ...equipe.map((n) => [n, n] as [string, string])]}
+                onMudar={(v) => campo({ responsavel: v || null })}
+                travado={!podeEditar}
+              />
+              <Select
+                rotulo="Tipo da venda"
+                valor={form.tipo_venda || ''}
+                opcoes={[
+                  ['', tipoSugerido ? `Automático (${ROTULO_TIPO_VENDA[tipoSugerido]})` : 'Automático'],
+                  ['novo', 'Cliente novo'],
+                  ['recompra', 'Cliente ativo'],
+                  ['memorial', 'Memorial'],
+                ]}
+                onMudar={(v) =>
+                  campo({
+                    tipo_venda: (v || null) as Lead['tipo_venda'],
+                    tipo_venda_manual: !!v,
+                  } as Partial<Lead>)
+                }
+                travado={!podeEditar}
+              />
               <Campo rotulo="Fechado em" valor={form.data_fechamento} tipo="date" onSalvar={(v) => campo({ data_fechamento: v || null })} travado={!podeEditar} />
             </div>
 

@@ -61,6 +61,8 @@ export type Lead = {
   origem_id: string | null
   project_id: string | null
   tipo_venda: 'novo' | 'recompra' | 'memorial' | null
+  /** Verdadeiro quando alguém escolheu o tipo à mão, e o sistema não recalcula. */
+  tipo_venda_manual: boolean
   comissao_percentual: number | null
   comissao_valor: number | null
   comissao_manual: boolean

@@ -58,6 +58,12 @@ export default function CadastrosView({
    */
   leads?: { cliente_id: string | null; parceiro_id: string | null; estado: string }[]
 }) {
+  /**
+   * Sem os leads, esta é a lista da gestão de projetos: mostra só quem tem
+   * projeto. A base inteira — incluindo quem só recebeu orçamento e nunca
+   * fechou — é assunto do comercial, e polui a lista de quem toca obra.
+   */
+  const soAtivos = !leads
   const [aba, setAba] = useState<'clientes' | 'parceiros'>('clientes')
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [parceiros, setParceiros] = useState<Parceiro[]>([])
@@ -139,6 +145,7 @@ export default function CadastrosView({
   const listaClientes = useMemo(() => {
     const q = chave(busca)
     return clientes
+      .filter((c) => !soAtivos || (historicos.get(c.id)?.projetos || 0) > 0)
       .filter((c) => !q || chave(c.nome).includes(q) || chave(c.cidade || '').includes(q))
       .sort((a, b) => {
         const ha = historicos.get(a.id) || vazio
@@ -148,11 +155,12 @@ export default function CadastrosView({
         return hb.projetos - ha.projetos || a.nome.localeCompare(b.nome)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientes, busca, ordem, historicos])
+  }, [clientes, busca, ordem, historicos, soAtivos])
 
   const listaParceiros = useMemo(() => {
     const q = chave(busca)
     return parceiros
+      .filter((p) => !soAtivos || (historicos.get(p.id)?.projetos || 0) > 0)
       .filter((p) => !q || chave(p.nome).includes(q))
       .sort((a, b) => {
         const ha = historicos.get(a.id) || vazio
@@ -162,7 +170,7 @@ export default function CadastrosView({
         return hb.projetos - ha.projetos || a.nome.localeCompare(b.nome)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parceiros, busca, ordem, historicos])
+  }, [parceiros, busca, ordem, historicos, soAtivos])
 
   function exportar() {
     if (aba === 'clientes') {
@@ -278,8 +286,8 @@ export default function CadastrosView({
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           {(
             [
-              ['clientes', `Clientes (${clientes.length})`],
-              ['parceiros', `Parceiros (${parceiros.length})`],
+              ['clientes', `Clientes (${listaClientes.length})`],
+              ['parceiros', `Parceiros (${listaParceiros.length})`],
             ] as ['clientes' | 'parceiros', string][]
           ).map(([v, rotulo]) => (
             <button
