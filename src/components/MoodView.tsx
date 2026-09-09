@@ -32,6 +32,8 @@ type Checkin = {
   humor: Humor
   nota: number
   comentario: string | null
+  /** 'padrao' = normal assumido as 17h, nao declarado pela pessoa. */
+  origem?: 'registrado' | 'padrao'
 }
 
 type Membro = { id: string; nome: string; ativo: boolean; ordem: number }
@@ -78,20 +80,35 @@ export default function MoodView() {
   const [periodo, setPeriodo] = useState(30)
   const [salvando, setSalvando] = useState<string | null>(null)
   const [novoMembro, setNovoMembro] = useState('')
+  /** Quem bateu o ponto no dia escolhido: so esses podem marcar humor. */
+  const [bateramPonto, setBateramPonto] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     carregar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo])
+  }, [periodo, dia])
 
   async function carregar() {
     setCarregando(true)
-    const [m, c] = await Promise.all([
+    // Fecha o dia com "normal" para quem bateu o ponto e nao marcou. Roda na
+    // abertura do painel em vez de num agendador: agendador que falha, falha
+    // calado, e aqui o efeito aparece na hora.
+    await supabase.rpc('aplicar_humor_padrao', { p_data: dia })
+
+    const [m, c, p] = await Promise.all([
       supabase.from('team_members').select('*').order('ordem').order('nome'),
       supabase.from('mood_checkins').select('*').gte('data', diasAtras(periodo)).order('data'),
+      supabase.from('time_entries').select('colaborador').eq('dia', dia),
     ])
     setMembros((m.data as Membro[]) || [])
     setCheckins((c.data as Checkin[]) || [])
+    setBateramPonto(
+      new Set(
+        ((p.data as { colaborador: string }[]) || []).map((e) =>
+          e.colaborador.trim().toLowerCase()
+        )
+      )
+    )
     setCarregando(false)
   }
 
@@ -111,6 +128,8 @@ export default function MoodView() {
         data: dia,
         humor,
         nota: h.nota,
+        // Escolher apaga o "normal" que tinha sido assumido: agora e declarado.
+        origem: 'registrado',
         // Trocar o emoji não apaga o motivo que a pessoa já tinha escrito.
         comentario: anterior?.comentario ?? null,
         updated_at: new Date().toISOString(),
@@ -250,6 +269,7 @@ export default function MoodView() {
             .map((m) => {
               const resposta = doDia.get(m.nome)
               const h = resposta ? porHumor(resposta.humor) : null
+              const bateu = bateramPonto.has(m.nome.trim().toLowerCase())
               return (
                 <div
                   key={m.id}
@@ -262,7 +282,13 @@ export default function MoodView() {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-800 truncate">{m.nome}</p>
                       <p className="text-[10px] text-slate-500">
-                        {h ? h.rotulo : 'ainda não respondeu'}
+                        {resposta?.origem === 'padrao'
+                          ? 'normal por padrão — não marcou até as 17h'
+                          : h
+                            ? h.rotulo
+                            : bateu
+                              ? 'ainda não respondeu'
+                              : 'sem ponto batido neste dia'}
                       </p>
                     </div>
                     {salvando === m.nome && (
@@ -277,11 +303,17 @@ export default function MoodView() {
                         <button
                           key={op.valor}
                           onClick={() => registrar(m.nome, op.valor)}
-                          disabled={salvando === m.nome}
-                          title={op.rotulo}
-                          className={`flex-1 py-1.5 rounded-lg border-2 text-lg leading-none transition disabled:opacity-50 ${
+                          disabled={salvando === m.nome || !bateu}
+                          title={
+                            bateu
+                              ? op.rotulo
+                              : 'O humor é do dia de trabalho: só depois de bater o ponto.'
+                          }
+                          className={`flex-1 py-1.5 rounded-lg border-2 text-lg leading-none transition disabled:opacity-40 disabled:cursor-not-allowed ${
                             atual
-                              ? 'border-indigo-500 bg-indigo-50'
+                              ? resposta?.origem === 'padrao'
+                                ? 'border-slate-300 bg-slate-100 border-dashed'
+                                : 'border-indigo-500 bg-indigo-50'
                               : 'border-transparent bg-slate-100 hover:bg-slate-200 grayscale hover:grayscale-0'
                           }`}
                         >

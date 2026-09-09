@@ -29,6 +29,8 @@ export default function PontoDoDia({
   const hoje = hojeLocal()
   const [tarefas, setTarefas] = useState<TarefaDaAgenda[]>([])
   const [humor, setHumor] = useState<Humor | null>(null)
+  /** 'padrao' = normal assumido as 17h. Continua trocavel. */
+  const [origemHumor, setOrigemHumor] = useState<string | null>(null)
   const [salvandoHumor, setSalvandoHumor] = useState(false)
   const [carregando, setCarregando] = useState(true)
 
@@ -43,7 +45,7 @@ export default function PontoDoDia({
           .order('data_prazo'),
         supabase
           .from('mood_checkins')
-          .select('humor')
+          .select('humor, origem')
           .eq('colaborador', colaborador)
           .eq('data', hoje)
           .maybeSingle(),
@@ -58,7 +60,9 @@ export default function PontoDoDia({
       })
 
       setTarefas(minhas)
-      setHumor(((h as { humor: Humor } | null)?.humor as Humor) || null)
+      const reg = h as { humor: Humor; origem: string | null } | null
+      setHumor((reg?.humor as Humor) || null)
+      setOrigemHumor(reg?.origem || null)
       setCarregando(false)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,12 +72,21 @@ export default function PontoDoDia({
     const h = HUMORES.find((x) => x.valor === valor)!
     setSalvandoHumor(true)
     const { error } = await supabase.from('mood_checkins').upsert(
-      { colaborador, data: hoje, humor: valor, nota: h.nota, updated_at: new Date().toISOString() },
+      {
+        colaborador,
+        data: hoje,
+        humor: valor,
+        nota: h.nota,
+        // Escolher troca o "normal" assumido por um humor declarado.
+        origem: 'registrado',
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: 'colaborador,data' }
     )
     setSalvandoHumor(false)
     if (error) return alert(error.message)
     setHumor(valor)
+    setOrigemHumor('registrado')
   }
 
   async function concluir(id: string) {
@@ -108,11 +121,13 @@ export default function PontoDoDia({
 
         <div className="overflow-auto flex-1 p-5 space-y-5">
           {/* ---------- humor ---------- */}
-          {!humor && (
+          {(!humor || origemHumor === 'padrao') && (
             <div className="border border-slate-200 rounded-xl p-3">
               <p className="text-xs font-semibold text-slate-700">Como você está hoje?</p>
               <p className="text-[10px] text-slate-400 mb-2">
-                Você ainda não marcou. Leva um segundo.
+                {origemHumor === 'padrao'
+                  ? 'Entrou como normal porque passou das 17h. Ainda dá para trocar.'
+                  : 'Você ainda não marcou. Leva um segundo.'}
               </p>
               <div className="flex gap-1.5">
                 {HUMORES.map((h) => (
@@ -130,7 +145,7 @@ export default function PontoDoDia({
             </div>
           )}
 
-          {humor && (
+          {humor && origemHumor !== 'padrao' && (
             <p className="text-[11px] text-slate-500 text-center">
               Humor de hoje: {HUMORES.find((h) => h.valor === humor)?.emoji}{' '}
               {HUMORES.find((h) => h.valor === humor)?.rotulo}
