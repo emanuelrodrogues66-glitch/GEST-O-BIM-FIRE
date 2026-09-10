@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react'
 export function useLembrado<T>(chave: string, inicial: T) {
   const [valor, setValor] = useState<T>(() => {
     try {
-      const guardado = localStorage.getItem(\`bimfire:\${chave}\`)
+      const guardado = localStorage.getItem(`bimfire:${chave}`)
       return guardado === null ? inicial : (JSON.parse(guardado) as T)
     } catch {
       // Navegador com armazenamento bloqueado: segue sem lembrar.
@@ -24,7 +24,7 @@ export function useLembrado<T>(chave: string, inicial: T) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(\`bimfire:\${chave}\`, JSON.stringify(valor))
+      localStorage.setItem(`bimfire:${chave}`, JSON.stringify(valor))
     } catch {
       /* sem espaço ou sem permissão: não é motivo para quebrar a tela */
     }
