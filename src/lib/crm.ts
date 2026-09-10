@@ -117,6 +117,26 @@ export const MOTIVOS_PERDA = [
   'Outros',
 ]
 
+/**
+ * De onde o negócio veio.
+ *
+ * Lista fechada de propósito: digitado à mão virava "INDICAÇÃO", "Indicação" e
+ * "INDICAÇÃO POR PARCEIROS" ao mesmo tempo, e aí não dá para responder o que o
+ * comercial existe para responder — qual canal traz negócio. São os mesmos
+ * nomes que já vinham do RD, para o histórico continuar somando junto.
+ */
+export const FONTES = [
+  'Prospecção Ativa',
+  'Cliente Ativo',
+  'Indicação por Parceiros',
+  'Indicação por Clientes',
+  'Google e Outros Buscadores',
+  'Redes Sociais',
+  'Contato pelo Site',
+  'Contato por Telefone',
+  'Outros',
+] as const
+
 export function reais(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
