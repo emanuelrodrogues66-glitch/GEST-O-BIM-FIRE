@@ -19,8 +19,15 @@ import { usePermissoes } from '../lib/permissoes'
 import { supabase } from '../lib/supabase'
 import BuscaCadastro from './BuscaCadastro'
 import CrmProposta from './CrmProposta'
-import { FORMAS_PAGAMENTO } from '../lib/crm'
+import { FONTES, FORMAS_PAGAMENTO } from '../lib/crm'
 import { TIPOS_DE_SERVICO, categoriaDoTipo } from '../types'
+
+/** As fontes do padrão, mais o que já estiver gravado fora dele. */
+function comAFonteAtual(atual: string | null | undefined): string[] {
+  const lista = [...FONTES] as string[]
+  if (atual && !lista.includes(atual)) return [atual, ...lista]
+  return lista
+}
 
 /** Como cada tipo de venda se chama na tela. */
 const ROTULO_TIPO_VENDA: Record<string, string> = {
@@ -59,6 +66,7 @@ export default function CrmLeadModal({
   const veComissao = pode('comercial.comissao')
 
   const [form, setForm] = useState<Lead>(lead)
+  const fontesDisponiveis = comAFonteAtual(form.fonte)
   const [atividades, setAtividades] = useState<AtividadeLead[]>([])
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
   const [texto, setTexto] = useState('')
@@ -289,7 +297,15 @@ export default function CrmLeadModal({
               <Campo rotulo="Contato" valor={form.contato} onSalvar={(v) => campo({ contato: v })} travado={!podeEditar} />
               <Campo rotulo="E-mail" valor={form.email} onSalvar={(v) => campo({ email: v })} travado={!podeEditar} />
               <Campo rotulo="Cidade" valor={form.cidade} onSalvar={(v) => campo({ cidade: v })} travado={!podeEditar} />
-              <Campo rotulo="Fonte" valor={form.fonte} onSalvar={(v) => campo({ fonte: v })} travado={!podeEditar} />
+              {/* Lista fechada: digitado à mão, o mesmo canal aparecia com três
+                  grafias e o relatório por origem deixava de fechar. */}
+              <Select
+                rotulo="Fonte"
+                valor={form.fonte || ''}
+                opcoes={fontesDisponiveis.map((f) => [f, f] as [string, string])}
+                onMudar={(v) => campo({ fonte: v || null })}
+                travado={!podeEditar}
+              />
               {/*
                 Lista em vez de texto livre: nome digitado errado — "Emanel",
                 "Matheus Pontes" — não casa com a regra de comissão, e a venda
