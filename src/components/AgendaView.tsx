@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { usePerfil } from '../lib/perfil'
 import TaskAttachments from './TaskAttachments'
 import SeletorDeResponsaveis from './SeletorDeResponsaveis'
+import BuscaProjeto from './BuscaProjeto'
 import type { ReuniaoDaAgenda } from '../lib/reunioes'
 import { carregarReunioes } from '../lib/reunioes'
 import type { VencimentoProximo } from '../lib/renovacoes'
@@ -1776,21 +1777,17 @@ function NovaTarefa({
             </select>
 
             {(tipo === 'projeto' || tipo === 'recorrente') && (
-              <select
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className="text-xs border border-slate-300 rounded-md px-2 py-1.5 bg-white flex-1 min-w-[180px]"
-              >
-                <option value="">
-                  {tipo === 'projeto' ? 'Escolha o projeto' : 'Sem projeto (rotina do escritório)'}
-                </option>
-                {projetos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.numero ? `${p.numero} · ` : ''}
-                    {p.nome}
-                  </option>
-                ))}
-              </select>
+              <BuscaProjeto
+                projetos={projetos}
+                valor={projectId}
+                onEscolher={setProjectId}
+                permitirVazio={tipo === 'recorrente'}
+                placeholder={
+                  tipo === 'projeto'
+                    ? 'Buscar projeto pelo nome'
+                    : 'Sem projeto (rotina do escritório)'
+                }
+              />
             )}
           </div>
 
