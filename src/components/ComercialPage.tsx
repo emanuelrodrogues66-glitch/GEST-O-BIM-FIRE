@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { useSessao } from '../lib/sessao'
+import { useLembrado } from '../lib/lembrar'
 import { usePermissoes } from '../lib/permissoes'
 import { LOGO_BIM_FIRE_JPEG } from '../lib/logoBimFire'
 import Login from './Login'
@@ -49,15 +50,17 @@ const FILTRO_VAZIO: Filtros = {
  * tropeçar em negociação perdida. O que liga os dois é o botão "Vendeu".
  */
 export default function ComercialPage() {
-  const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const session = useSessao()
   const { pode, carregando: carregandoPerm } = usePermissoes()
   const podeExcluir = pode('comercial.excluir')
-  const [aba, setAba] = useState<Aba>('funil')
+  // Aba e funil ficam guardados para que voltar à página seja voltar ao lugar
+  // onde se estava, e não ao funil do começo.
+  const [aba, setAba] = useLembrado<Aba>('comercial-aba', 'funil')
 
   const [funis, setFunis] = useState<Funil[]>([])
   const [etapas, setEtapas] = useState<Etapa[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
-  const [funilSel, setFunilSel] = useState<string>('')
+  const [funilSel, setFunilSel] = useLembrado<string>('comercial-funil', '')
   const [busca, setBusca] = useState('')
   const [verEncerrados, setVerEncerrados] = useState(false)
   const [todosFunis, setTodosFunis] = useState(false)
@@ -70,16 +73,17 @@ export default function ComercialPage() {
   const [carregando, setCarregando] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
-    return () => sub.subscription.unsubscribe()
-  }, [])
-
-  useEffect(() => {
     if (session && !carregandoPerm && pode('comercial.ver')) carregar()
     else if (session && !carregandoPerm) setCarregando(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, carregandoPerm])
+
+  // Comissões é aba restrita: quem perdeu a permissão desde a última visita
+  // não pode voltar nela só porque estava guardada.
+  useEffect(() => {
+    if (!carregandoPerm && aba === 'comissoes' && !pode('comercial.comissao')) setAba('funil')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aba, carregandoPerm])
 
   async function carregar() {
     setCarregando(true)
@@ -87,7 +91,8 @@ export default function ComercialPage() {
     setFunis(f)
     setEtapas(e)
     setLeads(l)
-    if (!funilSel && f[0]) setFunilSel(f[0].id)
+    // O funil guardado pode ter sido desativado desde a última visita.
+    if (!f.some((x) => x.id === funilSel) && f[0]) setFunilSel(f[0].id)
     setCarregando(false)
   }
 

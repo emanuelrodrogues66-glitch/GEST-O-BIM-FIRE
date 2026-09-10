@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { useSessao } from '../lib/sessao'
 import { usePermissoes } from '../lib/permissoes'
 import { LOGO_BIM_FIRE_JPEG } from '../lib/logoBimFire'
 import Login from './Login'
@@ -20,7 +20,7 @@ type Aba = 'bater' | 'espelho' | 'horarios' | 'admin'
  * num computador ou salvar no celular como atalho.
  */
 export default function PontoPage() {
-  const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const session = useSessao()
   const [aba, setAba] = useState<Aba>('bater')
   const { pode } = usePermissoes()
   const podeAdministrar = pode('ponto.administrar')
@@ -30,12 +30,6 @@ export default function PontoPage() {
     if (!session) return
     carregarSolicitacoes({ status: ['pendente'] }).then((p) => setPendentes(p.length))
   }, [session, aba])
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
-    return () => sub.subscription.unsubscribe()
-  }, [])
 
   if (session === undefined) {
     return <p className="text-sm text-slate-400 text-center py-20">Carregando...</p>
