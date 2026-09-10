@@ -5,6 +5,7 @@ import { driveConfigError, encontrarOuCriarPasta, enviarArquivo, obterToken } fr
 import { DURACOES, JORNADA_PADRAO, horasLegiveis } from '../types'
 import type { ProjectTask } from '../types'
 import { usePerfil } from '../lib/perfil'
+import CampoDuracao from './CampoDuracao'
 
 /** Print anexado ao registro, ainda só na memória do navegador. */
 type ImagemColada = { file: File; previa: string }
@@ -354,18 +355,17 @@ export default function ActivityHistory({
                   {d.rotulo}
                 </button>
               ))}
-              <input
-                type="number"
-                step="0.25"
-                min="0.25"
-                max="24"
-                value={form.horas}
-                onChange={(e) => setForm((f) => ({ ...f, horas: e.target.value }))}
-                className="w-20 border border-slate-300 rounded-md px-2 py-1 text-xs text-right"
-                title="Horas dedicadas a este projeto neste dia"
+              <CampoDuracao
+                valor={form.horas}
+                onMudar={(v) => setForm((f) => ({ ...f, horas: v }))}
+                titulo="Tempo dedicado a este projeto neste dia"
               />
-              <span className="text-[10px] text-slate-400">horas</span>
             </div>
+            {Number(form.horas) > 0 && (
+              <p className="text-[10px] text-slate-400">
+                Vai ser lançado como {horasLegiveis(Number(form.horas))}.
+              </p>
+            )}
 
             {/* Vínculo com tarefas: reparte a hora acima, não soma por cima. */}
             {tarefasDoProjeto.length > 0 && (
@@ -523,19 +523,12 @@ export default function ActivityHistory({
                   />
 
                   {ehAdmin ? (
-                    <label className="flex items-center gap-1 text-[10px] text-slate-500">
-                      <input
-                        type="number"
-                        step="0.25"
-                        min="0.25"
-                        max="24"
-                        className="w-20 border border-amber-400 rounded-md px-2 py-1 text-xs text-right"
-                        value={rascunho.horas}
-                        onChange={(e) => setRascunho((r) => ({ ...r, horas: e.target.value }))}
-                        title="Corrigir a hora muda os pontos e o custo deste projeto"
-                      />
-                      h
-                    </label>
+                    <CampoDuracao
+                      valor={rascunho.horas}
+                      onMudar={(v) => setRascunho((r) => ({ ...r, horas: v }))}
+                      destaque
+                      titulo="Corrigir a hora muda os pontos e o custo deste projeto"
+                    />
                   ) : (
                     <span
                       className="text-[10px] text-slate-400"

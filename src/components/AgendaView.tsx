@@ -40,6 +40,7 @@ import GanttChart from './GanttChart'
 import type { GanttItem } from './GanttChart'
 import TaskCalendar from './TaskCalendar'
 import TasksBoard from './TasksBoard'
+import CampoDuracao from './CampoDuracao'
 
 type Aba = 'lista' | 'calendario' | 'gantt' | 'pessoa' | 'recorrentes'
 type Escopo = 'todas' | 'gerais' | 'projeto'
@@ -1274,16 +1275,7 @@ function EditarTarefa({
             title="Tarefa geral não passa pelo assumir projeto, então a hora é digitada aqui"
           >
             gastou
-            <input
-              type="number"
-              step="0.25"
-              min="0"
-              value={horasGastas}
-              onChange={(e) => setHorasGastas(e.target.value)}
-              placeholder="0"
-              className="w-16 border border-slate-300 rounded-md px-1.5 py-1.5 text-xs text-right"
-            />
-            h
+            <CampoDuracao valor={horasGastas} onMudar={setHorasGastas} />
           </label>
         )}
 
