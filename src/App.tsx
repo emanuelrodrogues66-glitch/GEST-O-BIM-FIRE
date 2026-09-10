@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
+import { useSessao } from './lib/sessao'
+import { useLembrado } from './lib/lembrar'
 import { changeProjectStatus } from './lib/statusSync'
 import { nomeDoUsuario, type DadosPendencia } from './lib/pendencias'
 import { alertarCorrecao, comemorarConclusao } from './lib/celebracao'
@@ -52,6 +53,25 @@ type ViewMode =
   | 'cadastros'
 
 /**
+ * Permissão exigida por visão. As que não estão aqui são abertas a todo mundo.
+ *
+ * Existe porque a visão em que a pessoa estava fica guardada: se ela perdeu a
+ * permissão desde a última vez, precisa cair no Kanban em vez de abrir numa
+ * tela que o banco vai recusar.
+ */
+const PERMISSAO_DA_VISAO: Partial<Record<ViewMode, string>> = {
+  dashboard: 'dashboard.ver',
+  gantt: 'tarefas.ver',
+  agenda: 'tarefas.ver',
+  humor: 'humor.ver',
+  cadastros: 'cadastros.ver',
+  relatorio: 'relatorios.ver',
+  financeiro: 'fin.relatorio.ver',
+  custos: 'fin.salarios.ver',
+  permissoes: 'permissoes.gerenciar',
+}
+
+/**
  * O link de recuperação chega com `type=recovery` na URL. O supabase-js
  * consome esse pedaço da URL assim que é criado, muitas vezes antes de o
  * React assinar o onAuthStateChange — por isso o evento PASSWORD_RECOVERY
@@ -65,25 +85,28 @@ const CHEGOU_PARA_TROCAR_SENHA = (() => {
 })()
 
 export default function App() {
-  const [session, setSession] = useState<Session | null | undefined>(undefined)
   // Chegou pelo link de recuperação: antes de entrar, define a senha nova.
   // Também dá para abrir pelo botão "Trocar senha" no cabeçalho.
   const [redefinindoSenha, setRedefinindoSenha] = useState(CHEGOU_PARA_TROCAR_SENHA)
+  const session = useSessao(() => setRedefinindoSenha(true))
   const [nome, setNome] = useState<string>('')
   const [projects, setProjects] = useState<Project[]>([])
   // Cliente e parceiro de cada projeto: o quadro e a lista mostram de quem é.
   const fichas = useFichas()
   const [loading, setLoading] = useState(true)
-  const [categoria, setCategoria] = useState<string>(CATEGORIAS[0])
+  // Categoria e visão ficam guardadas: se a aba for descartada pelo navegador
+  // (celular em segundo plano faz isso), voltar tem que ser voltar ao mesmo
+  // lugar, e não ao Kanban do começo.
+  const [categoria, setCategoria] = useLembrado<string>('categoria', CATEGORIAS[0])
   const [responsavelFiltro, setResponsavelFiltro] = useState<string>('')
   const [busca, setBusca] = useState('')
   const [modalProject, setModalProject] = useState<Project | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [isNew, setIsNew] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('kanban')
+  const [viewMode, setViewMode] = useLembrado<ViewMode>('visao', 'kanban')
   // Custo da equipe é do ADM; a aba nem aparece para os demais.
   // A navegação segue a permissão, não mais o papel fixo.
-  const { pode } = usePermissoes()
+  const { pode, carregando: carregandoPerm } = usePermissoes()
   // O aviso de atrasadas espera a comemoração das aprovações terminar.
   const [comemoracaoPassou, setComemoracaoPassou] = useState(false)
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
@@ -94,18 +117,17 @@ export default function App() {
   // nao se encerra na virada do mes).
   // Trabalho em andamento atravessa a virada do mês, então a visão padrão
   // é a de todos os meses; o filtro mensal continua a um clique.
-  const [verTodosMeses, setVerTodosMeses] = useState(true)
+  const [verTodosMeses, setVerTodosMeses] = useLembrado('todos-os-meses', true)
   // Projeto que está indo para Pendente e precisa de justificativa.
   const [pedirPendencia, setPedirPendencia] = useState<{ projeto: Project; status: string } | null>(null)
 
+  // A visão guardada pode ser de quem perdeu a permissão desde a última vez.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
-      setSession(s)
-      if (evento === 'PASSWORD_RECOVERY') setRedefinindoSenha(true)
-    })
-    return () => sub.subscription.unsubscribe()
-  }, [])
+    if (carregandoPerm) return
+    const exigida = PERMISSAO_DA_VISAO[viewMode]
+    if (exigida && !pode(exigida)) setViewMode('kanban')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, carregandoPerm])
 
   useEffect(() => {
     if (!session) return
@@ -116,7 +138,9 @@ export default function App() {
     const channel = supabase
       .channel('projects-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
-        fetchProjects()
+        // Atualização vinda de outra pessoa: troca os dados por baixo, sem
+        // apagar a tela de quem está no meio de alguma coisa.
+        fetchProjects(true)
       })
       .subscribe()
     return () => {
@@ -124,8 +148,15 @@ export default function App() {
     }
   }, [session])
 
-  async function fetchProjects() {
-    setLoading(true)
+  /**
+   * `silencioso` recarrega sem mostrar "Carregando...".
+   *
+   * A tela em branco só faz sentido na primeira carga, quando não há nada para
+   * mostrar. Depois disso, apagar tudo para redesenhar igual é o que dá a
+   * sensação de perder o lugar.
+   */
+  async function fetchProjects(silencioso = false) {
+    if (!silencioso) setLoading(true)
     const { data } = await supabase.from('projects').select('*').order('numero', { ascending: true })
     setProjects((data as Project[]) || [])
     setLoading(false)
