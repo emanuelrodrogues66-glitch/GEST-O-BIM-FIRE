@@ -10,6 +10,7 @@ import CadastrosView from './CadastrosView'
 import CrmDashboard from './CrmDashboard'
 import CrmComissoes from './CrmComissoes'
 import CrmNovaNegociacao from './CrmNovaNegociacao'
+import CrmFeed from './CrmFeed'
 import type { Etapa, Funil, Lead } from '../lib/crm'
 import {
   carregarEtapas,
@@ -23,7 +24,7 @@ import {
 } from '../lib/crm'
 import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 
-type Aba = 'funil' | 'lista' | 'painel' | 'comissoes' | 'cadastros'
+type Aba = 'funil' | 'lista' | 'feed' | 'painel' | 'comissoes' | 'cadastros'
 
 /** Filtros de CRM: cada um responde a uma pergunta de quem vende. */
 type Filtros = {
@@ -277,6 +278,7 @@ export default function ComercialPage() {
             [
               ['funil', 'Funil'],
               ['lista', 'Lista'],
+              ['feed', 'Feed'],
               ['painel', 'Painel e relatórios'],
               ...(pode('comercial.comissao') ? ([['comissoes', 'Comissões']] as [Aba, string][]) : []),
               ['cadastros', 'Clientes e parceiros'],
@@ -300,6 +302,14 @@ export default function ComercialPage() {
       <main className="max-w-[1600px] mx-auto px-4 py-4">
         {carregando ? (
           <p className="text-sm text-slate-400 text-center py-20">Carregando negócios...</p>
+        ) : aba === 'feed' ? (
+          <CrmFeed
+            leads={leads}
+            onAbrirLead={(id) => {
+              const l = leads.find((x) => x.id === id)
+              if (l) setAberto(l)
+            }}
+          />
         ) : aba === 'cadastros' ? (
           <CadastrosView leads={leads} />
         ) : aba === 'comissoes' ? (
