@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { carregarTabelaCompleta } from '../lib/supabase'
+import { supabase, carregarTabelaCompleta } from '../lib/supabase'
 import { corDoResponsavel } from '../lib/agenda'
 import type { Batida, DiaApurado, Jornada, TipoBatida } from '../lib/ponto'
 import PontoDoDia from './PontoDoDia'
@@ -46,6 +46,9 @@ export default function PontoBater() {
   const [jornadas, setJornadas] = useState<Jornada[]>([])
   const [batidasHoje, setBatidasHoje] = useState<Batida[]>([])
   const [resumo, setResumo] = useState<DiaApurado | null>(null)
+  // A saída só é liberada depois que a pessoa registra em que projeto
+  // trabalhou. Começa como verdadeiro para não acusar antes de saber.
+  const [assumiuHoje, setAssumiuHoje] = useState(true)
 
   const hoje = hojeLocal()
 
@@ -83,6 +86,14 @@ export default function PontoBater() {
       carregarFeriados(hoje, hoje),
     ])
     setBatidasHoje(bat)
+
+    const { count } = await supabase
+      .from('project_activities')
+      .select('id', { count: 'exact', head: true })
+      .eq('data', hoje)
+      .ilike('responsavel', colaborador)
+    setAssumiuHoje((count || 0) > 0)
+
     setResumo(
       apurarDia({
         dia: hoje,
@@ -99,6 +110,15 @@ export default function PontoBater() {
     const feitas = new Set(batidasHoje.map((b) => b.tipo))
     return TIPOS.find((t) => !feitas.has(t)) || null
   }, [batidasHoje])
+
+  /**
+   * Sair sem dizer em que projeto trabalhou é hora que some da conta.
+   *
+   * O banco recusa de qualquer jeito; avisar aqui evita a pessoa digitar o PIN
+   * para tomar um erro depois.
+   */
+  const faltaAssumir =
+    !!proxima && (proxima === 'saida_manha' || proxima === 'saida_tarde') && !assumiuHoje
 
   async function bater() {
     setErro('')
@@ -184,7 +204,7 @@ export default function PontoBater() {
 
         <button
           onClick={bater}
-          disabled={salvando || !proxima}
+          disabled={salvando || !proxima || faltaAssumir}
           className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-semibold text-sm shadow-sm transition"
         >
           {salvando
@@ -203,6 +223,25 @@ export default function PontoBater() {
           <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
             ✓ {ROTULO_TIPO[sucesso.tipo]} registrada às <strong>{sucesso.hora}</strong>.
           </p>
+        )}
+
+        {faltaAssumir && (
+          <div className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 space-y-1">
+            <p className="font-semibold">Falta registrar o projeto de hoje.</p>
+            <p>
+              Antes de bater a {ROTULO_TIPO[proxima!].toLowerCase()}, abra o cartão do projeto em
+              que você trabalhou e use <strong>Assumir projeto</strong>. Sem isso a hora não entra
+              no custo nem na divisão de pontos.
+            </p>
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener"
+              className="inline-block font-medium text-amber-900 underline"
+            >
+              Abrir a gestão de projetos ↗
+            </a>
+          </div>
         )}
 
         {colaborador && !jornadaHoje && (
