@@ -25,6 +25,9 @@ function formatarData(d: string | null) {
 }
 
 /** Datas que o sistema já registra e que liberam parcela para cobrança. */
+/** Fase do planejamento: é dela que sai a previsão de quando a parcela entra. */
+type Fase = { status: string; data_inicio: string | null; data_fim: string | null; ordem: number }
+
 type DatasDoProjeto = {
   data_contrato: string | null
   data_protocolo: string | null
@@ -53,6 +56,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
     data_protocolo: null,
     data_aprovacao: null,
   })
+  const [fases, setFases] = useState<Fase[]>([])
   const [custoMaoDeObra, setCustoMaoDeObra] = useState(0)
   const [horasApropriadas, setHorasApropriadas] = useState(0)
   const [horasEstimadas, setHorasEstimadas] = useState(0)
@@ -76,7 +80,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
 
   async function carregar() {
     setCarregando(true)
-    const [f, p, d, cliente, custos] = await Promise.all([
+    const [f, p, d, cliente, custos, fases] = await Promise.all([
       supabase.from('project_finance').select('*').eq('project_id', projectId).maybeSingle(),
       supabase.from('project_installments').select('*').eq('project_id', projectId).order('ordem'),
       supabase.from('project_expenses').select('*').eq('project_id', projectId).order('data'),
@@ -86,7 +90,14 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
         .eq('project_id', projectId)
         .maybeSingle(),
       supabase.from('team_costs').select('*'),
+      // O planejamento é o que datá as parcelas que dependem de fase.
+      supabase
+        .from('project_plan_phases')
+        .select('status, data_inicio, data_fim, ordem')
+        .eq('project_id', projectId)
+        .order('ordem'),
     ])
+    setFases((fases.data as Fase[]) || [])
 
     const fichaAtual = (f.data as ProjectFinance) || null
     setFicha(fichaAtual)
@@ -167,6 +178,30 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
 
   const margemContratada = valorContrato - custoTotal
   const margemRealizada = recebido - custoTotal
+
+  /**
+   * Quando a parcela deve entrar, segundo o planejamento.
+   *
+   * Vale só enquanto o gatilho não aconteceu de verdade: assim que a data real
+   * é registrada, é ela que manda. Previsão serve para planejar caixa, não
+   * para contar história depois do fato.
+   */
+  function previstaEm(p: ProjectInstallment): string | null {
+    if (p.data_prevista) return p.data_prevista
+    const fim = (s: string) => {
+      const doStatus = fases.filter((f) => f.status === s)
+      return doStatus.length ? doStatus[doStatus.length - 1].data_fim : null
+    }
+    const inicio = (s: string) => fases.find((f) => f.status === s)?.data_inicio || null
+    if (p.gatilho === 'protocolo') return inicio('Tramitando')
+    if (p.gatilho === 'aprovacao') return fim('Tramitando')
+    if (p.gatilho === 'entrega') {
+      const fins = (fases.map((f) => f.data_fim).filter(Boolean) as string[]).sort()
+      return fins.length ? fins[fins.length - 1] : null
+    }
+    if (p.gatilho === 'entrada' || p.gatilho === 'avista') return datas.data_contrato
+    return null
+  }
 
   /** Data que libera a parcela, quando o gatilho tem data registrada. */
   function liberadaEm(p: ProjectInstallment): string | null {
@@ -472,6 +507,11 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
                   {!gatilhoEm && !p.data_recebimento && (
                     <span className="text-[10px] text-slate-400">
                       aguardando {rotuloDoGatilho(p.gatilho).toLowerCase()}
+                      {previstaEm(p) && (
+                        <span className="text-cobre-700">
+                          {' '}· previsto para {formatarData(previstaEm(p))}
+                        </span>
+                      )}
                     </span>
                   )}
 

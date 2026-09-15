@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Lead } from '../lib/crm'
 import {
   ajustarComissao,
@@ -8,6 +8,8 @@ import {
   reais,
 } from '../lib/crm'
 import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
+import type { ComissaoLiberada } from '../lib/fluxoCaixa'
+import { carregarComissoesLiberadas } from '../lib/fluxoCaixa'
 
 /**
  * Comissões por vendedor.
@@ -47,6 +49,13 @@ export default function CrmComissoes({
   const [quem, setQuem] = useState('')
   const [soPendentes, setSoPendentes] = useState(false)
   const [salvando, setSalvando] = useState<string | null>(null)
+  // Comissão é dinheiro do vendedor depois que o dinheiro do cliente entrou.
+  // Quem lança o recebimento é o financeiro, no cartão do projeto.
+  const [liberadas, setLiberadas] = useState<Map<string, ComissaoLiberada>>(new Map())
+
+  useEffect(() => {
+    carregarComissoesLiberadas().then(setLiberadas)
+  }, [leads])
 
   const ganhos = useMemo(() => leads.filter((l) => l.estado === 'ganho'), [leads])
 
@@ -259,6 +268,7 @@ export default function CrmComissoes({
                 <th className="text-right">Valor fechado</th>
                 <th className="text-right">%</th>
                 <th className="text-right">Comissão</th>
+                <th className="text-left">1º pagamento</th>
                 <th className="text-center pr-4">Paga</th>
               </tr>
             </thead>
@@ -311,6 +321,30 @@ export default function CrmComissoes({
                       onClick={() => mudarValorComissao(l)}
                       texto={l.comissao_valor !== null ? reais(l.comissao_valor) : '—'}
                     />
+                  </td>
+                  <td>
+                    {(() => {
+                      const c = liberadas.get(l.id)
+                      if (!l.project_id) {
+                        return (
+                          <span className="text-[10px] text-slate-400" title="A negociação ainda não virou projeto">
+                            sem projeto
+                          </span>
+                        )
+                      }
+                      if (c?.liberada) {
+                        return (
+                          <span className="text-[10px] text-emerald-700 font-medium tabular-nums">
+                            ✓ {dataBR(c.primeiro_recebimento)}
+                          </span>
+                        )
+                      }
+                      return (
+                        <span className="text-[10px] text-red-700 font-medium" title="A comissão só deveria sair depois que o cliente pagar a primeira parcela">
+                          aguardando
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td className="text-center pr-4">
                     <label className="inline-flex items-center gap-1 cursor-pointer">
