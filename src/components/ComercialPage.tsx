@@ -317,6 +317,7 @@ export default function ComercialPage() {
             leads={leads}
             podeEditar={pode('comercial.comissao')}
             onMudou={carregar}
+            onAbrirLead={setAberto}
           />
         ) : (
           <>

@@ -40,10 +40,13 @@ export default function CrmComissoes({
   leads,
   podeEditar,
   onMudou,
+  onAbrirLead,
 }: {
   leads: Lead[]
   podeEditar: boolean
   onMudou: () => void
+  /** Abre o cartão da negociação: daqui nasce quase toda pergunta sobre ela. */
+  onAbrirLead?: (lead: Lead) => void
 }) {
   const [mes, setMes] = useState('')
   const [quem, setQuem] = useState('')
@@ -280,7 +283,19 @@ export default function CrmComissoes({
                     salvando === l.id ? 'opacity-40' : ''
                   } ${l.comissao_paga_em ? 'bg-emerald-50/40' : ''}`}
                 >
-                  <td className="py-1.5 pl-4 max-w-[260px] truncate text-slate-800">{l.nome}</td>
+                  <td className="py-1.5 pl-4 max-w-[260px]">
+                    {onAbrirLead ? (
+                      <button
+                        onClick={() => onAbrirLead(l)}
+                        className="block w-full truncate text-left text-slate-800 hover:text-indigo-700 hover:underline"
+                        title="Abrir a negociação"
+                      >
+                        {l.nome}
+                      </button>
+                    ) : (
+                      <span className="block truncate text-slate-800">{l.nome}</span>
+                    )}
+                  </td>
                   <td className="text-slate-500 max-w-[180px] truncate">
                     {l.nome_cliente || l.nome_parceiro || '—'}
                   </td>
