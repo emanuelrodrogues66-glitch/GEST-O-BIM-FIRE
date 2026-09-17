@@ -7,6 +7,15 @@ import type { ProjectTask } from '../types'
 import { usePerfil } from '../lib/perfil'
 import CampoDuracao from './CampoDuracao'
 
+/**
+ * O registro do dia precisa dizer o que foi feito.
+ *
+ * Vinte e cinco caracteres é pouco de propósito: não cabe "ok" nem
+ * "andamento", cabe uma frase. É esse texto que responde, seis meses depois,
+ * por que o projeto levou o que levou — e o banco recusa o que for menor.
+ */
+const MINIMO_DESCRICAO = 25
+
 /** Print anexado ao registro, ainda só na memória do navegador. */
 type ImagemColada = { file: File; previa: string }
 
@@ -336,6 +345,13 @@ export default function ActivityHistory({
             onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
             onPaste={colar}
           />
+          {form.descricao.trim().length < MINIMO_DESCRICAO && (
+            <p className="text-[10px] text-amber-700 -mt-1">
+              Conte o que foi feito: faltam{' '}
+              <b>{MINIMO_DESCRICAO - form.descricao.trim().length}</b> caracteres. Sem isso não
+              dá para registrar o dia — e sem registrar o dia não dá para bater a saída.
+            </p>
+          )}
 
           {/* ---------- Quanto tempo o dia rendeu ---------- */}
           <div className="border border-slate-200 rounded-lg p-2.5 space-y-2 bg-slate-50/60">
@@ -454,7 +470,11 @@ export default function ActivityHistory({
             </button>
             <button
               onClick={handleAssumir}
-              disabled={saving || !form.responsavel.trim()}
+              disabled={
+                saving ||
+                !form.responsavel.trim() ||
+                form.descricao.trim().length < MINIMO_DESCRICAO
+              }
               className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md font-medium"
             >
               {saving ? (imagens.length ? 'Enviando...' : 'Salvando...') : 'Registrar'}
