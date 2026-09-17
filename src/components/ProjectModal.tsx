@@ -34,6 +34,7 @@ import RateioPontos from './RateioPontos'
 import ServicosDerivados from './ServicosDerivados'
 import CronogramaTcac from './CronogramaTcac'
 import SeletorCadastro from './SeletorCadastro'
+import { garantirClienteNoCadastro, garantirParceiroNoCadastro } from '../lib/cadastros'
 
 const LETRA_OPTIONS = [
   { value: '', label: '—' },
@@ -349,10 +350,27 @@ export default function ProjectModal({
       if (projectId) {
         const hasAnyClientField = Object.values(clientData).some((v) => (v || '').toString().trim())
         if (hasAnyClientField) {
+          // Cliente e parceiro novos entram na base junto com o cartao. Antes
+          // dependia de alguem lembrar de clicar em "salvar no cadastro", e o
+          // parceiro ficava existindo so dentro daquele projeto.
+          const ficha = { ...clientData }
+          try {
+            if (!ficha.cliente_id) {
+              const achadoCliente = await garantirClienteNoCadastro(ficha)
+              if (achadoCliente) ficha.cliente_id = achadoCliente.id
+            }
+            if (!ficha.parceiro_id) {
+              const achadoParceiro = await garantirParceiroNoCadastro(ficha)
+              if (achadoParceiro) ficha.parceiro_id = achadoParceiro.id
+            }
+          } catch {
+            // Cadastro e conveniencia: se falhar, o cartao ainda tem que salvar.
+          }
           const { error: clientError } = await supabase
             .from('project_clients')
-            .upsert({ ...clientData, project_id: projectId }, { onConflict: 'project_id' })
+            .upsert({ ...ficha, project_id: projectId }, { onConflict: 'project_id' })
           if (clientError) throw clientError
+          setClientData(ficha)
         }
       }
 

@@ -50,6 +50,7 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
 
   const [ficha, setFicha] = useState<ProjectFinance | null>(null)
   const [parcelas, setParcelas] = useState<ProjectInstallment[]>([])
+  const [inicioMensal, setInicioMensal] = useState('')
   const [despesas, setDespesas] = useState<ProjectExpense[]>([])
   const [datas, setDatas] = useState<DatasDoProjeto>({
     data_contrato: null,
@@ -272,6 +273,30 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
     }
   }
 
+  /**
+   * Parcelamento que nao depende de fase nao tem de onde tirar data: o fluxo de
+   * caixa fica com as parcelas soltas em "sem previsao". Aqui basta a data da
+   * primeira — as outras caem de mes em mes, na ordem da lista.
+   */
+  async function datarMensalmente() {
+    const emAberto = parcelas.filter((p) => !p.data_recebimento && !p.data_prevista)
+    if (!inicioMensal || emAberto.length === 0) return
+    const [ano, mes, dia] = inicioMensal.split('-').map(Number)
+    for (let i = 0; i < emAberto.length; i++) {
+      const base = new Date(ano, mes - 1 + i, 1)
+      const ultimo = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate()
+      base.setDate(Math.min(dia, ultimo))
+      const iso =
+        base.getFullYear() +
+        '-' +
+        String(base.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(base.getDate()).padStart(2, '0')
+      await atualizarParcela(emAberto[i].id, { data_prevista: iso })
+    }
+    setInicioMensal('')
+  }
+
   async function excluirParcela(p: ProjectInstallment) {
     if (!confirm(`Apagar a parcela "${p.descricao}"?`)) return
     await supabase.from('project_installments').delete().eq('id', p.id)
@@ -443,6 +468,23 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
           <button onClick={adicionarParcela} className="text-[10px] text-slate-500 hover:text-indigo-600">
             + parcela
           </button>
+          <label className="flex items-center gap-1 text-[10px] text-slate-500">
+            parcelado a partir de
+            <input
+              type="date"
+              value={inicioMensal}
+              onChange={(e) => setInicioMensal(e.target.value)}
+              className="border border-slate-200 rounded px-1 py-0.5 text-[10px]"
+            />
+            <button
+              onClick={datarMensalmente}
+              disabled={!inicioMensal}
+              className="text-[10px] text-indigo-600 hover:underline disabled:text-slate-300"
+              title="Preenche a previsao das parcelas em aberto que estao sem data, de mes em mes"
+            >
+              datar de mes em mes
+            </button>
+          </label>
           {somaParcelas > 0 && Math.abs(somaParcelas - valorContrato) > 0.01 && (
             <span className="text-[10px] text-amber-700 ml-auto">
               As parcelas somam {reais(somaParcelas)}, o contrato é {reais(valorContrato)}.
@@ -516,6 +558,19 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
                   )}
 
                   <label className="flex items-center gap-1 text-[10px] text-slate-500 ml-auto">
+                    previsto para
+                    <input
+                      type="date"
+                      value={p.data_prevista || ''}
+                      onChange={(e) =>
+                        atualizarParcela(p.id, { data_prevista: e.target.value || null })
+                      }
+                      className="border border-slate-200 rounded px-1 py-0.5 text-[10px]"
+                      title="Data combinada com o cliente. Em branco, o fluxo de caixa usa o planejamento do projeto."
+                    />
+                  </label>
+
+                  <label className="flex items-center gap-1 text-[10px] text-slate-500">
                     recebida em
                     <input
                       type="date"

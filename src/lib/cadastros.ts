@@ -185,3 +185,35 @@ export async function renomearCadastro(
 
   return (data as { project_id: string }[] | null)?.length || 0
 }
+
+/**
+ * Nome digitado no cartao que ainda nao existe na base entra como cadastro
+ * novo; nome que ja existe e so vinculado.
+ *
+ * Criar e seguro, sobrescrever nao: o cadastro pode ter sido corrigido depois,
+ * e o cartao guarda o dado da epoca do projeto. Quem quiser levar a correcao
+ * do cartao para a base continua usando "atualizar o cadastro com estes dados".
+ */
+export async function garantirClienteNoCadastro(
+  ficha: Partial<ProjectClient>
+): Promise<Cliente | null> {
+  const nome = (ficha.nome_responsavel || '').trim()
+  if (!nome) return null
+  const { data } = await supabase.from('clientes').select('*')
+  const achado = ((data as Cliente[]) || []).find(
+    (c) => (c.nome || '').trim().toLowerCase() === nome.toLowerCase()
+  )
+  return achado || (await salvarClienteDoCartao(ficha))
+}
+
+export async function garantirParceiroNoCadastro(
+  ficha: Partial<ProjectClient>
+): Promise<Parceiro | null> {
+  const nome = (ficha.nome_parceiro || '').trim()
+  if (!nome || nome.toLowerCase() === 'sem parceiro') return null
+  const { data } = await supabase.from('parceiros').select('*')
+  const achado = ((data as Parceiro[]) || []).find(
+    (p) => (p.nome || '').trim().toLowerCase() === nome.toLowerCase()
+  )
+  return achado || (await salvarParceiroDoCartao(ficha))
+}
