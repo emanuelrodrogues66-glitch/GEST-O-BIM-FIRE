@@ -253,6 +253,17 @@ export default function ProjectModal({
     loadMesesComRegistro(project.id)
   }
 
+  /**
+   * Ficha incompleta barra a conclusao do projeto. Para o dono isso vira
+   * pergunta em vez de muro: projeto antigo costuma ter ficha que nunca
+   * existiu, e travar o encerramento so faz o quadro mentir sobre o que ja
+   * acabou. Para os demais continua bloqueado.
+   */
+  function seguirMesmoAssim(aviso: string): boolean {
+    if (!ehAdmin) return false
+    return confirm(aviso + '\n\nVoce e o administrador: concluir assim mesmo?')
+  }
+
   async function handleSave() {
     // Passar para Pendente exige justificativa — é o que alimenta o histórico
     // de pendências e permite medir quanto tempo o projeto ficou parado.
@@ -273,7 +284,10 @@ export default function ProjectModal({
     // Bloqueia a conclusão do projeto se os dados do cliente ou os anexos
     // obrigatórios não estiverem completos.
     if (form.status === 'Concluído') {
-      if (!isClientDataComplete(clientData)) {
+      if (
+        !isClientDataComplete(clientData) &&
+        !seguirMesmoAssim('A ficha da aba "Dados do cliente" esta incompleta.')
+      ) {
         setError('Preencha todos os campos da aba "Dados do cliente" antes de concluir o projeto.')
         setShowMissingClientData(true)
         setActiveTab('dados')
@@ -290,7 +304,10 @@ export default function ProjectModal({
           clientData,
           (arquivos as { categoria: string | null }[]) || []
         )
-        if (faltando.length > 0) {
+        if (
+          faltando.length > 0 &&
+          !seguirMesmoAssim('Faltam anexos obrigatorios: ' + faltando.join(', ') + '.')
+        ) {
           setError(
             `Faltam anexos obrigatórios para concluir: ${faltando.join(', ')}. ` +
               'Se for memorial simplificado ou TAC, marque a caixa de dispensa na aba "Dados do cliente".'
