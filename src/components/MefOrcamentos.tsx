@@ -38,8 +38,15 @@ export default function MefOrcamentos() {
     carregar()
   }, [])
 
-  async function carregar() {
-    setCarregando(true)
+  /**
+   * Silencioso = recarrega sem trocar a tela por "Carregando".
+   *
+   * Quando o cartão aberto pede atualização, mostrar o carregando
+   * desmontaria o cartão inteiro e o que a pessoa acabou de lançar sumiria
+   * da frente dela.
+   */
+  async function carregar(silencioso = false) {
+    if (!silencioso) setCarregando(true)
     setErro('')
     try {
       const [o, c, p] = await Promise.all([
@@ -233,7 +240,7 @@ export default function MefOrcamentos() {
             setAberto(null)
             carregar()
           }}
-          aoMudar={carregar}
+          aoMudar={() => carregar(true)}
         />
       )}
     </div>

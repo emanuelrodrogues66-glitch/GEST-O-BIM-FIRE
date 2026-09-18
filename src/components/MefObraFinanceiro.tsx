@@ -83,10 +83,23 @@ export default function MefObraFinanceiro({
       .then(({ data }) => setProjeto((data as ProjetoResumo) || null))
   }, [orcamento.project_id])
 
+  /**
+   * Carrega sem esperar a permissão estar resolvida.
+   *
+   * O hook de permissão leva um instante para responder, e antes disso ele
+   * diz não para tudo. Se o carregamento dependesse dele, a lista nascia
+   * vazia e nunca mais enchia — era por isso que o custo lançado sumia da
+   * tela. Quem barra de verdade é o Postgres: sem permissão a consulta
+   * volta vazia, e nada aparece do mesmo jeito.
+   */
   async function carregar() {
     try {
-      if (veCusto) setCustos(await carregarCustos(orcamento.id))
-      if (veFinanceiro) setPagamentos(await carregarPagamentos(orcamento.id))
+      const [c, p] = await Promise.all([
+        carregarCustos(orcamento.id).catch(() => [] as Custo[]),
+        carregarPagamentos(orcamento.id).catch(() => [] as Pagamento[]),
+      ])
+      setCustos(c)
+      setPagamentos(p)
     } catch (e) {
       console.error(e)
     }
