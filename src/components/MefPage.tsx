@@ -6,11 +6,13 @@ import { LOGO_BIM_FIRE_JPEG } from '../lib/logoBimFire'
 import Login from './Login'
 import MefProdutos from './MefProdutos'
 import MefOrcamentos from './MefOrcamentos'
+import MefFinanceiro from './MefFinanceiro'
 
-type Aba = 'orcamentos' | 'produtos'
+type Aba = 'orcamentos' | 'financeiro' | 'produtos'
 
 const ABAS: [Aba, string][] = [
   ['orcamentos', 'Orçamentos'],
+  ['financeiro', 'Financeiro'],
   ['produtos', 'Catálogo'],
 ]
 
@@ -70,7 +72,7 @@ export default function MefPage() {
 
       <nav className="bg-white border-b border-slate-200">
         <div className="max-w-[1600px] mx-auto px-4 flex gap-1">
-          {ABAS.map((par) => (
+          {ABAS.filter((par) => par[0] !== 'financeiro' || pode('mef.financeiro.ver')).map((par) => (
             <button
               key={par[0]}
               onClick={() => setAba(par[0])}
@@ -88,7 +90,13 @@ export default function MefPage() {
       </nav>
 
       <main className="max-w-[1600px] mx-auto px-4 py-4">
-        {aba === 'orcamentos' ? <MefOrcamentos /> : <MefProdutos />}
+        {aba === 'orcamentos' ? (
+          <MefOrcamentos />
+        ) : aba === 'financeiro' ? (
+          <MefFinanceiro />
+        ) : (
+          <MefProdutos />
+        )}
       </main>
     </div>
   )

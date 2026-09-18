@@ -234,3 +234,120 @@ export function totais(itens: ItemOrcamento[], descontoPct: number): Totais {
     margemPct: total > 0 ? (margem / total) * 100 : null,
   }
 }
+
+export const TIPOS_CUSTO: [string, string][] = [
+  ['material', 'Material'],
+  ['mao_de_obra', 'Mão de obra'],
+  ['deslocamento', 'Deslocamento'],
+  ['terceiro', 'Terceiro'],
+  ['outro', 'Outro'],
+]
+
+export function rotuloTipoCusto(t: string): string {
+  const achado = TIPOS_CUSTO.find((par) => par[0] === t)
+  return achado ? achado[1] : t
+}
+
+export type Custo = {
+  id: string
+  orcamento_id: string
+  tipo: string
+  descricao: string
+  fornecedor: string | null
+  valor: number
+  data: string
+  observacao: string | null
+}
+
+export type Pagamento = {
+  id: string
+  orcamento_id: string
+  descricao: string
+  valor: number
+  data_prevista: string | null
+  data_recebimento: string | null
+  forma: string | null
+  observacao: string | null
+  ordem: number
+}
+
+/** Uma linha por orçamento, com tudo que o financeiro precisa saber. */
+export type LinhaFinanceira = {
+  orcamento_id: string
+  numero: number
+  versao: number
+  status: StatusOrcamento
+  nome_cliente: string | null
+  endereco_obra: string | null
+  responsavel: string | null
+  project_id: string | null
+  projeto_numero: number | null
+  projeto_nome: string | null
+  created_at: string
+  subtotal: number
+  total: number
+  custo_previsto: number
+  custo_real: number
+  recebido: number
+  a_receber: number
+  proxima_previsao: string | null
+  margem_realizada: number
+}
+
+export async function carregarCustos(orcamentoId: string): Promise<Custo[]> {
+  const { data, error } = await supabase
+    .from('mef_custos')
+    .select('*')
+    .eq('orcamento_id', orcamentoId)
+    .order('data')
+  if (error) throw new Error(error.message)
+  return (data as Custo[]) || []
+}
+
+export async function carregarPagamentos(orcamentoId: string): Promise<Pagamento[]> {
+  const { data, error } = await supabase
+    .from('mef_pagamentos')
+    .select('*')
+    .eq('orcamento_id', orcamentoId)
+    .order('ordem')
+  if (error) throw new Error(error.message)
+  return (data as Pagamento[]) || []
+}
+
+export async function carregarFinanceiro(): Promise<LinhaFinanceira[]> {
+  const { data, error } = await supabase
+    .from('v_mef_financeiro')
+    .select('*')
+    .order('numero', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data as LinhaFinanceira[]) || []
+}
+
+export type ProjetoResumo = { id: string; numero: number; nome: string }
+
+/** Busca no quadro da BIM Fire, para amarrar a obra ao projeto que a gerou. */
+export async function buscarProjetos(termo: string): Promise<ProjetoResumo[]> {
+  const t = termo.trim()
+  if (t.length < 2) return []
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, numero, nome')
+    .or('nome.ilike.%' + t + '%,numero.eq.' + (Number(t) || -1))
+    .order('numero', { ascending: false })
+    .limit(8)
+  if (error) return []
+  return (data as ProjetoResumo[]) || []
+}
+
+export function mesDe(d: string | null): string {
+  return d ? d.slice(0, 7) : ''
+}
+
+export function rotuloMes(m: string): string {
+  const MESES = [
+    'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+  ]
+  const p = m.split('-')
+  return MESES[Number(p[1]) - 1] + ' de ' + p[0]
+}

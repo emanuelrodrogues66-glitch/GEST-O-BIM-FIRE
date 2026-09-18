@@ -215,6 +215,20 @@ export const PERMISSOES: Permissao[] = [
     grupo: 'MEF',
   },
   {
+    codigo: 'mef.financeiro.ver',
+    rotulo: 'Ver o financeiro da MEF',
+    descricao: 'Pagamentos recebidos, a receber e o resumo por obra.',
+    grupo: 'MEF',
+    sensivel: true,
+  },
+  {
+    codigo: 'mef.financeiro.editar',
+    rotulo: 'Lançar custos e pagamentos',
+    descricao: 'Registrar material, mão de obra terceirizada e entrada de dinheiro na obra.',
+    grupo: 'MEF',
+    sensivel: true,
+  },
+  {
     codigo: 'mef.custo.ver',
     rotulo: 'Ver custo e margem da MEF',
     descricao: 'Quanto o produto custa e quanto sobra em cada orçamento.',

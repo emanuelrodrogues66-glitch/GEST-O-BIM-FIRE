@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePermissoes } from '../lib/permissoes'
+import MefObraFinanceiro from './MefObraFinanceiro'
 import type { Categoria, ItemOrcamento, Orcamento, Produto, StatusOrcamento } from '../lib/mef'
 import { ROTULO_STATUS, carregarItens, novaVersao, reais, totais, totalDoItem } from '../lib/mef'
 
@@ -416,6 +417,11 @@ export default function MefOrcamentoModal({
             </div>
           </div>
 
+          <MefObraFinanceiro
+            orcamento={orc}
+            totalOrcado={t.total}
+            aoMudar={aoMudar}
+          />
           <Campo titulo="Condições de pagamento">
             <textarea
               value={orc.condicoes || ''}
