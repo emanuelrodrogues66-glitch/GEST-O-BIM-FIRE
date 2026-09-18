@@ -34,6 +34,7 @@ export type Orcamento = {
   id: string
   lead_id: string | null
   cliente_id: string | null
+  project_id: string | null
   numero: number
   versao: number
   nome_cliente: string | null
