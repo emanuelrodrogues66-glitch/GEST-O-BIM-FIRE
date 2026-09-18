@@ -566,6 +566,17 @@ export default function App() {
                 Comercial <span className="text-[9px] text-slate-400">↗</span>
               </a>
             )}
+            {pode('mef.ver') && (
+              <a
+                href="/mef"
+                target="_blank"
+                rel="noopener"
+                className="text-xs font-medium px-3 py-1.5 rounded-md transition text-slate-500 hover:bg-slate-100 hover:text-slate-700 flex items-center gap-1"
+                title="MEF — instalação e manutenção, abre em uma nova página"
+              >
+                MEF <span className="text-[9px] text-slate-400">↗</span>
+              </a>
+            )}
             <a
               href="/ponto"
               target="_blank"

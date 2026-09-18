@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import PontoPage from './components/PontoPage.tsx'
 import ComercialPage from './components/ComercialPage.tsx'
+import MefPage from './components/MefPage.tsx'
 
 // O cartão ponto mora em /ponto, endereço próprio: dá para abrir numa aba
 // separada, deixar fixa no computador da recepção ou salvar como atalho no
@@ -12,6 +13,14 @@ const rota = window.location.pathname.replace(/\/+$/, '')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {rota === '/ponto' ? <PontoPage /> : rota === '/comercial' ? <ComercialPage /> : <App />}
+    {rota === '/ponto' ? (
+      <PontoPage />
+    ) : rota === '/comercial' ? (
+      <ComercialPage />
+    ) : rota === '/mef' ? (
+      <MefPage />
+    ) : (
+      <App />
+    )}
   </StrictMode>,
 )

@@ -195,6 +195,33 @@ export const PERMISSOES: Permissao[] = [
     sensivel: true,
   },
 
+  // --------------------------------------------------------------------- MEF
+  {
+    codigo: 'mef.ver',
+    rotulo: 'Ver a MEF',
+    descricao: 'Abrir a área da MEF: orçamentos e catálogo de produtos.',
+    grupo: 'MEF',
+  },
+  {
+    codigo: 'mef.orcamento.criar',
+    rotulo: 'Montar orçamento',
+    descricao: 'Criar orçamento, incluir itens e mudar o status.',
+    grupo: 'MEF',
+  },
+  {
+    codigo: 'mef.produtos.editar',
+    rotulo: 'Manter o catálogo',
+    descricao: 'Criar produto, mexer em preço de tabela e tirar de linha.',
+    grupo: 'MEF',
+  },
+  {
+    codigo: 'mef.custo.ver',
+    rotulo: 'Ver custo e margem da MEF',
+    descricao: 'Quanto o produto custa e quanto sobra em cada orçamento.',
+    grupo: 'MEF',
+    sensivel: true,
+  },
+
   // ---------------------------------------------------------- administração
   {
     codigo: 'equipe.editar',
