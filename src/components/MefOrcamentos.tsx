@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { useLembrado } from '../lib/lembrar'
 import { usePermissoes } from '../lib/permissoes'
 import MefOrcamentoModal from './MefOrcamentoModal'
 import type { Categoria, Orcamento, Produto, StatusOrcamento } from '../lib/mef'
@@ -29,6 +31,8 @@ export default function MefOrcamentos() {
   const [busca, setBusca] = useState('')
   const [statusSel, setStatusSel] = useState('')
   const [aberto, setAberto] = useState<Orcamento | null>(null)
+  const [visao, setVisao] = useLembrado<'lista' | 'kanban'>('mef-visao', 'lista')
+  const [arrastando, setArrastando] = useState<string | null>(null)
 
   useEffect(() => {
     carregar()
@@ -85,6 +89,26 @@ export default function MefOrcamentos() {
     })
   }, [orcamentos, busca, statusSel])
 
+
+  /**
+   * Arrastar o card muda o status na hora.
+   *
+   * Sem confirmação de propósito: quem move é quem sabe. O status antigo
+   * continua no histórico do cartão, então engano se desfaz arrastando de
+   * volta.
+   */
+  async function moverPara(id: string, status: StatusOrcamento) {
+    const antes = orcamentos
+    setOrcamentos((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)))
+    const { error } = await supabase
+      .from('mef_orcamentos')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) {
+      alert(error.message)
+      setOrcamentos(antes)
+    }
+  }
   async function novo() {
     try {
       const o = await criarOrcamento({ status: 'rascunho', desconto_pct: 0 })
@@ -126,7 +150,23 @@ export default function MefOrcamentos() {
             </option>
           ))}
         </select>
-        <span className="text-xs text-slate-400 ml-auto">{filtrados.length} orçamento(s)</span>
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden ml-auto">
+          {([['lista', 'Lista'], ['kanban', 'Kanban']] as ['lista' | 'kanban', string][]).map((par) => (
+            <button
+              key={par[0]}
+              onClick={() => setVisao(par[0])}
+              className={
+                'text-xs font-medium px-3 py-1.5 ' +
+                (visao === par[0]
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-500 hover:bg-slate-50')
+              }
+            >
+              {par[1]}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-slate-400">{filtrados.length} orçamento(s)</span>
         {podeCriar && (
           <button
             onClick={novo}
@@ -137,7 +177,16 @@ export default function MefOrcamentos() {
         )}
       </div>
 
-      {filtrados.length === 0 ? (
+      {visao === 'kanban' ? (
+        <Kanban
+          orcamentos={filtrados}
+          valores={valores}
+          arrastando={arrastando}
+          setArrastando={setArrastando}
+          onSoltar={moverPara}
+          onAbrir={setAberto}
+        />
+      ) : filtrados.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-16 bg-white border border-slate-200 rounded-xl shadow-sm">
           Nenhum orçamento ainda.
         </p>
@@ -187,6 +236,108 @@ export default function MefOrcamentos() {
           aoMudar={carregar}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * Kanban dos orçamentos.
+ *
+ * Uma coluna por status. Arrastar o card muda o status na hora — é a mesma
+ * lógica do quadro de projetos, e pelo mesmo motivo: quem acompanha o funil
+ * quer mover, não abrir e escolher numa lista.
+ */
+function Kanban({
+  orcamentos,
+  valores,
+  arrastando,
+  setArrastando,
+  onSoltar,
+  onAbrir,
+}: {
+  orcamentos: Orcamento[]
+  valores: Record<string, number>
+  arrastando: string | null
+  setArrastando: (id: string | null) => void
+  onSoltar: (id: string, status: StatusOrcamento) => void
+  onAbrir: (o: Orcamento) => void
+}) {
+  const COLUNAS: StatusOrcamento[] = ['rascunho', 'enviado', 'aprovado', 'recusado', 'cancelado']
+
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {COLUNAS.map((status) => {
+        const doStatus = orcamentos.filter((o) => o.status === status)
+        const soma = doStatus.reduce((s, o) => s + (valores[o.id] || 0), 0)
+        return (
+          <div
+            key={status}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault()
+              if (arrastando) onSoltar(arrastando, status)
+              setArrastando(null)
+            }}
+            className="flex-1 min-w-[230px] bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col"
+          >
+            <div className="px-3 py-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span
+                  className={'text-[10px] px-2 py-0.5 rounded-full font-medium ' + COR_STATUS[status]}
+                >
+                  {ROTULO_STATUS[status]}
+                </span>
+                <span className="text-[10px] text-slate-400 ml-auto">{doStatus.length}</span>
+              </div>
+              {soma > 0 && (
+                <p className="text-xs font-semibold tabular-nums text-slate-700 mt-1">
+                  {reais(soma)}
+                </p>
+              )}
+            </div>
+
+            <div className="p-2 space-y-2 flex-1 min-h-[80px]">
+              {doStatus.map((o) => (
+                <div
+                  key={o.id}
+                  draggable
+                  onDragStart={() => setArrastando(o.id)}
+                  onDragEnd={() => setArrastando(null)}
+                  onClick={() => onAbrir(o)}
+                  className={
+                    'border border-slate-200 rounded-lg px-2.5 py-2 cursor-pointer hover:border-indigo-300 hover:shadow-sm bg-white ' +
+                    (arrastando === o.id ? 'opacity-40' : '')
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-400 tabular-nums">
+                      {o.numero}
+                      {o.versao > 1 ? '.' + o.versao : ''}
+                    </span>
+                    <span className="text-[10px] text-slate-400 ml-auto">
+                      {dataBR(o.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-xs font-medium text-slate-800 leading-tight mt-0.5">
+                    {o.nome_cliente || 'sem cliente'}
+                  </p>
+                  {o.endereco_obra && (
+                    <p className="text-[10px] text-slate-400 leading-tight truncate">
+                      {o.endereco_obra}
+                    </p>
+                  )}
+                  <p className="text-xs font-semibold tabular-nums text-slate-700 mt-1">
+                    {reais(valores[o.id] || 0)}
+                  </p>
+                </div>
+              ))}
+              {doStatus.length === 0 && (
+                <p className="text-[10px] text-slate-300 text-center py-6">arraste um card aqui</p>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

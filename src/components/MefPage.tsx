@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase'
 import { useSessao } from '../lib/sessao'
 import { useLembrado } from '../lib/lembrar'
 import { usePermissoes } from '../lib/permissoes'
-import { LOGO_BIM_FIRE_JPEG } from '../lib/logoBimFire'
+import { LOGO_MEF_PNG } from '../lib/logoMef'
 import Login from './Login'
 import MefProdutos from './MefProdutos'
 import MefOrcamentos from './MefOrcamentos'
@@ -50,7 +50,11 @@ export default function MefPage() {
     <div className="min-h-screen bg-[#F7F6F5]">
       <header className="bg-carvao-900 text-white">
         <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center gap-3">
-          <img src={LOGO_BIM_FIRE_JPEG} alt="MEF" className="w-9 h-9 rounded-lg object-cover" />
+          <img
+            src={LOGO_MEF_PNG}
+            alt="MEF"
+            className="h-9 w-auto rounded bg-white px-1 py-0.5 object-contain"
+          />
           <div className="flex-1">
             <h1 className="text-sm font-semibold leading-tight">MEF</h1>
             <p className="text-[11px] text-white/50 leading-tight">Instalação e manutenção</p>

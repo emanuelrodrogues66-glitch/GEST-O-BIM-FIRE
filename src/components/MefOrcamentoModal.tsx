@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePermissoes } from '../lib/permissoes'
 import MefObraFinanceiro from './MefObraFinanceiro'
+import { gerarPdfOrcamento } from '../lib/orcamentoPdf'
 import type { Categoria, ItemOrcamento, Orcamento, Produto, StatusOrcamento } from '../lib/mef'
 import { ROTULO_STATUS, carregarItens, novaVersao, reais, totais, totalDoItem } from '../lib/mef'
 
@@ -186,6 +187,14 @@ export default function MefOrcamentoModal({
               </option>
             ))}
           </select>
+          <button
+            onClick={() => gerarPdfOrcamento(orc, itens)}
+            disabled={itens.length === 0}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-700 disabled:text-slate-300"
+            title="Baixa o orçamento em PDF, com a logo da MEF e sem custo nem margem"
+          >
+            PDF
+          </button>
           {podeEditar && (
             <button
               onClick={gerarNovaVersao}
