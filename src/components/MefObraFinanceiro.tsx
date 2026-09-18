@@ -8,9 +8,7 @@ import {
   buscarProjetos,
   carregarCustos,
   carregarPagamentos,
-  dataBR,
   reais,
-  rotuloTipoCusto,
 } from '../lib/mef'
 
 /**
@@ -158,6 +156,23 @@ export default function MefObraFinanceiro({
     aoMudar()
   }
 
+  /**
+   * Edita o custo na própria linha.
+   *
+   * Nota fiscal que chega depois, valor combinado que muda, data digitada
+   * errada: é mais comum acertar um lançamento do que apagar e refazer.
+   */
+  async function mudarCusto(id: string, patch: Partial<Custo>) {
+    setCustos((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+    const { error } = await supabase.from('mef_custos').update(patch).eq('id', id)
+    if (error) {
+      alert(error.message)
+      carregar()
+      return
+    }
+    aoMudar()
+  }
+
   async function apagarCusto(c: Custo) {
     if (!confirm('Apagar o custo ' + c.descricao + '?')) return
     setCustos((prev) => prev.filter((x) => x.id !== c.id))
@@ -272,15 +287,61 @@ export default function MefObraFinanceiro({
             <div className="divide-y divide-slate-50">
               {custos.map((c) => (
                 <div key={c.id} className="px-3 py-1.5 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                    {rotuloTipoCusto(c.tipo)}
-                  </span>
-                  <span className="text-slate-700 flex-1 min-w-[140px]">{c.descricao}</span>
-                  {c.fornecedor && <span className="text-[10px] text-slate-400">{c.fornecedor}</span>}
-                  <span className="text-[10px] text-slate-400 w-20">{dataBR(c.data)}</span>
-                  <span className="tabular-nums font-medium text-slate-800 w-24 text-right">
-                    {reais(c.valor)}
-                  </span>
+                  <select
+                    value={c.tipo}
+                    disabled={!podeLancar}
+                    onChange={(e) => mudarCusto(c.id, { tipo: e.target.value })}
+                    className="text-[10px] border border-transparent hover:border-slate-200 rounded px-1 py-0.5 bg-slate-100 text-slate-500"
+                  >
+                    {TIPOS_CUSTO.map((par) => (
+                      <option key={par[0]} value={par[0]}>
+                        {par[1]}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={c.descricao}
+                    disabled={!podeLancar}
+                    onChange={(e) =>
+                      setCustos((prev) =>
+                        prev.map((x) => (x.id === c.id ? { ...x, descricao: e.target.value } : x))
+                      )
+                    }
+                    onBlur={(e) => mudarCusto(c.id, { descricao: e.target.value })}
+                    className="text-slate-700 flex-1 min-w-[140px] border border-transparent hover:border-slate-200 focus:border-indigo-300 rounded px-1 py-0.5"
+                  />
+                  <input
+                    value={c.fornecedor || ''}
+                    disabled={!podeLancar}
+                    placeholder="fornecedor"
+                    onChange={(e) =>
+                      setCustos((prev) =>
+                        prev.map((x) => (x.id === c.id ? { ...x, fornecedor: e.target.value } : x))
+                      )
+                    }
+                    onBlur={(e) => mudarCusto(c.id, { fornecedor: e.target.value || null })}
+                    className="text-[10px] text-slate-500 w-28 border border-transparent hover:border-slate-200 focus:border-indigo-300 rounded px-1 py-0.5"
+                  />
+                  <input
+                    type="date"
+                    value={c.data}
+                    disabled={!podeLancar}
+                    onChange={(e) => e.target.value && mudarCusto(c.id, { data: e.target.value })}
+                    className="text-[10px] text-slate-500 border border-transparent hover:border-slate-200 focus:border-indigo-300 rounded px-1 py-0.5"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={c.valor}
+                    disabled={!podeLancar}
+                    onChange={(e) =>
+                      setCustos((prev) =>
+                        prev.map((x) => (x.id === c.id ? { ...x, valor: Number(e.target.value) } : x))
+                      )
+                    }
+                    onBlur={(e) => mudarCusto(c.id, { valor: Number(e.target.value) })}
+                    className="tabular-nums font-medium text-slate-800 w-24 text-right border border-transparent hover:border-slate-200 focus:border-indigo-300 rounded px-1 py-0.5"
+                  />
                   {podeLancar && (
                     <button
                       onClick={() => apagarCusto(c)}
@@ -366,8 +427,29 @@ export default function MefObraFinanceiro({
             <div className="divide-y divide-slate-50">
               {pagamentos.map((p) => (
                 <div key={p.id} className="px-3 py-1.5 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-slate-700 flex-1 min-w-[120px]">{p.descricao}</span>
-                  {p.forma && <span className="text-[10px] text-slate-400">{p.forma}</span>}
+                  <input
+                    value={p.descricao}
+                    disabled={!podeLancar}
+                    onChange={(e) =>
+                      setPagamentos((prev) =>
+                        prev.map((x) => (x.id === p.id ? { ...x, descricao: e.target.value } : x))
+                      )
+                    }
+                    onBlur={(e) => mudarPagamento(p.id, { descricao: e.target.value })}
+                    className="text-slate-700 flex-1 min-w-[120px] border border-transparent hover:border-slate-200 focus:border-indigo-300 rounded px-1 py-0.5"
+                  />
+                  <input
+                    value={p.forma || ''}
+                    disabled={!podeLancar}
+                    placeholder="forma"
+                    onChange={(e) =>
+                      setPagamentos((prev) =>
+                        prev.map((x) => (x.id === p.id ? { ...x, forma: e.target.value } : x))
+                      )
+                    }
+                    onBlur={(e) => mudarPagamento(p.id, { forma: e.target.value || null })}
+                    className="text-[10px] text-slate-500 w-24 border border-transparent hover:border-slate-200 focus:border-indigo-300 rounded px-1 py-0.5"
+                  />
                   <label className="text-[10px] text-slate-400 flex items-center gap-1">
                     previsto
                     <input
@@ -392,14 +474,22 @@ export default function MefObraFinanceiro({
                       className="border border-slate-200 rounded px-1 py-0.5 text-[10px]"
                     />
                   </label>
-                  <span
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={p.valor}
+                    disabled={!podeLancar}
+                    onChange={(e) =>
+                      setPagamentos((prev) =>
+                        prev.map((x) => (x.id === p.id ? { ...x, valor: Number(e.target.value) } : x))
+                      )
+                    }
+                    onBlur={(e) => mudarPagamento(p.id, { valor: Number(e.target.value) })}
                     className={
-                      'tabular-nums font-medium w-24 text-right ' +
+                      'tabular-nums font-medium w-24 text-right border border-transparent hover:border-slate-200 focus:border-indigo-300 rounded px-1 py-0.5 ' +
                       (p.data_recebimento ? 'text-emerald-700' : 'text-slate-800')
                     }
-                  >
-                    {reais(p.valor)}
-                  </span>
+                  />
                   {podeLancar && (
                     <button
                       onClick={() => apagarPagamento(p)}
