@@ -329,6 +329,13 @@ export default function App() {
     return <Login />
   }
 
+  // Quem não tem projetos.ver não tem nada que fazer no quadro. Antes esta
+  // página abria para qualquer pessoa logada e a permissão só escondia botão;
+  // agora o RLS também barra os dados, e aqui a pessoa recebe uma porta em vez
+  // de uma tela vazia sem explicação.
+  if (!carregandoPerm && !pode('projetos.ver')) {
+    return <SemAcessoAosProjetos pode={pode} />
+  }
   if (redefinindoSenha) {
     return (
       <NovaSenha
@@ -701,6 +708,47 @@ export default function App() {
           onProjectClick={openEditById}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * Porta para quem não trabalha com projetos.
+ *
+ * Em vez de um quadro vazio sem explicação, mostra o que a pessoa realmente
+ * pode abrir. O Felipe da MEF cai aqui e vai direto para o lugar dele.
+ */
+function SemAcessoAosProjetos({ pode }: { pode: (codigo: string) => boolean }) {
+  const portas: [string, string][] = []
+  if (pode('mef.ver')) portas.push(['/mef', 'MEF — instalação e manutenção'])
+  if (pode('comercial.ver')) portas.push(['/comercial', 'Comercial'])
+  portas.push(['/ponto', 'Cartão ponto'])
+
+  return (
+    <div className="min-h-screen bg-[#F7F6F5] flex items-center justify-center p-4">
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm py-10 px-8 text-center max-w-sm">
+        <p className="text-3xl mb-2">🔒</p>
+        <p className="text-sm text-slate-600">
+          Seu perfil não tem acesso à gestão de projetos.
+        </p>
+        <div className="mt-4 space-y-2">
+          {portas.map((p) => (
+            <a
+              key={p[0]}
+              href={p[0]}
+              className="block text-xs font-medium px-3 py-2 rounded-lg border border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-700"
+            >
+              {p[1]}
+            </a>
+          ))}
+        </div>
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="text-[11px] text-slate-400 hover:text-slate-600 mt-4"
+        >
+          Sair
+        </button>
+      </div>
     </div>
   )
 }

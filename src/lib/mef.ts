@@ -326,16 +326,17 @@ export async function carregarFinanceiro(): Promise<LinhaFinanceira[]> {
 
 export type ProjetoResumo = { id: string; numero: number; nome: string }
 
-/** Busca no quadro da BIM Fire, para amarrar a obra ao projeto que a gerou. */
+/**
+ * Busca no quadro da BIM Fire, para amarrar a obra ao projeto que a gerou.
+ *
+ * Passa por uma função do banco em vez de ler a tabela direto: quem trabalha
+ * só na MEF não enxerga o quadro de projetos, mas precisa achar o número e o
+ * nome para fazer o vínculo. A função devolve só esses dois campos.
+ */
 export async function buscarProjetos(termo: string): Promise<ProjetoResumo[]> {
   const t = termo.trim()
   if (t.length < 2) return []
-  const { data, error } = await supabase
-    .from('projects')
-    .select('id, numero, nome')
-    .or('nome.ilike.%' + t + '%,numero.eq.' + (Number(t) || -1))
-    .order('numero', { ascending: false })
-    .limit(8)
+  const { data, error } = await supabase.rpc('mef_buscar_projetos', { termo: t })
   if (error) return []
   return (data as ProjetoResumo[]) || []
 }

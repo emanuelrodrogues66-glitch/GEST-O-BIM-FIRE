@@ -73,12 +73,10 @@ export default function MefObraFinanceiro({
       setProjeto(null)
       return
     }
-    supabase
-      .from('projects')
-      .select('id, numero, nome')
-      .eq('id', orcamento.project_id)
-      .maybeSingle()
-      .then(({ data }) => setProjeto((data as ProjetoResumo) || null))
+    // O projeto vinculado vem pela mesma função da busca, que já respeita a
+    // permissão: ler a tabela direto deixaria o campo vazio para quem só
+    // trabalha na MEF.
+    buscarProjetos(orcamento.project_id).then((r) => setProjeto(r[0] || null))
   }, [orcamento.project_id])
 
   /**
