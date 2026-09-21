@@ -7,11 +7,13 @@ import Login from './Login'
 import MefProdutos from './MefProdutos'
 import MefOrcamentos from './MefOrcamentos'
 import MefFinanceiro from './MefFinanceiro'
+import MefEquipamentos from './MefEquipamentos'
 
-type Aba = 'orcamentos' | 'financeiro' | 'produtos'
+type Aba = 'orcamentos' | 'equipamentos' | 'financeiro' | 'produtos'
 
 const ABAS: [Aba, string][] = [
   ['orcamentos', 'Orçamentos'],
+  ['equipamentos', 'Equipamentos'],
   ['financeiro', 'Financeiro'],
   ['produtos', 'Catálogo'],
 ]
@@ -96,6 +98,8 @@ export default function MefPage() {
       <main className="max-w-[1600px] mx-auto px-4 py-4">
         {aba === 'orcamentos' ? (
           <MefOrcamentos />
+        ) : aba === 'equipamentos' ? (
+          <MefEquipamentos />
         ) : aba === 'financeiro' ? (
           <MefFinanceiro />
         ) : (

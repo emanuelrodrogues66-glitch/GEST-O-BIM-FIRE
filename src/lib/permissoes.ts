@@ -215,6 +215,12 @@ export const PERMISSOES: Permissao[] = [
     grupo: 'MEF',
   },
   {
+    codigo: 'mef.equipamentos.editar',
+    rotulo: 'Cadastrar equipamentos e registrar recarga',
+    descricao: 'Extintores e mangueiras instalados, e a baixa de cada serviço feito.',
+    grupo: 'MEF',
+  },
+  {
     codigo: 'mef.financeiro.ver',
     rotulo: 'Ver o financeiro da MEF',
     descricao: 'Pagamentos recebidos, a receber e o resumo por obra.',

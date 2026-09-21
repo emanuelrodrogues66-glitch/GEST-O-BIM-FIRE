@@ -353,3 +353,132 @@ export function rotuloMes(m: string): string {
   const p = m.split('-')
   return MESES[Number(p[1]) - 1] + ' de ' + p[0]
 }
+
+// ---------------------------------------------------------------- equipamentos
+
+export type TipoEquipamento = {
+  id: string
+  nome: string
+  meses_manutencao: number | null
+  rotulo_manutencao: string
+  meses_teste: number | null
+  rotulo_teste: string
+  ordem: number
+  ativo: boolean
+}
+
+export type Equipamento = {
+  id: string
+  tipo_id: string
+  cliente_id: string | null
+  nome_cliente: string
+  endereco: string | null
+  local: string | null
+  capacidade: string | null
+  numero_selo: string | null
+  fabricante: string | null
+  data_fabricacao: string | null
+  ultima_manutencao: string | null
+  ultimo_teste: string | null
+  situacao: string
+  orcamento_id: string | null
+  observacao: string | null
+}
+
+/** Uma linha por equipamento, com os dois vencimentos já calculados. */
+export type Vencimento = {
+  equipamento_id: string
+  nome_cliente: string
+  endereco: string | null
+  local: string | null
+  capacidade: string | null
+  numero_selo: string | null
+  situacao: string
+  cliente_id: string | null
+  tipo: string
+  rotulo_manutencao: string
+  rotulo_teste: string
+  ultima_manutencao: string | null
+  ultimo_teste: string | null
+  proxima_manutencao: string | null
+  proximo_teste: string | null
+  proximo_vencimento: string | null
+}
+
+export type EventoEquipamento = {
+  id: string
+  equipamento_id: string
+  evento: string
+  data: string
+  observacao: string | null
+  registrado_por: string | null
+}
+
+export const ROTULO_EVENTO: Record<string, string> = {
+  instalacao: 'Instalação',
+  manutencao: 'Manutenção',
+  teste: 'Teste',
+  substituicao: 'Substituição',
+  descarte: 'Descarte',
+  vistoria: 'Vistoria',
+}
+
+export async function carregarTiposEquipamento(): Promise<TipoEquipamento[]> {
+  const { data, error } = await supabase
+    .from('mef_tipos_equipamento')
+    .select('*')
+    .order('ordem')
+  if (error) throw new Error(error.message)
+  return (data as TipoEquipamento[]) || []
+}
+
+export async function carregarVencimentos(): Promise<Vencimento[]> {
+  const { data, error } = await supabase
+    .from('v_mef_vencimentos')
+    .select('*')
+    .order('proximo_vencimento', { nullsFirst: false })
+  if (error) throw new Error(error.message)
+  return (data as Vencimento[]) || []
+}
+
+export async function carregarEventos(equipamentoId: string): Promise<EventoEquipamento[]> {
+  const { data, error } = await supabase
+    .from('mef_equipamento_eventos')
+    .select('*')
+    .eq('equipamento_id', equipamentoId)
+    .order('data', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data as EventoEquipamento[]) || []
+}
+
+/** Grava o evento e empurra a data do próximo vencimento, numa tacada só. */
+export async function registrarServico(
+  equipamentoId: string,
+  evento: string,
+  data: string,
+  observacao?: string,
+  por?: string
+): Promise<void> {
+  const { error } = await supabase.rpc('mef_registrar_servico', {
+    p_equipamento: equipamentoId,
+    p_evento: evento,
+    p_data: data,
+    p_observacao: observacao || null,
+    p_por: por || null,
+  })
+  if (error) throw new Error(error.message)
+}
+
+export function hoje(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+/** Dias que faltam — negativo quando já venceu. */
+export function diasAte(data: string | null): number | null {
+  if (!data) return null
+  const alvo = new Date(data + 'T00:00:00').getTime()
+  const agora = new Date(hoje() + 'T00:00:00').getTime()
+  return Math.round((alvo - agora) / 86400000)
+}
+
+export const DIAS_DE_ANTECEDENCIA = 60
