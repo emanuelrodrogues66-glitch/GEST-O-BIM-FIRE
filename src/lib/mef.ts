@@ -482,3 +482,60 @@ export function diasAte(data: string | null): number | null {
 }
 
 export const DIAS_DE_ANTECEDENCIA = 60
+
+export type ResultadoRecarga = {
+  orcamento_id: string
+  numero: number
+  lead_id: string
+  itens: number
+}
+
+/**
+ * Da carteira sai a venda.
+ *
+ * Um clique cria a negociação no funil de recarga e o orçamento numerado, com
+ * um item por tipo e capacidade e o preço vindo do catálogo. O vendedor abre
+ * já com o trabalho meio feito.
+ */
+export async function gerarOrcamentoRecarga(
+  equipamentos: string[],
+  responsavel?: string
+): Promise<ResultadoRecarga> {
+  const { data, error } = await supabase.rpc('mef_gerar_orcamento_recarga', {
+    p_equipamentos: equipamentos,
+    p_responsavel: responsavel || null,
+  })
+  if (error) throw new Error(error.message)
+  const linhas = (data as ResultadoRecarga[]) || []
+  if (linhas.length === 0) throw new Error('O orçamento não foi criado.')
+  return linhas[0]
+}
+
+export type NegociacaoDoOrcamento = {
+  id: string
+  nome: string
+  funil: string | null
+  etapa: string | null
+}
+
+/** A negociação a que o orçamento pertence, para o cartão mostrar de onde veio. */
+export async function carregarNegociacao(leadId: string): Promise<NegociacaoDoOrcamento | null> {
+  const { data, error } = await supabase
+    .from('crm_leads')
+    .select('id, nome, crm_funnels(nome), crm_stages(nome)')
+    .eq('id', leadId)
+    .maybeSingle()
+  if (error || !data) return null
+  const bruto = data as {
+    id: string
+    nome: string
+    crm_funnels: { nome: string } | null
+    crm_stages: { nome: string } | null
+  }
+  return {
+    id: bruto.id,
+    nome: bruto.nome,
+    funil: bruto.crm_funnels ? bruto.crm_funnels.nome : null,
+    etapa: bruto.crm_stages ? bruto.crm_stages.nome : null,
+  }
+}

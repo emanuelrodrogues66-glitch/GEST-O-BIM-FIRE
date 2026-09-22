@@ -5,6 +5,7 @@ import { usePermissoes } from '../lib/permissoes'
 import type { TipoEquipamento, Vencimento } from '../lib/mef'
 import {
   DIAS_DE_ANTECEDENCIA,
+  gerarOrcamentoRecarga,
   carregarTiposEquipamento,
   carregarVencimentos,
   dataBR,
@@ -29,9 +30,14 @@ const FAIXAS: [Faixa, string][] = [
  * teste hidrostático. Agrupa por cliente e endereço porque é assim que a venda
  * acontece — catorze extintores do mesmo prédio viram uma ligação, não catorze.
  */
-export default function MefEquipamentos() {
+export default function MefEquipamentos({
+  aoAbrirOrcamento,
+}: {
+  aoAbrirOrcamento?: (id: string) => void
+}) {
   const { pode } = usePermissoes()
   const podeEditar = pode('mef.equipamentos.editar')
+  const podeOrcar = pode('mef.orcamento.criar')
 
   const [linhas, setLinhas] = useState<Vencimento[]>([])
   const [tipos, setTipos] = useState<TipoEquipamento[]>([])
@@ -41,6 +47,7 @@ export default function MefEquipamentos() {
   const [faixa, setFaixa] = useState<Faixa>('aVencer')
   const [dias, setDias] = useState(DIAS_DE_ANTECEDENCIA)
   const [novo, setNovo] = useState(false)
+  const [gerando, setGerando] = useState('')
 
   useEffect(() => {
     carregar()
@@ -109,6 +116,36 @@ export default function MefEquipamentos() {
     return { vencidos, aVencer, semData, total: linhas.filter((l) => l.situacao === 'ativo').length }
   }, [linhas, dias])
 
+
+  /**
+   * Vira negociação e orçamento numerado, de uma vez.
+   *
+   * Leva os equipamentos daquele cliente e endereço que estão na faixa — é
+   * assim que a venda acontece: uma ligação para o prédio inteiro, não uma
+   * por extintor.
+   */
+  async function gerarRecarga(chave: string, equipamentos: Vencimento[]) {
+    const partes = chave.split(' ||| ')
+    if (
+      !confirm(
+        'Gerar orçamento de recarga para ' + partes[0] + ' com ' + equipamentos.length + ' equipamento(s)?'
+      )
+    ) {
+      return
+    }
+    setGerando(chave)
+    try {
+      const r = await gerarOrcamentoRecarga(equipamentos.map((x) => x.equipamento_id))
+      alert(
+        'Orçamento ' + r.numero + ' criado com ' + r.itens + ' item(ns), e a negociação entrou no funil MEF — Recarga.'
+      )
+      if (aoAbrirOrcamento) aoAbrirOrcamento(r.orcamento_id)
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setGerando('')
+    }
+  }
   async function registrar(l: Vencimento, evento: 'manutencao' | 'teste') {
     const rotulo = evento === 'manutencao' ? l.rotulo_manutencao : l.rotulo_teste
     const data = prompt(rotulo + ' feita em que dia? (aaaa-mm-dd)', hoje())
@@ -215,6 +252,16 @@ export default function MefEquipamentos() {
                   </div>
                   <span className="text-[11px] text-slate-400">{g[1].length} equipamento(s)</span>
                   {proximo !== null && <Prazo dias={proximo} />}
+                  {podeOrcar && (
+                    <button
+                      onClick={() => gerarRecarga(g[0], g[1])}
+                      disabled={gerando === g[0]}
+                      className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-200"
+                      title="Cria a negociação no funil de recarga e o orçamento numerado"
+                    >
+                      {gerando === g[0] ? 'gerando...' : 'gerar orçamento'}
+                    </button>
+                  )}
                 </div>
 
                 <div className="divide-y divide-slate-50">

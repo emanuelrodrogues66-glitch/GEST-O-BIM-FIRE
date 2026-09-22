@@ -99,7 +99,7 @@ export default function MefPage() {
         {aba === 'orcamentos' ? (
           <MefOrcamentos />
         ) : aba === 'equipamentos' ? (
-          <MefEquipamentos />
+          <MefEquipamentos aoAbrirOrcamento={() => setAba('orcamentos')} />
         ) : aba === 'financeiro' ? (
           <MefFinanceiro />
         ) : (

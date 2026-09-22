@@ -5,7 +5,16 @@ import { usePermissoes } from '../lib/permissoes'
 import MefObraFinanceiro from './MefObraFinanceiro'
 import { gerarPdfOrcamento } from '../lib/orcamentoPdf'
 import type { Categoria, ItemOrcamento, Orcamento, Produto, StatusOrcamento } from '../lib/mef'
-import { ROTULO_STATUS, carregarItens, novaVersao, reais, totais, totalDoItem } from '../lib/mef'
+import type { NegociacaoDoOrcamento } from '../lib/mef'
+import {
+  ROTULO_STATUS,
+  carregarItens,
+  carregarNegociacao,
+  novaVersao,
+  reais,
+  totais,
+  totalDoItem,
+} from '../lib/mef'
 
 /**
  * Montagem do orçamento.
@@ -36,10 +45,19 @@ export default function MefOrcamentoModal({
   const [carregando, setCarregando] = useState(true)
   const [busca, setBusca] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [negociacao, setNegociacao] = useState<NegociacaoDoOrcamento | null>(null)
 
   useEffect(() => {
     recarregar()
   }, [orcamento.id])
+
+  useEffect(() => {
+    if (!orc.lead_id) {
+      setNegociacao(null)
+      return
+    }
+    carregarNegociacao(orc.lead_id).then(setNegociacao)
+  }, [orc.lead_id])
 
   async function recarregar() {
     setCarregando(true)
@@ -173,7 +191,21 @@ export default function MefOrcamentoModal({
               Orçamento {orc.numero}
               {orc.versao > 1 && <span className="text-slate-400"> · versão {orc.versao}</span>}
             </h2>
-            <p className="text-[11px] text-slate-400">{orc.nome_cliente || 'sem cliente'}</p>
+            <p className="text-[11px] text-slate-400">
+              {orc.nome_cliente || 'sem cliente'}
+              {negociacao && (
+                <a
+                  href="/comercial"
+                  target="_blank"
+                  rel="noopener"
+                  className="text-indigo-600 hover:underline ml-1"
+                  title="Abre o comercial"
+                >
+                  · {negociacao.nome}
+                  {negociacao.etapa && ' (' + negociacao.etapa + ')'} ↗
+                </a>
+              )}
+            </p>
           </div>
           <select
             value={orc.status}
