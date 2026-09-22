@@ -530,3 +530,51 @@ export async function carregarNegociacao(leadId: string): Promise<NegociacaoDoOr
   const linhas = (data as NegociacaoDoOrcamento[]) || []
   return linhas.length > 0 ? linhas[0] : null
 }
+
+// ------------------------------------------------------- base de clientes
+
+export type Cliente = {
+  id: string
+  nome: string
+  endereco: string | null
+  cidade: string | null
+  contato: string | null
+}
+
+/**
+ * Busca na mesma base da BIM Fire.
+ *
+ * Cliente é cliente: quem comprou projeto e quem só tem extintor para
+ * recarregar moram no mesmo cadastro. Assim o orçamento de recarga já nasce
+ * amarrado à empresa certa, sem nome digitado de três jeitos.
+ */
+export async function buscarClientes(termo: string): Promise<Cliente[]> {
+  const t = termo.trim()
+  if (t.length < 2) return []
+  const { data, error } = await supabase
+    .from('clientes')
+    .select('id, nome, endereco, cidade, contato')
+    .ilike('nome', '%' + t + '%')
+    .order('nome')
+    .limit(8)
+  if (error) return []
+  return (data as Cliente[]) || []
+}
+
+/** Nome novo entra na base; nome que já existe é só reaproveitado. */
+export async function garantirCliente(nome: string, endereco?: string): Promise<Cliente | null> {
+  const limpo = nome.trim()
+  if (!limpo) return null
+  const { data: lista } = await supabase.from('clientes').select('id, nome, endereco, cidade, contato')
+  const achado = ((lista as Cliente[]) || []).find(
+    (c) => (c.nome || '').trim().toLowerCase() === limpo.toLowerCase()
+  )
+  if (achado) return achado
+  const { data, error } = await supabase
+    .from('clientes')
+    .insert({ nome: limpo, endereco: (endereco || '').trim() || null })
+    .select('id, nome, endereco, cidade, contato')
+    .single()
+  if (error) return null
+  return data as Cliente
+}

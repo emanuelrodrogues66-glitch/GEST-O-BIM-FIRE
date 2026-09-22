@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { usePermissoes } from '../lib/permissoes'
-import type { TipoEquipamento, Vencimento } from '../lib/mef'
+import type { Cliente, TipoEquipamento, Vencimento } from '../lib/mef'
 import {
   DIAS_DE_ANTECEDENCIA,
+  buscarClientes,
+  garantirCliente,
   gerarOrcamentoRecarga,
   carregarTiposEquipamento,
   carregarVencimentos,
@@ -393,6 +395,14 @@ function Caixa({
  * quase todos iguais. Aqui informa uma vez e diz quantos — o local de cada um
  * recebe um número, e quem quiser detalha depois.
  */
+/**
+ * Cadastro em lote, um tipo de cada vez.
+ *
+ * Na visita ninguém cadastra um extintor por vez: são catorze do mesmo prédio,
+ * quase todos iguais. Mas a mesma empresa costuma ter tipos diferentes — seis
+ * de pó, dois de CO2, um de água. Por isso o formulário continua aberto com o
+ * cliente preso depois de salvar: informa o próximo tipo e pronto.
+ */
 function NovoEquipamento({
   tipos,
   aoFechar,
@@ -402,10 +412,15 @@ function NovoEquipamento({
   aoFechar: () => void
   aoSalvar: () => void
 }) {
+  const [cliente, setCliente] = useState<Cliente | null>(null)
+  const [nomeCliente, setNomeCliente] = useState('')
+  const [endereco, setEndereco] = useState('')
+  const [achados, setAchados] = useState<Cliente[]>([])
+  const [buscando, setBuscando] = useState(false)
+  const [lotes, setLotes] = useState<string[]>([])
+
   const [form, setForm] = useState({
     tipo_id: tipos.length > 0 ? tipos[0].id : '',
-    nome_cliente: '',
-    endereco: '',
     local: '',
     capacidade: '',
     fabricante: '',
@@ -418,15 +433,55 @@ function NovoEquipamento({
   const tipo = tipos.find((t) => t.id === form.tipo_id)
   const qtd = Math.max(1, Math.min(60, Number(form.quantidade) || 1))
 
+  // Busca na base de clientes que a BIM Fire já usa — é a mesma empresa.
+  useEffect(() => {
+    let ativo = true
+    const termo = nomeCliente.trim()
+    if (cliente || termo.length < 2) {
+      setAchados([])
+      return
+    }
+    setBuscando(true)
+    buscarClientes(termo).then((r) => {
+      if (ativo) {
+        setAchados(r)
+        setBuscando(false)
+      }
+    })
+    return () => {
+      ativo = false
+    }
+  }, [nomeCliente, cliente])
+
+  function escolher(c: Cliente) {
+    setCliente(c)
+    setNomeCliente(c.nome)
+    if (!endereco.trim() && c.endereco) setEndereco(c.endereco)
+    setAchados([])
+  }
+
   async function salvar() {
-    if (!form.nome_cliente.trim() || !form.tipo_id) return
+    if (!nomeCliente.trim() || !form.tipo_id) return
     setSalvando(true)
+
+    // Cliente digitado que ainda não está na base entra agora, para o próximo
+    // orçamento já achar pelo nome.
+    let id = cliente ? cliente.id : null
+    if (!id) {
+      const novo = await garantirCliente(nomeCliente.trim(), endereco.trim())
+      if (novo) {
+        id = novo.id
+        setCliente(novo)
+      }
+    }
+
     const linhas = []
     for (let i = 1; i <= qtd; i++) {
       linhas.push({
         tipo_id: form.tipo_id,
-        nome_cliente: form.nome_cliente.trim(),
-        endereco: form.endereco.trim() || null,
+        cliente_id: id,
+        nome_cliente: nomeCliente.trim(),
+        endereco: endereco.trim() || null,
         local: form.local.trim() ? form.local.trim() + (qtd > 1 ? ' ' + i : '') : null,
         capacidade: form.capacidade.trim() || null,
         fabricante: form.fabricante.trim() || null,
@@ -440,7 +495,7 @@ function NovoEquipamento({
       alert(error.message)
       return
     }
-    // A instalação fica no histórico desde o primeiro dia.
+
     const ids = (data as { id: string }[]) || []
     if (ids.length > 0) {
       await supabase.from('mef_equipamento_eventos').insert(
@@ -452,6 +507,22 @@ function NovoEquipamento({
         }))
       )
     }
+
+    setLotes((prev) =>
+      prev.concat([
+        qtd + 'x ' + (tipo ? tipo.nome : '') + (form.capacidade ? ' ' + form.capacidade : ''),
+      ])
+    )
+    // Cliente e endereço ficam; o resto limpa para o próximo tipo.
+    setForm({
+      tipo_id: form.tipo_id,
+      local: '',
+      capacidade: '',
+      fabricante: form.fabricante,
+      ultima_manutencao: form.ultima_manutencao,
+      ultimo_teste: '',
+      quantidade: '1',
+    })
     setSalvando(false)
     aoSalvar()
   }
@@ -459,18 +530,47 @@ function NovoEquipamento({
   return (
     <div className="bg-white border border-indigo-200 rounded-xl shadow-sm p-3 space-y-2">
       <div className="flex flex-wrap items-end gap-2">
-        <Campo titulo="Cliente" largura="flex-1 min-w-[180px]">
+        <div className="flex-1 min-w-[200px] relative">
+          <label className="block text-[10px] font-medium text-slate-500 mb-1">Cliente</label>
           <input
-            value={form.nome_cliente}
-            onChange={(e) => setForm({ ...form, nome_cliente: e.target.value })}
-            placeholder="Nome da empresa"
+            value={nomeCliente}
+            onChange={(e) => {
+              setNomeCliente(e.target.value)
+              setCliente(null)
+            }}
+            placeholder="Digite duas letras para buscar no cadastro"
             className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs"
           />
-        </Campo>
+          {cliente && (
+            <span className="absolute right-2 top-7 text-[9px] text-emerald-700">do cadastro</span>
+          )}
+          {achados.length > 0 && (
+            <div className="absolute z-10 left-0 right-0 mt-1 border border-slate-200 rounded-lg bg-white shadow-lg divide-y divide-slate-100">
+              {achados.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => escolher(c)}
+                  className="w-full text-left px-2 py-1.5 hover:bg-indigo-50"
+                >
+                  <span className="text-xs text-slate-800">{c.nome}</span>
+                  {c.endereco && (
+                    <span className="block text-[10px] text-slate-400">{c.endereco}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          {!cliente && !buscando && nomeCliente.trim().length >= 2 && achados.length === 0 && (
+            <span className="text-[9px] text-amber-700">
+              não está no cadastro — entra ao salvar
+            </span>
+          )}
+        </div>
+
         <Campo titulo="Endereço" largura="flex-1 min-w-[180px]">
           <input
-            value={form.endereco}
-            onChange={(e) => setForm({ ...form, endereco: e.target.value })}
+            value={endereco}
+            onChange={(e) => setEndereco(e.target.value)}
             className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs"
           />
         </Campo>
@@ -512,7 +612,9 @@ function NovoEquipamento({
           <input
             value={form.local}
             onChange={(e) => setForm({ ...form, local: e.target.value })}
-            placeholder={qtd > 1 ? 'Corredor (vira Corredor 1, Corredor 2...)' : 'Corredor 2, perto da saída'}
+            placeholder={
+              qtd > 1 ? 'Corredor (vira Corredor 1, Corredor 2...)' : 'Corredor 2, perto da saída'
+            }
             className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs"
           />
         </Campo>
@@ -523,7 +625,10 @@ function NovoEquipamento({
             className="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs"
           />
         </Campo>
-        <Campo titulo={tipo ? 'Última ' + tipo.rotulo_manutencao.toLowerCase() : 'Última manutenção'} largura="w-40">
+        <Campo
+          titulo={tipo ? 'Última ' + tipo.rotulo_manutencao.toLowerCase() : 'Última manutenção'}
+          largura="w-40"
+        >
           <input
             type="date"
             value={form.ultima_manutencao}
@@ -543,21 +648,28 @@ function NovoEquipamento({
         )}
       </div>
 
+      {lotes.length > 0 && (
+        <p className="text-[10px] text-emerald-700">
+          Já cadastrado nesta visita: {lotes.join(' · ')}. Informe o próximo tipo ou feche.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={salvar}
-          disabled={salvando || !form.nome_cliente.trim()}
+          disabled={salvando || !nomeCliente.trim()}
           className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-slate-200"
         >
           {qtd > 1 ? 'Cadastrar ' + qtd + ' equipamentos' : 'Cadastrar equipamento'}
         </button>
         <button onClick={aoFechar} className="text-xs text-slate-500 hover:text-slate-700">
-          Cancelar
+          {lotes.length > 0 ? 'Terminei' : 'Cancelar'}
         </button>
         {tipo && (
           <span className="text-[10px] text-slate-400">
             {tipo.rotulo_manutencao} a cada {tipo.meses_manutencao} meses
-            {tipo.meses_teste !== null && ' · ' + tipo.rotulo_teste + ' a cada ' + tipo.meses_teste + ' meses'}
+            {tipo.meses_teste !== null &&
+              ' · ' + tipo.rotulo_teste + ' a cada ' + tipo.meses_teste + ' meses'}
           </span>
         )}
       </div>
