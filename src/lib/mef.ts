@@ -518,24 +518,15 @@ export type NegociacaoDoOrcamento = {
   etapa: string | null
 }
 
-/** A negociação a que o orçamento pertence, para o cartão mostrar de onde veio. */
+/**
+ * A negociação a que o orçamento pertence.
+ *
+ * Passa por função do banco: quem trabalha só na MEF não enxerga o comercial
+ * da BIM Fire, mas precisa ver a negociação de recarga que ele mesmo gerou.
+ */
 export async function carregarNegociacao(leadId: string): Promise<NegociacaoDoOrcamento | null> {
-  const { data, error } = await supabase
-    .from('crm_leads')
-    .select('id, nome, crm_funnels(nome), crm_stages(nome)')
-    .eq('id', leadId)
-    .maybeSingle()
-  if (error || !data) return null
-  const bruto = data as {
-    id: string
-    nome: string
-    crm_funnels: { nome: string } | null
-    crm_stages: { nome: string } | null
-  }
-  return {
-    id: bruto.id,
-    nome: bruto.nome,
-    funil: bruto.crm_funnels ? bruto.crm_funnels.nome : null,
-    etapa: bruto.crm_stages ? bruto.crm_stages.nome : null,
-  }
+  const { data, error } = await supabase.rpc('mef_negociacao_do_orcamento', { p_lead: leadId })
+  if (error) return null
+  const linhas = (data as NegociacaoDoOrcamento[]) || []
+  return linhas.length > 0 ? linhas[0] : null
 }
