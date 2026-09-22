@@ -226,11 +226,13 @@ export default function MefEquipamentos({
       {novo && podeEditar && (
         <NovoEquipamento
           tipos={tipos}
-          aoFechar={() => setNovo(false)}
-          aoSalvar={() => {
+          aoFechar={() => {
             setNovo(false)
-            carregar()
+            carregar(true)
           }}
+          // Salvar não fecha: a mesma empresa costuma ter mais de um tipo de
+          // extintor, e fechar obrigaria a redigitar o cliente a cada lote.
+          aoSalvar={() => carregar(true)}
         />
       )}
 
