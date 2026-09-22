@@ -153,6 +153,7 @@ export default function ProjectModal({
     'geral' | 'dados' | 'plano' | 'correcoes' | 'pendencias' | 'historico' | 'reunioes' | 'financeiro'
   >('geral')
   const [clientData, setClientData] = useState<Partial<ProjectClient>>({})
+  const [atividadeNaoRegistrada, setAtividadeNaoRegistrada] = useState(false)
   const [showMissingClientData, setShowMissingClientData] = useState(false)
 
   // Justificativa exigida ao passar o projeto para Pendente.
@@ -265,6 +266,19 @@ export default function ProjectModal({
   }
 
   async function handleSave() {
+    // Texto escrito no assumir projeto que não foi registrado: salvar o
+    // cartão agora faria esse texto sumir, e a hora nunca seria lançada.
+    if (atividadeNaoRegistrada) {
+      const seguir = confirm(
+        'Você escreveu no "Assumir projeto" mas não clicou em Registrar.\n\n' +
+          'Esse texto vai se perder e as horas não serão lançadas. Salvar o cartão mesmo assim?'
+      )
+      if (!seguir) {
+        setActiveTab('geral')
+        return
+      }
+    }
+
     // Passar para Pendente exige justificativa — é o que alimenta o histórico
     // de pendências e permite medir quanto tempo o projeto ficou parado.
     if (
@@ -938,6 +952,7 @@ export default function ProjectModal({
                     projectId={project.id}
                     responsaveis={responsaveis}
                     responsavelDoProjeto={form.responsavel || project.responsavel}
+                    aoMudarRascunho={setAtividadeNaoRegistrada}
                   />
                 </div>
               )}

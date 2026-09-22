@@ -51,11 +51,20 @@ export default function ActivityHistory({
   projectId,
   responsaveis,
   responsavelDoProjeto,
+  aoMudarRascunho,
 }: {
   projectId: string
   responsaveis: string[]
   /** Projetista dos Dados gerais: entra pré-selecionado ao assumir. */
   responsavelDoProjeto?: string | null
+  /**
+   * Avisa o cartão que existe texto digitado e ainda não registrado.
+   *
+   * Gente escreve o que fez e clica em Salvar achando que salvou o
+   * apontamento junto. Salva o cartão, o texto some e a hora nunca foi
+   * lançada. O cartão usa isto para perguntar antes.
+   */
+  aoMudarRascunho?: (temTexto: boolean) => void
 }) {
   const [activities, setActivities] = useState<ProjectActivity[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,6 +108,21 @@ export default function ActivityHistory({
   // A hora lançada reparte pontos e forma o custo: corrigir depois é do ADM.
   const { ehAdmin } = usePerfil()
   const [rascunho, setRascunho] = useState({ responsavel: '', data: '', descricao: '', horas: '' })
+
+  useEffect(() => {
+    if (!aoMudarRascunho) return
+    aoMudarRascunho(showForm && form.descricao.trim().length > 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm, form.descricao])
+
+  // Ao sair da tela o rascunho deixa de existir, e o aviso junto.
+  useEffect(() => {
+    return () => {
+      if (aoMudarRascunho) aoMudarRascunho(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   useEffect(() => {
     load()
