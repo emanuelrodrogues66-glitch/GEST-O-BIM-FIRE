@@ -37,6 +37,11 @@ export type Contato = {
   lead_id: string | null
   mensagem: string | null
   erro: string | null
+  perfil: string | null
+  tipo: string | null
+  titulo_whatsapp: string | null
+  /** Cliente, parceiro ou negociação que já existe na casa. */
+  ja_na_base: string | null
 }
 
 export const SITUACOES: Record<string, string> = {
@@ -146,12 +151,47 @@ export async function mudarCampanha(id: string, patch: Partial<Campanha>) {
   if (error) throw error
 }
 
-export async function carregarContatos(campanhaId: string): Promise<Contato[]> {
-  const { data, error } = await supabase
+export type Resumo = {
+  total: number
+  fila: number
+  enviados: number
+  falharam: number
+  responderam: number
+  no_funil: number
+  bloqueados: number
+  ja_na_base: number
+}
+
+/**
+ * Contagem feita no banco.
+ *
+ * Campanha de dez mil contatos não cabe no navegador, e a consulta volta
+ * cortada em mil sem avisar — somar linha carregada daria números errados
+ * com cara de certos.
+ */
+export async function carregarResumo(campanhaId: string): Promise<Resumo> {
+  const vazio: Resumo = {
+    total: 0, fila: 0, enviados: 0, falharam: 0,
+    responderam: 0, no_funil: 0, bloqueados: 0, ja_na_base: 0,
+  }
+  const { data, error } = await supabase.rpc('prospeccao_resumo', { p_campanha: campanhaId })
+  if (error) return vazio
+  const linha = ((data as Resumo[]) || [])[0]
+  return linha ? { ...vazio, ...linha } : vazio
+}
+
+/** Só uma janela da campanha: o resumo é quem sabe o tamanho real. */
+export async function carregarContatos(
+  campanhaId: string,
+  situacao?: string,
+  limite = 300
+): Promise<Contato[]> {
+  let q = supabase
     .from('prospeccao_contatos')
     .select('*')
     .eq('campanha_id', campanhaId)
-    .order('created_at', { ascending: true })
+  if (situacao && situacao !== 'todos') q = q.eq('situacao', situacao)
+  const { data, error } = await q.order('created_at', { ascending: true }).limit(limite)
   if (error) throw error
   return (data as Contato[]) || []
 }
@@ -278,6 +318,125 @@ export async function importarContatos(
     if (error) throw error
     r.inseridos = novos.length
   }
+  return r
+}
+
+const DDD_UF: Record<string, string> = {
+  '11':'SP','12':'SP','13':'SP','14':'SP','15':'SP','16':'SP','17':'SP','18':'SP','19':'SP',
+  '21':'RJ','22':'RJ','24':'RJ','27':'ES','28':'ES',
+  '31':'MG','32':'MG','33':'MG','34':'MG','35':'MG','37':'MG','38':'MG',
+  '41':'PR','42':'PR','43':'PR','44':'PR','45':'PR','46':'PR',
+  '47':'SC','48':'SC','49':'SC',
+  '51':'RS','53':'RS','54':'RS','55':'RS',
+  '61':'DF','62':'GO','64':'GO','63':'TO','65':'MT','66':'MT','67':'MS','68':'AC','69':'RO',
+  '71':'BA','73':'BA','74':'BA','75':'BA','77':'BA','79':'SE',
+  '81':'PE','87':'PE','82':'AL','83':'PB','84':'RN','85':'CE','88':'CE','86':'PI','89':'PI',
+  '91':'PA','93':'PA','94':'PA','92':'AM','97':'AM','95':'RR','96':'AP','98':'MA','99':'MA',
+}
+
+/** O estado sai do DDD. Lista comprada não traz cidade, mas traz o número. */
+export function ufDoTelefone(tel: string): string | null {
+  const d = numeroDaLista(tel)
+  if (d.length < 10) return null
+  return DDD_UF[d.slice(0, 2)] || null
+}
+
+export type AndamentoImportacao = {
+  feitos: number
+  total: number
+  campanha: string
+}
+
+export type ResultadoPorEstado = {
+  inseridos: number
+  semTelefone: number
+  bloqueados: number
+  porCampanha: { nome: string; quantos: number }[]
+}
+
+/**
+ * Importa uma lista grande distribuindo por estado.
+ *
+ * Lista comprada vem toda junta, com número de Rondônia no meio do de São
+ * Paulo. Separar na mão é inviável; o DDD já diz o estado. Cada estado vira
+ * (ou reaproveita) a campanha "UF — sufixo", e quem já está na campanha não
+ * entra de novo.
+ */
+export async function importarPorEstado(
+  linhas: ContatoBruto[],
+  sufixo: string,
+  aoAndar?: (a: AndamentoImportacao) => void
+): Promise<ResultadoPorEstado> {
+  const r: ResultadoPorEstado = { inseridos: 0, semTelefone: 0, bloqueados: 0, porCampanha: [] }
+  const rotulo = sufixo.trim() || 'Importados'
+
+  const { data: recusaram } = await supabase.from('prospeccao_optout').select('telefone')
+  const bloqueados = new Set(((recusaram as { telefone: string }[]) || []).map((x) => x.telefone))
+
+  // Agrupa por estado antes de falar com o banco.
+  const porUf = new Map<string, Map<string, ContatoBruto>>()
+  for (const linha of linhas) {
+    const tel = numeroDaLista(linha.telefone)
+    const uf = ufDoTelefone(tel)
+    if (!uf || tel.length < 10) {
+      r.semTelefone++
+      continue
+    }
+    if (bloqueados.has(tel)) {
+      r.bloqueados++
+      continue
+    }
+    if (!porUf.has(uf)) porUf.set(uf, new Map())
+    porUf.get(uf)!.set(tel, linha)
+  }
+
+  const total = Array.from(porUf.values()).reduce((s, m) => s + m.size, 0)
+  let feitos = 0
+
+  for (const [uf, mapa] of Array.from(porUf.entries()).sort()) {
+    const nome = uf + ' — ' + rotulo
+    if (aoAndar) aoAndar({ feitos, total, campanha: nome })
+
+    const { data: achada } = await supabase
+      .from('prospeccao_campanhas')
+      .select('id')
+      .eq('nome', nome)
+      .maybeSingle()
+
+    let campanhaId = (achada as { id: string } | null)?.id
+    if (!campanhaId) {
+      const { data: criada, error } = await supabase
+        .from('prospeccao_campanhas')
+        .insert({ nome, modelo: '', responsavel: null, status: 'aberta' })
+        .select('id')
+        .single()
+      if (error) throw error
+      campanhaId = (criada as { id: string }).id
+    }
+
+    const novos = Array.from(mapa.entries()).map(([tel, linha]) => ({
+      campanha_id: campanhaId,
+      telefone: tel,
+      nome: linha.nome || null,
+      empresa: linha.empresa || null,
+      cidade: linha.cidade || null,
+      tipo: tel.length === 11 ? 'celular' : 'fixo',
+    }))
+
+    // Em pedaços: quarenta mil linhas numa requisição só derruba o navegador.
+    for (let i = 0; i < novos.length; i += 500) {
+      const pedaco = novos.slice(i, i + 500)
+      const { error } = await supabase
+        .from('prospeccao_contatos')
+        .upsert(pedaco, { onConflict: 'campanha_id,telefone', ignoreDuplicates: true })
+      if (error) throw error
+      feitos += pedaco.length
+      if (aoAndar) aoAndar({ feitos, total, campanha: nome })
+    }
+    r.porCampanha.push({ nome, quantos: mapa.size })
+  }
+
+  r.inseridos = feitos
   return r
 }
 

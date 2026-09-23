@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Campanha, Contato, ContatoBruto } from '../lib/prospeccao'
+import type { Campanha, Contato, ContatoBruto, Resumo } from '../lib/prospeccao'
 import {
   CORES,
   SITUACOES,
   baixarModeloPlanilha,
   carregarCampanhas,
   carregarContatos,
+  carregarResumo,
   criarCampanha,
   descartar,
   importarContatos,
+  importarPorEstado,
   lerPlanilha,
   linhasDoTexto,
   linkWhatsapp,
@@ -19,7 +21,6 @@ import {
   nomeDoUsuario,
   podeAbordar,
   registrarNoCrm,
-  resumo,
   telefoneBonito,
 } from '../lib/prospeccao'
 
@@ -52,13 +53,14 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
   const [colando, setColando] = useState(false)
   const [colado, setColado] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [sufixo, setSufixo] = useState('')
+  const [andamento, setAndamento] = useState('')
+  const [r, setR] = useState<Resumo>({
+    total: 0, fila: 0, enviados: 0, falharam: 0,
+    responderam: 0, no_funil: 0, bloqueados: 0, ja_na_base: 0,
+  })
 
   const campanha = useMemo(() => campanhas.find((c) => c.id === atual) || null, [campanhas, atual])
-  const r = useMemo(() => resumo(contatos), [contatos])
-  const lista = useMemo(
-    () => (filtro === 'todos' ? contatos : contatos.filter((c) => c.situacao === filtro)),
-    [contatos, filtro]
-  )
 
   useEffect(() => {
     nomeDoUsuario().then(setUsuario)
@@ -83,7 +85,12 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
       return
     }
     try {
-      setContatos(await carregarContatos(id))
+      const [lista, resumo] = await Promise.all([
+        carregarContatos(id, filtro),
+        carregarResumo(id),
+      ])
+      setContatos(lista)
+      setR(resumo)
     } catch (e) {
       console.error(e)
     }
@@ -95,7 +102,7 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
 
   useEffect(() => {
     recarregarContatos(atual)
-  }, [atual])
+  }, [atual, filtro])
 
   async function abrirConversa(c: Contato) {
     if (!campanha) return
@@ -141,6 +148,31 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
       await recarregarContatos(atual)
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  /** Lista grande: cada estado vira a sua campanha, pelo DDD do número. */
+  async function espalharPorEstado(linhas: ContatoBruto[]) {
+    setSalvando(true)
+    setAviso('')
+    try {
+      const res = await importarPorEstado(linhas, sufixo, (a) => {
+        setAndamento(a.campanha + ' — ' + a.feitos + ' de ' + a.total)
+      })
+      setAndamento('')
+      setColando(false)
+      const partes = [res.inseridos + ' contatos em ' + res.porCampanha.length + ' campanhas']
+      if (res.bloqueados) partes.push(res.bloqueados + ' pediram para não receber')
+      if (res.semTelefone) partes.push(res.semTelefone + ' sem telefone válido')
+      setAviso(partes.join(' · '))
+      await carregar()
+      await recarregarContatos(atual)
+    } catch (e) {
+      console.error(e)
+      setAndamento('')
+      setAviso('A importação parou no meio: ' + (e as Error).message)
+    } finally {
+      setSalvando(false)
     }
   }
 
@@ -211,6 +243,10 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
       const linhas = await lerPlanilha(arquivo)
       if (!linhas.length) {
         setAviso('A planilha está vazia, ou a primeira linha não tem os títulos das colunas.')
+        return
+      }
+      if (sufixo.trim()) {
+        await espalharPorEstado(linhas)
         return
       }
       await aplicar(linhas)
@@ -337,6 +373,26 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
             As colunas são reconhecidas pelo título: telefone (ou celular, whatsapp, fone), nome,
             empresa e cidade. A ordem não importa e coluna a mais é ignorada.
           </p>
+
+          <div className="border-t border-slate-100 pt-3">
+            <label className="text-[11px] text-slate-500">
+              Distribuir por estado. Escreva aqui o que a lista é (Arquitetos, Engenheiros, Fixos) e
+              cada número vai para a campanha do seu estado, descoberto pelo DDD. Em branco, tudo
+              entra na campanha escolhida acima.
+            </label>
+            <input
+              value={sufixo}
+              onChange={(e) => setSufixo(e.target.value)}
+              placeholder="Arquitetos"
+              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 mt-1"
+            />
+          </div>
+
+          {andamento && (
+            <p className="text-[11px] text-indigo-700 bg-indigo-50 rounded-lg px-3 py-2">
+              Importando: {andamento}
+            </p>
+          )}
           <details>
             <summary className="text-[11px] text-slate-500 cursor-pointer">
               Ou colar a lista na mão
@@ -365,8 +421,8 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
           ['Enviados', r.enviados],
           ['Erros', r.falharam],
           ['Responderam', r.responderam],
-          ['No funil', r.negociacoes],
-          ['Não querem receber', r.bloqueados],
+          ['No funil', r.no_funil],
+          ['Já são da casa', r.ja_na_base],
         ].map(([rotulo, valor]) => (
           <div key={String(rotulo)} className="bg-white border border-slate-200 rounded-xl px-3 py-2">
             <p className="text-[10px] uppercase tracking-wide text-slate-400">{rotulo}</p>
@@ -394,14 +450,14 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
             </tr>
           </thead>
           <tbody>
-            {!lista.length && (
+            {!contatos.length && (
               <tr>
                 <td colSpan={5} className="text-center text-slate-400 py-10">
                   Nada aqui ainda.
                 </td>
               </tr>
             )}
-            {lista.map((c) => (
+            {contatos.map((c) => (
               <tr key={c.id} className="border-t border-slate-100">
                 <td className="px-3 py-2">
                   <p className="font-medium text-slate-700">{c.nome || telefoneBonito(c.telefone)}</p>
@@ -422,6 +478,11 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
                     {SITUACOES[c.situacao] || c.situacao}
                   </span>
                   {c.lead_id && <span className="ml-1 text-[10px] text-emerald-600">no funil</span>}
+                  {c.ja_na_base && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px]">
+                      já é {c.ja_na_base}
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   {podeEditar && c.situacao !== 'bloqueado' && (
