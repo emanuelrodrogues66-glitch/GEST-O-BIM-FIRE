@@ -11,6 +11,7 @@ import CrmDashboard from './CrmDashboard'
 import CrmComissoes from './CrmComissoes'
 import CrmNovaNegociacao from './CrmNovaNegociacao'
 import CrmFeed from './CrmFeed'
+import Prospeccao from './Prospeccao'
 import type { Etapa, Funil, Lead } from '../lib/crm'
 import {
   carregarEtapas,
@@ -24,7 +25,7 @@ import {
 } from '../lib/crm'
 import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 
-type Aba = 'funil' | 'lista' | 'feed' | 'painel' | 'comissoes' | 'cadastros'
+type Aba = 'funil' | 'lista' | 'feed' | 'painel' | 'comissoes' | 'prospeccao' | 'cadastros'
 
 /** Filtros de CRM: cada um responde a uma pergunta de quem vende. */
 type Filtros = {
@@ -281,6 +282,7 @@ export default function ComercialPage() {
               ['feed', 'Feed'],
               ['painel', 'Painel e relatórios'],
               ...(pode('comercial.comissao') ? ([['comissoes', 'Comissões']] as [Aba, string][]) : []),
+              ['prospeccao', 'Prospecção'],
               ['cadastros', 'Clientes e parceiros'],
             ] as [Aba, string][]
           ).map(([v, rotulo]) => (
@@ -310,6 +312,8 @@ export default function ComercialPage() {
               if (l) setAberto(l)
             }}
           />
+        ) : aba === 'prospeccao' ? (
+          <Prospeccao podeEditar={pode('comercial.editar')} />
         ) : aba === 'cadastros' ? (
           <CadastrosView leads={leads} />
         ) : aba === 'comissoes' ? (
