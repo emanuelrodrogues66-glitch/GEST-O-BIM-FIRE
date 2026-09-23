@@ -65,6 +65,19 @@ export function soDigitos(v: string | null | undefined) {
   return (v || '').replace(/[^0-9]/g, '')
 }
 
+/**
+ * A forma unica do numero: so digitos, sem o 55 na frente.
+ *
+ * O banco guarda assim. Se a planilha vier com DDI e a fila sem, o mesmo
+ * telefone vira dois contatos e a carencia de 30 dias deixa de reconhecer
+ * quem ja foi procurado.
+ */
+export function numeroDaLista(v: string) {
+  const d = soDigitos(v)
+  if ((d.length === 12 || d.length === 13) && d.slice(0, 2) === '55') return d.slice(2)
+  return d
+}
+
 /** Telefone do jeito que o WhatsApp entende: com o 55 na frente. */
 export function comDdi(v: string) {
   const d = soDigitos(v)
@@ -238,7 +251,7 @@ export async function importarContatos(
 
   const novos: Record<string, unknown>[] = []
   for (const linha of linhas) {
-    const tel = soDigitos(linha.telefone)
+    const tel = numeroDaLista(linha.telefone)
     if (tel.length < 10) {
       r.semTelefone++
       continue
