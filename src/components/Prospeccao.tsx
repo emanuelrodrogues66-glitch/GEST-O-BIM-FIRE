@@ -6,8 +6,10 @@ import {
   carregarCampanhas,
   carregarContatos,
   criarCampanha,
+  descartar,
   importarContatos,
   linkWhatsapp,
+  marcarAbordado,
   mensagem,
   mudarSituacao,
   naoQuerReceber,
@@ -105,11 +107,37 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
     // A janela abre antes do await para o navegador não tratar como pop-up.
     window.open(linkWhatsapp(c, campanha.modelo), '_blank')
     try {
-      await registrarNoCrm(c.id, usuario)
+      await marcarAbordado(c, usuario)
       await recarregarContatos(atual)
     } catch (e) {
       console.error(e)
-      setAviso('A conversa abriu, mas o registro no CRM falhou. Recarregue e tente de novo.')
+      setAviso('A conversa abriu, mas o sistema nao conseguiu marcar o contato.')
+    }
+  }
+
+  /** So aqui nasce negociacao. O envio conta o que fez; quem promove e voce. */
+  async function virarLead(c: Contato) {
+    setAviso('')
+    try {
+      const res = await registrarNoCrm(c.id, usuario)
+      await recarregarContatos(atual)
+      setAviso(
+        res && res.criou_lead
+          ? (c.empresa || c.nome || telefoneBonito(c.telefone)) + ' entrou no funil de cliente final.'
+          : 'Esse contato ja tinha negociacao no funil.'
+      )
+    } catch (e) {
+      console.error(e)
+      setAviso('Nao deu para criar a negociacao.')
+    }
+  }
+
+  async function descartarContato(c: Contato) {
+    try {
+      await descartar(c.id)
+      await recarregarContatos(atual)
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -209,8 +237,9 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
         <div className="flex gap-1">
           {[
             ['fila', 'Na fila (' + r.fila + ')'],
-            ['abordado', 'Abordados'],
+            ['enviado', 'Enviados (' + r.enviados + ')'],
             ['respondeu', 'Responderam (' + r.responderam + ')'],
+            ['falhou', 'Erros (' + r.falharam + ')'],
             ['todos', 'Todos (' + r.total + ')'],
           ].map(([v, rotulo]) => (
             <button
@@ -287,10 +316,11 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
         {[
           ['Na fila', r.fila],
-          ['Abordados', r.abordados],
+          ['Enviados', r.enviados],
+          ['Erros', r.falharam],
           ['Responderam', r.responderam],
           ['No funil', r.negociacoes],
           ['Não querem receber', r.bloqueados],
@@ -333,6 +363,14 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
                 <td className="px-3 py-2">
                   <p className="font-medium text-slate-700">{c.nome || telefoneBonito(c.telefone)}</p>
                   <p className="text-[11px] text-slate-400">{telefoneBonito(c.telefone)}</p>
+                  {(c.erro || c.mensagem) && (
+                    <p
+                      className="text-[10px] text-slate-400 max-w-[22rem] truncate"
+                      title={c.erro || c.mensagem || ''}
+                    >
+                      {c.erro ? 'Erro: ' + c.erro : c.mensagem}
+                    </p>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-slate-600">{c.empresa || '—'}</td>
                 <td className="px-3 py-2 text-slate-600">{c.cidade || '—'}</td>
@@ -359,12 +397,20 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
                           Respondeu
                         </button>
                       )}
-                      {c.abordado_em && c.situacao !== 'sem_retorno' && (
+                      {!c.lead_id && (
                         <button
-                          onClick={() => marcar(c, 'sem_retorno')}
+                          onClick={() => virarLead(c)}
+                          className="ml-1 text-[11px] px-2 py-1 rounded-lg bg-indigo-600 text-white"
+                        >
+                          Virar lead
+                        </button>
+                      )}
+                      {c.situacao !== 'descartado' && (
+                        <button
+                          onClick={() => descartarContato(c)}
                           className="ml-1 text-[11px] px-2 py-1 rounded-lg border border-slate-300 text-slate-500"
                         >
-                          Sem retorno
+                          Descartar
                         </button>
                       )}
                       <button

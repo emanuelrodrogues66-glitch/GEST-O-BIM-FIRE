@@ -33,10 +33,14 @@ export type Contato = {
   respondeu_em: string | null
   observacao: string | null
   lead_id: string | null
+  mensagem: string | null
+  erro: string | null
 }
 
 export const SITUACOES: Record<string, string> = {
   fila: 'Na fila',
+  enviado: 'Enviado',
+  falhou: 'Erro no envio',
   abordado: 'Abordado',
   respondeu: 'Respondeu',
   sem_retorno: 'Sem retorno',
@@ -46,6 +50,8 @@ export const SITUACOES: Record<string, string> = {
 
 export const CORES: Record<string, string> = {
   fila: 'bg-slate-100 text-slate-600',
+  enviado: 'bg-sky-100 text-sky-700',
+  falhou: 'bg-rose-100 text-rose-700',
   abordado: 'bg-amber-100 text-amber-700',
   respondeu: 'bg-emerald-100 text-emerald-700',
   sem_retorno: 'bg-slate-100 text-slate-400',
@@ -210,6 +216,26 @@ export async function registrarNoCrm(contatoId: string, por: string) {
   return ((data as { lead_id: string; criou_lead: boolean }[]) || [])[0]
 }
 
+/**
+ * Conversa aberta na mao, sem o plugin. Marca o contato, mas nao cria lead:
+ * quem decide se vira negociacao e a pessoa, no botao Virar lead.
+ */
+export async function marcarAbordado(c: Contato, por: string) {
+  const { error } = await supabase
+    .from('prospeccao_contatos')
+    .update({
+      situacao: c.situacao === 'fila' ? 'abordado' : c.situacao,
+      abordado_em: c.abordado_em || new Date().toISOString(),
+      abordado_por: c.abordado_por || por || null,
+    })
+    .eq('id', c.id)
+  if (error) throw error
+}
+
+export async function descartar(id: string) {
+  await mudarSituacao(id, 'descartado')
+}
+
 export async function mudarSituacao(id: string, situacao: string) {
   const patch: Record<string, unknown> = { situacao }
   if (situacao === 'respondeu') patch.respondeu_em = new Date().toISOString()
@@ -228,6 +254,8 @@ export function resumo(contatos: Contato[]) {
   return {
     total: contatos.length,
     fila: conta('fila'),
+    enviados: conta('enviado'),
+    falharam: conta('falhou'),
     abordados: contatos.filter((c) => c.abordado_em).length,
     responderam: conta('respondeu'),
     bloqueados: conta('bloqueado'),
