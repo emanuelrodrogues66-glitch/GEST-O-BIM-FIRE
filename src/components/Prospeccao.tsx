@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Campanha, Contato } from '../lib/prospeccao'
+import type { Campanha, Contato, ContatoBruto } from '../lib/prospeccao'
 import {
   CORES,
   SITUACOES,
+  baixarModeloPlanilha,
   carregarCampanhas,
   carregarContatos,
   criarCampanha,
   descartar,
   importarContatos,
+  lerPlanilha,
+  linhasDoTexto,
   linkWhatsapp,
   marcarAbordado,
   mensagem,
@@ -178,11 +181,11 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
     }
   }
 
-  async function importar() {
-    if (!atual || !colado.trim()) return
+  async function aplicar(linhas: ContatoBruto[]) {
+    if (!atual || !linhas.length) return
     setSalvando(true)
     try {
-      const res = await importarContatos(atual, colado)
+      const res = await importarContatos(atual, linhas)
       const partes = [res.inseridos + ' na fila']
       if (res.repetidos) partes.push(res.repetidos + ' já estavam')
       if (res.bloqueados) partes.push(res.bloqueados + ' pediram para não receber')
@@ -196,6 +199,24 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
       setAviso('Não deu para importar.')
     } finally {
       setSalvando(false)
+    }
+  }
+
+  /** A planilha é lida aqui no navegador; o arquivo não sobe para lugar nenhum. */
+  async function aoEscolherArquivo(lista: FileList | null) {
+    const arquivo = lista && lista[0]
+    if (!arquivo || !atual) return
+    setAviso('Lendo a planilha...')
+    try {
+      const linhas = await lerPlanilha(arquivo)
+      if (!linhas.length) {
+        setAviso('A planilha está vazia, ou a primeira linha não tem os títulos das colunas.')
+        return
+      }
+      await aplicar(linhas)
+    } catch (e) {
+      console.error(e)
+      setAviso('Não consegui ler esse arquivo. Vale .xlsx, .xls ou .csv, com títulos na primeira linha.')
     }
   }
 
@@ -295,24 +316,46 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
 
       {colando && podeEditar && (
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={(e) => {
+                aoEscolherArquivo(e.target.files)
+                e.target.value = ''
+              }}
+              className="text-xs"
+            />
+            <button
+              onClick={baixarModeloPlanilha}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50"
+            >
+              Baixar modelo
+            </button>
+          </div>
           <p className="text-[11px] text-slate-500">
-            Uma linha por contato, na ordem telefone, nome, empresa, cidade. Pode colar direto da
-            planilha.
+            As colunas são reconhecidas pelo título: telefone (ou celular, whatsapp, fone), nome,
+            empresa e cidade. A ordem não importa e coluna a mais é ignorada.
           </p>
-          <textarea
-            value={colado}
-            onChange={(e) => setColado(e.target.value)}
-            rows={6}
-            placeholder="43999998888;João;Metalúrgica Alfa;Londrina"
-            className="w-full text-xs font-mono border border-slate-300 rounded-lg px-3 py-2"
-          />
-          <button
-            onClick={importar}
-            disabled={salvando}
-            className="text-xs px-3 py-2 rounded-lg bg-indigo-600 text-white disabled:opacity-40"
-          >
-            Importar
-          </button>
+          <details>
+            <summary className="text-[11px] text-slate-500 cursor-pointer">
+              Ou colar a lista na mão
+            </summary>
+            <textarea
+              value={colado}
+              onChange={(e) => setColado(e.target.value)}
+              rows={5}
+              placeholder="43999998888;João;Metalúrgica Alfa;Londrina"
+              className="w-full text-xs font-mono border border-slate-300 rounded-lg px-3 py-2 mt-2"
+            />
+            <button
+              onClick={() => aplicar(linhasDoTexto(colado))}
+              disabled={salvando}
+              className="text-xs px-3 py-2 rounded-lg bg-indigo-600 text-white disabled:opacity-40 mt-2"
+            >
+              Importar o que foi colado
+            </button>
+          </details>
         </div>
       )}
 

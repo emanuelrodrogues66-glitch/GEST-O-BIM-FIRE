@@ -1,4 +1,6 @@
+import * as XLSX from 'xlsx'
 import { supabase } from './supabase'
+import { exportarParaExcel } from './exportarExcel'
 
 /**
  * Prospecção ativa.
@@ -141,6 +143,13 @@ export async function carregarContatos(campanhaId: string): Promise<Contato[]> {
   return (data as Contato[]) || []
 }
 
+export type ContatoBruto = {
+  telefone: string
+  nome?: string
+  empresa?: string
+  cidade?: string
+}
+
 export type ResultadoImportacao = {
   inseridos: number
   semTelefone: number
@@ -148,14 +157,76 @@ export type ResultadoImportacao = {
   bloqueados: number
 }
 
+function chaveDaColuna(k: string) {
+  return String(k).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+}
+
 /**
- * Cola a lista e pronto. Aceita ponto-e-vírgula, vírgula ou tabulação — é o
- * que sai de qualquer planilha — na ordem telefone, nome, empresa, cidade.
- * Quem já pediu para não receber nunca entra.
+ * Lê a planilha do jeito que ela veio.
+ *
+ * Ninguém monta arquivo pensando no sistema: a coluna vem como "Telefone",
+ * "Celular", "WhatsApp" ou "Fone", e o que importa é achar o número. Por isso
+ * a leitura procura pelo título da coluna, não pela posição dela.
  */
-export async function importarContatos(campanhaId: string, texto: string): Promise<ResultadoImportacao> {
+export async function lerPlanilha(arquivo: File): Promise<ContatoBruto[]> {
+  const buffer = await arquivo.arrayBuffer()
+  const pasta = XLSX.read(buffer, { type: 'array', raw: false })
+  const aba = pasta.Sheets[pasta.SheetNames[0]]
+  const linhas = XLSX.utils.sheet_to_json<Record<string, unknown>>(aba, { defval: '' })
+  return linhas.map((linha) => {
+    const campos: Record<string, string> = {}
+    for (const k of Object.keys(linha)) campos[chaveDaColuna(k)] = String(linha[k] ?? '').trim()
+    const achar = (...nomes: string[]) => {
+      for (const n of nomes) if (campos[n]) return campos[n]
+      return ''
+    }
+    return {
+      telefone: achar('telefone', 'celular', 'whatsapp', 'fone', 'numero', 'contato', 'phone'),
+      nome: achar('nome', 'responsavel', 'name'),
+      empresa: achar('empresa', 'razao social', 'nome fantasia', 'company'),
+      cidade: achar('cidade', 'municipio', 'city'),
+    }
+  })
+}
+
+/** O mesmo, para quem prefere colar a lista na mão. */
+export function linhasDoTexto(texto: string): ContatoBruto[] {
+  return (texto || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((linha) => {
+      const campos = linha.split(/[;\t,]/).map((c) => c.trim())
+      return { telefone: campos[0] || '', nome: campos[1], empresa: campos[2], cidade: campos[3] }
+    })
+}
+
+/** Planilha com os títulos certos, para quem quiser começar do zero. */
+export function baixarModeloPlanilha() {
+  exportarParaExcel<ContatoBruto>({
+    nomeArquivo: 'modelo-prospeccao.xlsx',
+    nomeAba: 'Contatos',
+    colunas: [
+      { titulo: 'Telefone', valor: (l) => l.telefone, largura: 18 },
+      { titulo: 'Nome', valor: (l) => l.nome || '', largura: 22 },
+      { titulo: 'Empresa', valor: (l) => l.empresa || '', largura: 30 },
+      { titulo: 'Cidade', valor: (l) => l.cidade || '', largura: 18 },
+    ],
+    linhas: [
+      { telefone: '43999998888', nome: 'João', empresa: 'Metalúrgica Alfa', cidade: 'Londrina' },
+    ],
+  })
+}
+
+/**
+ * Entra na fila quem tem telefone, não está repetido na campanha e não pediu
+ * para não receber mais.
+ */
+export async function importarContatos(
+  campanhaId: string,
+  linhas: ContatoBruto[]
+): Promise<ResultadoImportacao> {
   const r: ResultadoImportacao = { inseridos: 0, semTelefone: 0, repetidos: 0, bloqueados: 0 }
-  const linhas = (texto || '').split('\n').map((l) => l.trim()).filter(Boolean)
   if (!linhas.length) return r
 
   const [jaTem, recusaram] = await Promise.all([
@@ -167,8 +238,7 @@ export async function importarContatos(campanhaId: string, texto: string): Promi
 
   const novos: Record<string, unknown>[] = []
   for (const linha of linhas) {
-    const campos = linha.split(/[;\t,]/).map((c) => c.trim())
-    const tel = soDigitos(campos[0])
+    const tel = soDigitos(linha.telefone)
     if (tel.length < 10) {
       r.semTelefone++
       continue
@@ -185,9 +255,9 @@ export async function importarContatos(campanhaId: string, texto: string): Promi
     novos.push({
       campanha_id: campanhaId,
       telefone: tel,
-      nome: campos[1] || null,
-      empresa: campos[2] || null,
-      cidade: campos[3] || null,
+      nome: linha.nome || null,
+      empresa: linha.empresa || null,
+      cidade: linha.cidade || null,
     })
   }
   if (novos.length) {
