@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { comemorarConclusao } from '../lib/celebracao'
+import { comemorarAprovacoes } from '../lib/celebracao'
 import { normalizeStatus } from '../types'
 
 type ProjetoAprovado = {
@@ -67,9 +67,9 @@ export default function AvisoAprovacoes({ onFim }: { onFim: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Cada pessoa que entra em cena ganha o confete: duas rajadas e some.
+  // Cada pessoa que entra em cena ganha fogos e a plateia comemorando.
   useEffect(() => {
-    if (aberto && fila.length > 0) comemorarConclusao(2)
+    if (aberto && fila.length > 0) comemorarAprovacoes()
   }, [aberto, indice, fila.length])
 
   async function carregar() {

@@ -92,6 +92,130 @@ function soltarConfete() {
   }, 180)
 }
 
+/** Ruído branco pronto para virar palma, assobio ou massa de vozes. */
+function ruido(ctx: AudioContext, segundos: number) {
+  const amostras = Math.floor(ctx.sampleRate * segundos)
+  const buffer = ctx.createBuffer(1, amostras, ctx.sampleRate)
+  const dados = buffer.getChannelData(0)
+  for (let i = 0; i < amostras; i++) dados[i] = Math.random() * 2 - 1
+  return buffer
+}
+
+/**
+ * Plateia comemorando, montada na hora.
+ *
+ * Não é gravação: são três camadas sintetizadas — a massa de vozes (ruído
+ * filtrado que incha e cai), as palmas (estalos curtos espalhados, mais densos
+ * no começo) e um assobio. Fica parecido sem precisar de arquivo de áudio no
+ * projeto, que pesaria no carregamento de todo mundo.
+ */
+function tocarTorcida() {
+  try {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const agora = ctx.currentTime
+    const duracao = 2.6
+
+    const vozes = ctx.createBufferSource()
+    vozes.buffer = ruido(ctx, duracao)
+    const filtro = ctx.createBiquadFilter()
+    filtro.type = 'bandpass'
+    filtro.frequency.setValueAtTime(500, agora)
+    filtro.frequency.exponentialRampToValueAtTime(1400, agora + 0.7)
+    filtro.frequency.exponentialRampToValueAtTime(700, agora + duracao)
+    filtro.Q.value = 0.8
+    const massa = ctx.createGain()
+    massa.gain.setValueAtTime(0.001, agora)
+    massa.gain.linearRampToValueAtTime(0.2, agora + 0.35)
+    massa.gain.setValueAtTime(0.2, agora + 1.5)
+    massa.gain.exponentialRampToValueAtTime(0.001, agora + duracao)
+    vozes.connect(filtro)
+    filtro.connect(massa)
+    massa.connect(ctx.destination)
+    vozes.start(agora)
+    vozes.stop(agora + duracao)
+
+    const estalo = ruido(ctx, 0.06)
+    for (let i = 0; i < 55; i++) {
+      // Expoente menor que 1 empurra as palmas para o início: a plateia
+      // explode e vai diminuindo, como acontece de verdade.
+      const t = agora + 0.05 + Math.pow(Math.random(), 0.6) * (duracao - 0.5)
+      const fonte = ctx.createBufferSource()
+      fonte.buffer = estalo
+      const corte = ctx.createBiquadFilter()
+      corte.type = 'bandpass'
+      corte.frequency.value = 1200 + Math.random() * 2200
+      corte.Q.value = 1.2
+      const volume = ctx.createGain()
+      const pico = 0.04 + Math.random() * 0.06
+      volume.gain.setValueAtTime(0.0001, t)
+      volume.gain.linearRampToValueAtTime(pico, t + 0.004)
+      volume.gain.exponentialRampToValueAtTime(0.0005, t + 0.09)
+      fonte.connect(corte)
+      corte.connect(volume)
+      volume.connect(ctx.destination)
+      fonte.start(t)
+      fonte.stop(t + 0.1)
+    }
+
+    const assobio = ctx.createOscillator()
+    const vol = ctx.createGain()
+    assobio.type = 'sine'
+    assobio.frequency.setValueAtTime(1500, agora + 0.5)
+    assobio.frequency.linearRampToValueAtTime(2300, agora + 0.78)
+    assobio.frequency.linearRampToValueAtTime(1800, agora + 1.1)
+    vol.gain.setValueAtTime(0.0001, agora + 0.5)
+    vol.gain.linearRampToValueAtTime(0.045, agora + 0.62)
+    vol.gain.exponentialRampToValueAtTime(0.0005, agora + 1.3)
+    assobio.connect(vol)
+    vol.connect(ctx.destination)
+    assobio.start(agora + 0.5)
+    assobio.stop(agora + 1.35)
+
+    setTimeout(() => ctx.close().catch(() => {}), (duracao + 0.6) * 1000)
+  } catch {
+    // Som é enfeite: se o navegador bloquear, o resto segue normalmente.
+  }
+}
+
+/**
+ * Fogos: rajadas redondas em pontos aleatórios do alto da tela.
+ *
+ * Diferente do confete, que cai das laterais, aqui cada tiro abre em 360 graus
+ * e apaga rápido — é o que dá a leitura de fogo de artifício.
+ */
+function fogosDeArtificio(duracaoMs = 2600) {
+  const cores = ['#facc15', '#f472b6', '#38bdf8', '#22c55e', '#E8A33D', '#ffffff']
+  const fim = Date.now() + duracaoMs
+
+  const disparar = () => {
+    confetti({
+      particleCount: 55,
+      startVelocity: 30,
+      spread: 360,
+      ticks: 70,
+      gravity: 0.9,
+      scalar: 0.9,
+      shapes: ['circle'],
+      origin: { x: 0.15 + Math.random() * 0.7, y: 0.15 + Math.random() * 0.35 },
+      colors: cores,
+      zIndex: 9999,
+    })
+    if (Date.now() < fim) setTimeout(disparar, 260 + Math.random() * 280)
+  }
+
+  disparar()
+}
+
+/** Comemoração das aprovações da semana: fogos e plateia. */
+export function comemorarAprovacoes() {
+  if (comemoracao.confeteLigado()) fogosDeArtificio()
+  if (comemoracao.somLigado()) tocarTorcida()
+}
+
 /**
  * Dispara a comemoração respeitando as preferências do usuário.
  * `quantidade` acima de 1 (conclusão em massa) reforça o confete.
