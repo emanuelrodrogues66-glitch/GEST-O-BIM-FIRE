@@ -24,6 +24,17 @@ import {
  */
 const LINK_DO_FORMULARIO = 'https://cadastro-parceiros-bimfire.vercel.app'
 
+/**
+ * A data do cadastro, curta: 24/09/2026. Serve para saber ha quanto tempo a
+ * pessoa esta esperando uma resposta nossa.
+ */
+function diaBonito(iso: string | null) {
+  if (!iso) return ""
+  const d = new Date(iso)
+  const p = (n: number) => String(n).padStart(2, "0")
+  return p(d.getDate()) + "/" + p(d.getMonth() + 1) + "/" + d.getFullYear()
+}
+
 export default function Fornecedores({ podeEditar }: { podeEditar: boolean }) {
   const [lista, setLista] = useState<Fornecedor[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -206,6 +217,9 @@ export default function Fornecedores({ podeEditar }: { podeEditar: boolean }) {
                   {f.cidade ? ' · ' + f.cidade : ''}
                   {f.estado ? ' — ' + f.estado : ''}
                   {f.ja_trabalhou ? ' · ' + f.ja_trabalhou : ''}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Cadastrou-se em {diaBonito(f.criado_em)}
                 </p>
                 {f.tipos_projeto && f.tipos_projeto.length > 0 && (
                   <p className="text-[11px] text-slate-400 mt-0.5">

@@ -44,6 +44,17 @@ import {
  * Quem aperta enviar continua sendo a pessoa: o botão abre o WhatsApp com o
  * texto já montado.
  */
+/**
+ * Dia e hora curtos do envio: 24/09 14:25. Sem o ano, que na prospeccao e
+ * sempre o corrente e so ocuparia espaco na tabela.
+ */
+function quando(iso: string | null) {
+  if (!iso) return ""
+  const d = new Date(iso)
+  const p2 = (n: number) => String(n).padStart(2, "0")
+  return p2(d.getDate()) + "/" + p2(d.getMonth() + 1) + " " + p2(d.getHours()) + ":" + p2(d.getMinutes())
+}
+
 export default function Prospeccao({
   podeEditar,
   aoAbrirNegociacao,
@@ -782,6 +793,16 @@ export default function Prospeccao({
                   <span className={'px-2 py-0.5 rounded-full ' + (CORES[c.situacao] || CORES.fila)}>
                     {SITUACOES[c.situacao] || c.situacao}
                   </span>
+                  {c.abordado_em && (
+                    <span className="ml-2 text-[10px] text-slate-400" title={new Date(c.abordado_em).toLocaleString()}>
+                      {quando(c.abordado_em)}
+                    </span>
+                  )}
+                  {c.respondeu_em && (
+                    <span className="ml-1 text-[10px] text-emerald-600" title="Quando respondeu">
+                      resp. {quando(c.respondeu_em)}
+                    </span>
+                  )}
                   {c.lead_id && <span className="ml-1 text-[10px] text-emerald-600">no funil</span>}
                   {c.ja_na_base && (
                     <button
