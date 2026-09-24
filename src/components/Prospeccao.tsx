@@ -24,7 +24,10 @@ import {
   nomeDoUsuario,
   podeAbordar,
   SEM_VINCULO,
+  apagarCampanha,
+  mudarCampanha,
   registrarNoCrm,
+  reiniciarCampanha,
   telefoneBonito,
 } from '../lib/prospeccao'
 
@@ -65,6 +68,11 @@ export default function Prospeccao({
     'Oi {{nome}}, tudo bem? Aqui é da BIM Fire, de Londrina. A gente faz projeto de prevenção de incêndio e regularização no Corpo de Bombeiros. Vocês já têm o PPCI da {{empresa}} em dia?'
   )
   const [colando, setColando] = useState(false)
+  const [editando, setEditando] = useState(false)
+  const [nomeEdit, setNomeEdit] = useState('')
+  const [modeloEdit, setModeloEdit] = useState('')
+  const [statusEdit, setStatusEdit] = useState('aberta')
+  const [confirmaNome, setConfirmaNome] = useState('')
   const [colado, setColado] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [sufixo, setSufixo] = useState('')
@@ -185,6 +193,72 @@ export default function Prospeccao({
       console.error(e)
       setAndamento('')
       setAviso('A importação parou no meio: ' + (e as Error).message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  function abrirEdicao() {
+    if (!campanha) return
+    setNomeEdit(campanha.nome)
+    setModeloEdit(campanha.modelo || '')
+    setStatusEdit(campanha.status || 'aberta')
+    setConfirmaNome('')
+    setEditando(!editando)
+  }
+
+  async function salvarCampanha() {
+    if (!campanha || !nomeEdit.trim()) return
+    setSalvando(true)
+    try {
+      await mudarCampanha(campanha.id, {
+        nome: nomeEdit.trim(),
+        modelo: modeloEdit,
+        status: statusEdit,
+      })
+      setEditando(false)
+      setAviso('Campanha salva.')
+      await carregar()
+    } catch (e) {
+      console.error(e)
+      setAviso('Não deu para salvar: ' + (e as Error).message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function reiniciar() {
+    if (!campanha) return
+    if (!confirm('Devolver todos os contatos de "' + campanha.nome + '" para a fila?')) return
+    setSalvando(true)
+    try {
+      const quantos = await reiniciarCampanha(campanha.id)
+      setAviso(
+        quantos + ' contatos voltaram para a fila. Quem foi procurado nos últimos 30 dias' +
+        ' só sai de novo depois desse prazo.'
+      )
+      await recarregarContatos(atual)
+    } catch (e) {
+      console.error(e)
+      setAviso('Não deu para reiniciar: ' + (e as Error).message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function apagar() {
+    if (!campanha) return
+    setSalvando(true)
+    try {
+      const quantos = await apagarCampanha(campanha.id, confirmaNome)
+      setEditando(false)
+      setConfirmaNome('')
+      setAtual('')
+      setAviso('Campanha apagada, com ' + quantos + ' contatos.')
+      await carregar()
+    } catch (e) {
+      console.error(e)
+      setAviso('Não deu para apagar: ' + (e as Error).message)
     } finally {
       setSalvando(false)
     }
@@ -339,6 +413,13 @@ export default function Prospeccao({
               className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50"
             >
               Nova campanha
+            </button>
+            <button
+              onClick={abrirEdicao}
+              disabled={!atual}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Editar campanha
             </button>
             <button
               onClick={() => setColando(!colando)}
@@ -499,6 +580,78 @@ export default function Prospeccao({
           >
             Criar campanha
           </button>
+        </div>
+      )}
+
+      {editando && podeEditar && campanha && (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <input
+            value={nomeEdit}
+            onChange={(e) => setNomeEdit(e.target.value)}
+            className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2"
+          />
+          <div>
+            <label className="text-[11px] text-slate-500">
+              Mensagem. {'{{nome}}'}, {'{{empresa}}'} e {'{{cidade}}'} trocam pelos dados do contato.
+            </label>
+            <textarea
+              value={modeloEdit}
+              onChange={(e) => setModeloEdit(e.target.value)}
+              rows={4}
+              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 mt-1"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={statusEdit}
+              onChange={(e) => setStatusEdit(e.target.value)}
+              className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white"
+            >
+              <option value="aberta">Aberta</option>
+              <option value="pausada">Pausada</option>
+              <option value="concluida">Concluída</option>
+            </select>
+            <button
+              onClick={salvarCampanha}
+              disabled={salvando}
+              className="text-xs px-3 py-2 rounded-lg bg-indigo-600 text-white disabled:opacity-40"
+            >
+              Salvar
+            </button>
+            <button
+              onClick={reiniciar}
+              disabled={salvando}
+              className="text-xs px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Reiniciar campanha
+            </button>
+            <span className="text-[11px] text-slate-400">
+              devolve todos para a fila, mantendo o histórico
+            </span>
+          </div>
+
+          <div className="border-t border-rose-100 pt-3">
+            <p className="text-[11px] text-rose-700">
+              Apagar leva junto os {r.total} contatos desta campanha, e não tem volta. As
+              negociações que já nasceram dela continuam no funil. Para confirmar, digite o nome
+              da campanha:
+            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <input
+                value={confirmaNome}
+                onChange={(e) => setConfirmaNome(e.target.value)}
+                placeholder={campanha.nome}
+                className="flex-1 min-w-[12rem] text-xs border border-rose-200 rounded-lg px-3 py-2"
+              />
+              <button
+                onClick={apagar}
+                disabled={salvando || confirmaNome.trim() !== campanha.nome}
+                className="text-xs px-3 py-2 rounded-lg bg-rose-600 text-white disabled:opacity-30"
+              >
+                Apagar campanha
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

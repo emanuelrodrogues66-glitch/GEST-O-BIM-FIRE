@@ -181,6 +181,30 @@ export async function carregarResumo(campanhaId: string): Promise<Resumo> {
 }
 
 /** Só uma janela da campanha: o resumo é quem sabe o tamanho real. */
+/** Volta a campanha inteira para a fila, sem apagar o histórico. */
+export async function reiniciarCampanha(campanhaId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('prospeccao_reiniciar_campanha', {
+    p_campanha: campanhaId,
+  })
+  if (error) throw error
+  return Number(data) || 0
+}
+
+/**
+ * Apaga a campanha e a lista dela.
+ *
+ * Exige o nome digitado porque não tem volta: são milhares de contatos, e a
+ * campanha errada no seletor é um clique de distância.
+ */
+export async function apagarCampanha(campanhaId: string, nomeDigitado: string): Promise<number> {
+  const { data, error } = await supabase.rpc('prospeccao_apagar_campanha', {
+    p_campanha: campanhaId,
+    p_nome_confirmacao: nomeDigitado,
+  })
+  if (error) throw error
+  return Number(data) || 0
+}
+
 export async function carregarContatos(
   campanhaId: string,
   situacao?: string,
