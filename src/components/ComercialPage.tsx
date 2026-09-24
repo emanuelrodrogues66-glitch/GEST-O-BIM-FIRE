@@ -7,6 +7,7 @@ import { LOGO_BIM_FIRE_JPEG } from '../lib/logoBimFire'
 import Login from './Login'
 import CrmLeadModal from './CrmLeadModal'
 import CadastrosView from './CadastrosView'
+import Fornecedores from './Fornecedores'
 import CrmDashboard from './CrmDashboard'
 import CrmComissoes from './CrmComissoes'
 import CrmNovaNegociacao from './CrmNovaNegociacao'
@@ -25,7 +26,15 @@ import {
 } from '../lib/crm'
 import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 
-type Aba = 'funil' | 'lista' | 'feed' | 'painel' | 'comissoes' | 'prospeccao' | 'cadastros'
+type Aba =
+  | 'funil'
+  | 'lista'
+  | 'feed'
+  | 'painel'
+  | 'comissoes'
+  | 'prospeccao'
+  | 'fornecedores'
+  | 'cadastros'
 
 /** Filtros de CRM: cada um responde a uma pergunta de quem vende. */
 type Filtros = {
@@ -283,6 +292,7 @@ export default function ComercialPage() {
               ['painel', 'Painel e relatórios'],
               ...(pode('comercial.comissao') ? ([['comissoes', 'Comissões']] as [Aba, string][]) : []),
               ['prospeccao', 'Prospecção'],
+              ['fornecedores', 'Fornecedores'],
               ['cadastros', 'Clientes e parceiros'],
             ] as [Aba, string][]
           ).map(([v, rotulo]) => (
@@ -320,6 +330,8 @@ export default function ComercialPage() {
               if (l) setAberto(l)
             }}
           />
+        ) : aba === 'fornecedores' ? (
+          <Fornecedores podeEditar={pode('comercial.editar')} />
         ) : aba === 'cadastros' ? (
           <CadastrosView leads={leads} />
         ) : aba === 'comissoes' ? (

@@ -5,6 +5,7 @@ import App from './App.tsx'
 import PontoPage from './components/PontoPage.tsx'
 import ComercialPage from './components/ComercialPage.tsx'
 import MefPage from './components/MefPage.tsx'
+import FormularioParceiro from './components/FormularioParceiro.tsx'
 
 // O cartão ponto mora em /ponto, endereço próprio: dá para abrir numa aba
 // separada, deixar fixa no computador da recepção ou salvar como atalho no
@@ -19,6 +20,9 @@ createRoot(document.getElementById('root')!).render(
       <ComercialPage />
     ) : rota === '/mef' ? (
       <MefPage />
+    ) : rota === '/parceiro' ? (
+      // Público: quem recebe o link por WhatsApp preenche sem login.
+      <FormularioParceiro />
     ) : (
       <App />
     )}
