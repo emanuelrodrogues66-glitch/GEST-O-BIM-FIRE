@@ -92,16 +92,24 @@ export default function FormularioParceiro() {
             <h1 className="text-lg font-semibold text-slate-800 leading-tight">
               Cadastro de parceiros
             </h1>
-            <p className="text-xs text-slate-500">BIM Fire Engenharia — Londrina, PR</p>
+            <p className="text-xs text-slate-500">BIM Fire Engenharia — Arapongas, PR</p>
           </div>
         </div>
 
-        <p className="text-sm text-slate-600 bg-white border border-slate-200 rounded-xl p-4 mb-4">
-          A gente faz projeto de prevenção e combate a incêndio e cuida da aprovação no Corpo de
-          Bombeiros em todo o país. Quando cai um trabalho fora da nossa área, procuramos quem está
-          nesta lista. Preencha para entrar nela — e conte o que você faz, que a recíproca também
-          vale.
-        </p>
+        <div className="text-sm text-slate-600 bg-white border border-slate-200 rounded-xl p-4 mb-4 space-y-2">
+          <p>
+            Fazemos projetos de prevenção e combate a incêndio e cuidamos da aprovação no Corpo de
+            Bombeiros em todo o Brasil.
+          </p>
+          <p>
+            Quando surge uma demanda fora da nossa área, indicamos profissionais da nossa rede de
+            parceiros.
+          </p>
+          <p>
+            Quer fazer parte da nossa rede? Preencha o formulário, conte o que você faz e deixe seu
+            contato. A recíproca também vale!
+          </p>
+        </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
           <div>
