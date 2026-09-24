@@ -101,15 +101,31 @@ function ruido(ctx: AudioContext, segundos: number) {
   return buffer
 }
 
+/** Gravação de verdade, cortada em 4 segundos com um fade no fim. */
+const SOM_DA_TORCIDA = '/sons/aplausos.mp3'
+
 /**
- * Plateia comemorando, montada na hora.
+ * Plateia comemorando.
  *
- * Não é gravação: são três camadas sintetizadas — a massa de vozes (ruído
- * filtrado que incha e cai), as palmas (estalos curtos espalhados, mais densos
- * no começo) e um assobio. Fica parecido sem precisar de arquivo de áudio no
- * projeto, que pesaria no carregamento de todo mundo.
+ * Toca o arquivo. Se ele faltar, ou o navegador recusar (autoplay bloqueado
+ * antes do primeiro clique da pessoa na página), cai para a versão
+ * sintetizada — o efeito perde realismo mas a comemoração não fica muda.
  */
 function tocarTorcida() {
+  try {
+    const audio = new Audio(SOM_DA_TORCIDA)
+    audio.volume = 0.7
+    const tentativa = audio.play()
+    if (tentativa && typeof tentativa.catch === 'function') {
+      tentativa.catch(() => torcidaSintetizada())
+    }
+  } catch {
+    torcidaSintetizada()
+  }
+}
+
+/** Reserva: três camadas de ruído que lembram uma plateia. */
+function torcidaSintetizada() {
   try {
     const Ctx =
       window.AudioContext ||
