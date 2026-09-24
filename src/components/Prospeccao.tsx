@@ -207,7 +207,7 @@ export default function Prospeccao({
     setEditando(!editando)
   }
 
-  async function salvarCampanha() {
+  async function salvarEdicao() {
     if (!campanha || !nomeEdit.trim()) return
     setSalvando(true)
     try {
@@ -612,7 +612,7 @@ export default function Prospeccao({
               <option value="concluida">Concluída</option>
             </select>
             <button
-              onClick={salvarCampanha}
+              onClick={salvarEdicao}
               disabled={salvando}
               className="text-xs px-3 py-2 rounded-lg bg-indigo-600 text-white disabled:opacity-40"
             >
