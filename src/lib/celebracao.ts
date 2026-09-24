@@ -249,8 +249,30 @@ export function comemorarConclusao(quantidade = 1) {
 // Alerta de correção
 // ---------------------------------------------------------------------------
 
-/** Dois bipes graves e descendentes — timbre de aviso, não de comemoração. */
+/** Gravação que a equipe escolheu para o susto da correção. */
+const SOM_DA_CORRECAO = '/sons/correcao.mp3'
+
+/**
+ * Aviso de correção.
+ *
+ * Toca o arquivo; se ele faltar ou o navegador recusar, caem os dois bipes
+ * sintetizados — o aviso não pode depender de um arquivo para existir.
+ */
 function tocarAlerta() {
+  try {
+    const audio = new Audio(SOM_DA_CORRECAO)
+    audio.volume = 0.8
+    const tentativa = audio.play()
+    if (tentativa && typeof tentativa.catch === 'function') {
+      tentativa.catch(() => alertaSintetizado())
+    }
+  } catch {
+    alertaSintetizado()
+  }
+}
+
+/** Reserva: dois bipes graves e descendentes, timbre de aviso. */
+function alertaSintetizado() {
   try {
     const Ctx = window.AudioContext || (window as any).webkitAudioContext
     if (!Ctx) return
