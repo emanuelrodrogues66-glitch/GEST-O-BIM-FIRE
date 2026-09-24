@@ -18,6 +18,12 @@ import {
  * se apresentou, com o que a pessoa escreveu. Vira parceiro de verdade só
  * quando alguém olha e aprova.
  */
+/**
+ * Endereço próprio, sem "gestão de projetos" no meio: o link vai por WhatsApp
+ * para gente que não conhece a empresa, e precisa dizer o que é.
+ */
+const LINK_DO_FORMULARIO = 'https://cadastro-parceiros-bimfire.vercel.app'
+
 export default function Fornecedores({ podeEditar }: { podeEditar: boolean }) {
   const [lista, setLista] = useState<Fornecedor[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -89,11 +95,11 @@ export default function Fornecedores({ podeEditar }: { podeEditar: boolean }) {
         <p className="text-xs font-semibold text-slate-600 mb-1">Link do formulário</p>
         <div className="flex flex-wrap items-center gap-2">
           <code className="text-xs bg-slate-100 rounded-lg px-2.5 py-1.5 text-slate-700">
-            {window.location.origin}/parceiro
+            {LINK_DO_FORMULARIO}
           </code>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(window.location.origin + '/parceiro')
+              navigator.clipboard.writeText(LINK_DO_FORMULARIO)
               setAviso('Link copiado.')
             }}
             className="text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50"
