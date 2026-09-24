@@ -351,6 +351,7 @@ export type ResultadoPorEstado = {
   inseridos: number
   semTelefone: number
   bloqueados: number
+  jaEstavam: number
   porCampanha: { nome: string; quantos: number }[]
 }
 
@@ -367,11 +368,22 @@ export async function importarPorEstado(
   sufixo: string,
   aoAndar?: (a: AndamentoImportacao) => void
 ): Promise<ResultadoPorEstado> {
-  const r: ResultadoPorEstado = { inseridos: 0, semTelefone: 0, bloqueados: 0, porCampanha: [] }
+  const r: ResultadoPorEstado = { inseridos: 0, semTelefone: 0, bloqueados: 0, jaEstavam: 0, porCampanha: [] }
   const rotulo = sufixo.trim() || 'Importados'
 
-  const { data: recusaram } = await supabase.from('prospeccao_optout').select('telefone')
-  const bloqueados = new Set(((recusaram as { telefone: string }[]) || []).map((x) => x.telefone))
+  // Quem já está em qualquer campanha, ou pediu para não receber, fica de
+  // fora — a peneira roda no banco, que é quem conhece as outras campanhas.
+  const candidatos = Array.from(
+    new Set(linhas.map((l) => numeroDaLista(l.telefone)).filter((t) => t.length >= 10))
+  )
+  const novos = new Set<string>()
+  for (let i = 0; i < candidatos.length; i += 1000) {
+    const pedaco = candidatos.slice(i, i + 1000)
+    const { data, error } = await supabase.rpc('prospeccao_filtrar_novos', { p_telefones: pedaco })
+    if (error) throw error
+    for (const x of (data as { telefone: string }[]) || []) novos.add(x.telefone)
+  }
+  r.jaEstavam = candidatos.length - novos.size
 
   // Agrupa por estado antes de falar com o banco.
   const porUf = new Map<string, Map<string, ContatoBruto>>()
@@ -382,10 +394,8 @@ export async function importarPorEstado(
       r.semTelefone++
       continue
     }
-    if (bloqueados.has(tel)) {
-      r.bloqueados++
-      continue
-    }
+    // Já contado em jaEstavam, lá em cima.
+    if (!novos.has(tel)) continue
     if (!porUf.has(uf)) porUf.set(uf, new Map())
     porUf.get(uf)!.set(tel, linha)
   }

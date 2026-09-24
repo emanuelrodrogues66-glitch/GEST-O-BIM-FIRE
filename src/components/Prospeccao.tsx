@@ -161,8 +161,8 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
       })
       setAndamento('')
       setColando(false)
-      const partes = [res.inseridos + ' contatos em ' + res.porCampanha.length + ' campanhas']
-      if (res.bloqueados) partes.push(res.bloqueados + ' pediram para não receber')
+      const partes = [res.inseridos + ' contatos novos em ' + res.porCampanha.length + ' campanhas']
+      if (res.jaEstavam) partes.push(res.jaEstavam + ' já estavam em alguma campanha')
       if (res.semTelefone) partes.push(res.semTelefone + ' sem telefone válido')
       setAviso(partes.join(' · '))
       await carregar()
@@ -377,8 +377,8 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
           <div className="border-t border-slate-100 pt-3">
             <label className="text-[11px] text-slate-500">
               Distribuir por estado. Escreva aqui o que a lista é (Arquitetos, Engenheiros, Fixos) e
-              cada número vai para a campanha do seu estado, descoberto pelo DDD. Em branco, tudo
-              entra na campanha escolhida acima.
+              cada número vai para a campanha do seu estado, descoberto pelo DDD. Quem já está em
+              qualquer campanha fica de fora. Em branco, tudo entra na campanha escolhida acima.
             </label>
             <input
               value={sufixo}
