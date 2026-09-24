@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Campanha, Contato, ContatoBruto, Resumo } from '../lib/prospeccao'
+import type { Campanha, Contato, ContatoBruto, Resumo, Vinculos } from '../lib/prospeccao'
+import ProspeccaoPainel from './ProspeccaoPainel'
+import { reais } from '../lib/crm'
 import {
   CORES,
   SITUACOES,
@@ -7,6 +9,7 @@ import {
   carregarCampanhas,
   carregarContatos,
   carregarResumo,
+  carregarVinculos,
   criarCampanha,
   descartar,
   importarContatos,
@@ -20,6 +23,7 @@ import {
   naoQuerReceber,
   nomeDoUsuario,
   podeAbordar,
+  SEM_VINCULO,
   registrarNoCrm,
   telefoneBonito,
 } from '../lib/prospeccao'
@@ -37,7 +41,17 @@ import {
  * Quem aperta enviar continua sendo a pessoa: o botão abre o WhatsApp com o
  * texto já montado.
  */
-export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
+export default function Prospeccao({
+  podeEditar,
+  aoAbrirNegociacao,
+}: {
+  podeEditar: boolean
+  aoAbrirNegociacao?: (leadId: string) => void
+}) {
+  const [aba, setAba] = useState<'lista' | 'painel'>('lista')
+  const [vendo, setVendo] = useState<Contato | null>(null)
+  const [vinculos, setVinculos] = useState<Vinculos>(SEM_VINCULO)
+  const [buscandoVinculos, setBuscandoVinculos] = useState(false)
   const [campanhas, setCampanhas] = useState<Campanha[]>([])
   const [atual, setAtual] = useState('')
   const [contatos, setContatos] = useState<Contato[]>([])
@@ -176,6 +190,20 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
     }
   }
 
+  /** O que a casa já tem sobre esse número. */
+  async function verVinculos(contato: Contato) {
+    setVendo(contato)
+    setVinculos(SEM_VINCULO)
+    setBuscandoVinculos(true)
+    try {
+      setVinculos(await carregarVinculos(contato.telefone))
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setBuscandoVinculos(false)
+    }
+  }
+
   async function marcar(c: Contato, situacao: string) {
     try {
       await mudarSituacao(c.id, situacao)
@@ -258,8 +286,39 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
 
   if (carregando) return <p className="text-sm text-slate-400 text-center py-20">Carregando prospecção...</p>
 
+  const abas = (
+    <div className="flex gap-1">
+      {([['lista', 'Campanhas'], ['painel', 'Painel']] as ['lista' | 'painel', string][]).map(
+        ([v, rotulo]) => (
+          <button
+            key={v}
+            onClick={() => setAba(v)}
+            className={
+              'text-xs font-medium px-3 py-1.5 rounded-lg border ' +
+              (aba === v
+                ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                : 'border-slate-200 text-slate-500 hover:bg-slate-50')
+            }
+          >
+            {rotulo}
+          </button>
+        )
+      )}
+    </div>
+  )
+
+  if (aba === 'painel') {
+    return (
+      <div className="space-y-4">
+        {abas}
+        <ProspeccaoPainel />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
+      {abas}
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={atual}
@@ -318,6 +377,99 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
       {aviso && (
         <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
           {aviso}
+        </div>
+      )}
+
+      {vendo && (
+        <div className="bg-white border border-amber-300 rounded-xl p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-slate-700">
+                {vendo.nome || telefoneBonito(vendo.telefone)}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {telefoneBonito(vendo.telefone)} — esse número já existe na casa
+              </p>
+            </div>
+            <button
+              onClick={() => setVendo(null)}
+              className="text-xs text-slate-400 hover:text-slate-700 px-2"
+            >
+              fechar
+            </button>
+          </div>
+
+          {buscandoVinculos ? (
+            <p className="text-xs text-slate-400">Procurando...</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Negociações</p>
+                {!vinculos.negociacoes.length ? (
+                  <p className="text-xs text-slate-400">Nenhuma.</p>
+                ) : (
+                  vinculos.negociacoes.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => aoAbrirNegociacao && aoAbrirNegociacao(n.id)}
+                      disabled={!aoAbrirNegociacao}
+                      className="block w-full text-left text-xs px-2 py-1.5 rounded-lg border border-slate-200 mb-1 hover:bg-slate-50 disabled:hover:bg-white"
+                    >
+                      <span className="font-medium text-slate-700">{n.nome}</span>
+                      <span className="block text-[10px] text-slate-400">
+                        {n.funil} · {n.etapa}
+                        {n.valor ? ' · ' + reais(Number(n.valor)) : ''}
+                        {n.responsavel ? ' · ' + n.responsavel : ''}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Projetos</p>
+                {!vinculos.projetos.length ? (
+                  <p className="text-xs text-slate-400">Nenhum.</p>
+                ) : (
+                  vinculos.projetos.map((p) => (
+                    <p key={p.id} className="text-xs text-slate-700 mb-1">
+                      <span className="text-slate-400">#{p.numero} </span>
+                      {p.nome}
+                      <span className="block text-[10px] text-slate-400">
+                        {p.status}
+                        {p.responsavel ? ' · ' + p.responsavel : ''}
+                      </span>
+                    </p>
+                  ))
+                )}
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Cliente</p>
+                {!vinculos.clientes.length ? (
+                  <p className="text-xs text-slate-400">Não está no cadastro.</p>
+                ) : (
+                  vinculos.clientes.map((x) => (
+                    <p key={x.id} className="text-xs text-slate-700">
+                      {x.nome}
+                      {x.cidade ? <span className="text-slate-400"> — {x.cidade}</span> : null}
+                    </p>
+                  ))
+                )}
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Parceiro</p>
+                {!vinculos.parceiros.length ? (
+                  <p className="text-xs text-slate-400">Não está no cadastro.</p>
+                ) : (
+                  vinculos.parceiros.map((x) => (
+                    <p key={x.id} className="text-xs text-slate-700">{x.nome}</p>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -479,9 +631,13 @@ export default function Prospeccao({ podeEditar }: { podeEditar: boolean }) {
                   </span>
                   {c.lead_id && <span className="ml-1 text-[10px] text-emerald-600">no funil</span>}
                   {c.ja_na_base && (
-                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px]">
-                      já é {c.ja_na_base}
-                    </span>
+                    <button
+                      onClick={() => verVinculos(c)}
+                      className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] hover:bg-amber-200"
+                      title="Ver o que já existe para esse número"
+                    >
+                      já é {c.ja_na_base} ›
+                    </button>
                   )}
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">

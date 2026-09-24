@@ -313,7 +313,13 @@ export default function ComercialPage() {
             }}
           />
         ) : aba === 'prospeccao' ? (
-          <Prospeccao podeEditar={pode('comercial.editar')} />
+          <Prospeccao
+            podeEditar={pode('comercial.editar')}
+            aoAbrirNegociacao={(id) => {
+              const l = leads.find((x) => x.id === id)
+              if (l) setAberto(l)
+            }}
+          />
         ) : aba === 'cadastros' ? (
           <CadastrosView leads={leads} />
         ) : aba === 'comissoes' ? (

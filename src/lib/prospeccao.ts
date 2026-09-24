@@ -450,6 +450,54 @@ export async function importarPorEstado(
   return r
 }
 
+export type LinhaPainel = {
+  campanha_id: string
+  nome: string
+  status: string
+  total: number
+  fila: number
+  enviados: number
+  falharam: number
+  responderam: number
+  no_funil: number
+  ja_na_base: number
+  trabalhados: number
+  percentual: number
+  primeiro_envio: string | null
+  ultimo_envio: string | null
+}
+
+export async function carregarPainel(): Promise<LinhaPainel[]> {
+  const { data, error } = await supabase.rpc('prospeccao_painel')
+  if (error) throw error
+  return (data as LinhaPainel[]) || []
+}
+
+export type DiaDeEnvio = { dia: string; enviados: number; responderam: number }
+
+export async function carregarEnviosPorDia(dias = 30): Promise<DiaDeEnvio[]> {
+  const { data, error } = await supabase.rpc('prospeccao_envios_por_dia', { p_dias: dias })
+  if (error) return []
+  return (data as DiaDeEnvio[]) || []
+}
+
+export type Vinculos = {
+  negociacoes: { id: string; nome: string; valor: number | null; responsavel: string | null; funil: string | null; etapa: string | null }[]
+  clientes: { id: string; nome: string; cidade: string | null }[]
+  parceiros: { id: string; nome: string }[]
+  projetos: { id: string; numero: number | null; nome: string; status: string | null; responsavel: string | null }[]
+}
+
+export const SEM_VINCULO: Vinculos = { negociacoes: [], clientes: [], parceiros: [], projetos: [] }
+
+/** O que a casa já tem sobre esse número: negociação, cliente, parceiro, projeto. */
+export async function carregarVinculos(telefone: string): Promise<Vinculos> {
+  const { data, error } = await supabase.rpc('prospeccao_vinculos', { p_telefone: telefone })
+  if (error) return SEM_VINCULO
+  const linha = ((data as Vinculos[]) || [])[0]
+  return linha ? { ...SEM_VINCULO, ...linha } : SEM_VINCULO
+}
+
 /** Cadência: o banco responde se esse número pode ser procurado agora. */
 export async function podeAbordar(telefone: string): Promise<{ pode: boolean; motivo: string }> {
   const { data, error } = await supabase.rpc('prospeccao_pode_abordar', { p_telefone: telefone })
