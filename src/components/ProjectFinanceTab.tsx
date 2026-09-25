@@ -65,6 +65,23 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
   const [carregando, setCarregando] = useState(true)
 
   const [valor, setValor] = useState('')
+
+  // Servico que renova (vistoria, SPDA): guarda o que o cartao sabe sobre a
+  // recorrencia para oferecer o lancamento do ano.
+  const [projeto, setProjeto] = useState<{
+    tipo: string | null
+    renovacao_meses: number | null
+    data_vencimento: string | null
+    projeto_origem_id: string | null
+  } | null>(null)
+  const [formRenovacao, setFormRenovacao] = useState<null | {
+    ano: string
+    valor: string
+    previsao: string
+    recebido: boolean
+    dataRecebimento: string
+  }>(null)
+  const renovaAnual = !!projeto?.renovacao_meses
   const [salvandoValor, setSalvandoValor] = useState(false)
   const [novaDespesa, setNovaDespesa] = useState({
     data: hojeStr(),
@@ -78,6 +95,21 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
     else setCarregando(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ehAdmin, projectId])
+
+  useEffect(() => {
+    let vivo = true
+    supabase
+      .from('projects')
+      .select('tipo, renovacao_meses, data_vencimento, projeto_origem_id')
+      .eq('id', projectId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (vivo) setProjeto((data as typeof projeto) || null)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [projectId])
 
   async function carregar() {
     setCarregando(true)
@@ -246,6 +278,64 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
     }))
     const { error } = await supabase.from('project_installments').insert(novas)
     if (error) alert(error.message)
+    carregar()
+  }
+
+  /**
+   * Renovacao anual: a vistoria do ano que vem e um recebimento novo, e nao
+   * uma parcela do contrato antigo. O valor vem sugerido do ano anterior
+   * porque quase sempre e o mesmo, so reajustado.
+   */
+  async function abrirRenovacao() {
+    const hoje = hojeStr()
+    const ano = projeto?.data_vencimento ? projeto.data_vencimento.slice(0, 4) : hoje.slice(0, 4)
+    let sugerido = valorContrato
+    if (!sugerido && projeto?.projeto_origem_id) {
+      const { data } = await supabase
+        .from('project_finance')
+        .select('valor_contrato')
+        .eq('project_id', projeto.projeto_origem_id)
+        .maybeSingle()
+      sugerido = Number((data as { valor_contrato: number | null } | null)?.valor_contrato) || 0
+    }
+    setFormRenovacao({
+      ano,
+      valor: sugerido ? String(sugerido) : '',
+      previsao: projeto?.data_vencimento || hoje,
+      recebido: false,
+      dataRecebimento: hoje,
+    })
+  }
+
+  async function salvarRenovacao() {
+    if (!formRenovacao) return
+    const valorRenovacao = Number(String(formRenovacao.valor).replace(',', '.')) || 0
+    if (!valorRenovacao) {
+      alert('Informe o valor da renovacao.')
+      return
+    }
+    const descricao = 'Renovacao ' + formRenovacao.ano
+    const repetida = parcelas.some(
+      (p) => (p.descricao || '').trim().toLowerCase() === descricao.toLowerCase()
+    )
+    if (repetida && !confirm('Ja existe um lancamento com esse nome. Lancar assim mesmo?')) return
+
+    const { error } = await supabase.from('project_installments').insert({
+      project_id: projectId,
+      ordem: parcelas.length + 1,
+      descricao,
+      gatilho: 'outro',
+      valor: valorRenovacao,
+      data_prevista: formRenovacao.previsao || null,
+      data_recebimento: formRenovacao.recebido
+        ? formRenovacao.dataRecebimento || hojeStr()
+        : null,
+    })
+    if (error) {
+      alert(error.message)
+      return
+    }
+    setFormRenovacao(null)
     carregar()
   }
 
@@ -451,6 +541,96 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
           Sem custo cadastrado para {diasSemCusto.join(', ')} — os dias dessas pessoas ficaram de
           fora, então o custo acima está subestimado.
         </p>
+      )}
+
+      {/* ---------- Renovacao do ano ---------- */}
+      {veContrato && renovaAnual && (
+        <div className="border border-emerald-200 bg-emerald-50/40 rounded-lg p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-xs font-semibold text-slate-700">Renovacao do ano</h4>
+            <span className="text-[10px] text-slate-500">
+              Servico que renova a cada {projeto?.renovacao_meses} meses
+            </span>
+            {!formRenovacao && (
+              <button
+                onClick={abrirRenovacao}
+                className="ml-auto text-[10px] text-emerald-700 font-medium hover:underline"
+              >
+                + lancar recebimento da renovacao
+              </button>
+            )}
+          </div>
+
+          {formRenovacao && (
+            <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
+              <label className="text-[10px] text-slate-500">
+                Ano
+                <input
+                  value={formRenovacao.ano}
+                  onChange={(e) => setFormRenovacao({ ...formRenovacao, ano: e.target.value })}
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs bg-white"
+                />
+              </label>
+              <label className="text-[10px] text-slate-500">
+                Valor
+                <input
+                  value={formRenovacao.valor}
+                  onChange={(e) => setFormRenovacao({ ...formRenovacao, valor: e.target.value })}
+                  placeholder="0,00"
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs bg-white"
+                />
+              </label>
+              <label className="text-[10px] text-slate-500">
+                Previsao
+                <input
+                  type="date"
+                  value={formRenovacao.previsao}
+                  onChange={(e) => setFormRenovacao({ ...formRenovacao, previsao: e.target.value })}
+                  className="w-full border border-slate-200 rounded px-2 py-1 text-xs bg-white"
+                />
+              </label>
+              <div className="text-[10px] text-slate-500">
+                <label className="flex items-center gap-1.5 mb-1">
+                  <input
+                    type="checkbox"
+                    checked={formRenovacao.recebido}
+                    onChange={(e) =>
+                      setFormRenovacao({ ...formRenovacao, recebido: e.target.checked })
+                    }
+                  />
+                  ja recebi
+                </label>
+                {formRenovacao.recebido && (
+                  <input
+                    type="date"
+                    value={formRenovacao.dataRecebimento}
+                    onChange={(e) =>
+                      setFormRenovacao({ ...formRenovacao, dataRecebimento: e.target.value })
+                    }
+                    className="w-full border border-slate-200 rounded px-2 py-1 text-xs bg-white"
+                  />
+                )}
+              </div>
+              <div className="col-span-2 md:col-span-4 flex gap-3">
+                <button
+                  onClick={salvarRenovacao}
+                  className="px-3 py-1 rounded-md bg-emerald-600 text-white text-[11px] hover:bg-emerald-700"
+                >
+                  Lancar
+                </button>
+                <button
+                  onClick={() => setFormRenovacao(null)}
+                  className="text-[11px] text-slate-500 hover:text-slate-700"
+                >
+                  cancelar
+                </button>
+                <span className="text-[10px] text-slate-500 self-center">
+                  Entra como parcela deste cartao e aparece no fluxo de caixa.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ---------- Parcelas ---------- */}
