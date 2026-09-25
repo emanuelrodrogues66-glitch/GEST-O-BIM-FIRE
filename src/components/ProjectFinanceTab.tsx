@@ -51,6 +51,10 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
   const [ficha, setFicha] = useState<ProjectFinance | null>(null)
   const [parcelas, setParcelas] = useState<ProjectInstallment[]>([])
   const [inicioMensal, setInicioMensal] = useState('')
+  // Parcelamento rapido: "5x todo dia 10" e o jeito como a conversa com o
+  // cliente acontece; o resto (divisao, datas, sobra de centavo) e conta nossa.
+  const [vezes, setVezes] = useState('')
+  const [diaDoMes, setDiaDoMes] = useState('10')
   const [despesas, setDespesas] = useState<ProjectExpense[]>([])
   const [datas, setDatas] = useState<DatasDoProjeto>({
     data_contrato: null,
@@ -336,6 +340,66 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
       return
     }
     setFormRenovacao(null)
+    carregar()
+  }
+
+  /**
+   * Divide o contrato em N parcelas mensais no mesmo dia do mes.
+   *
+   * A primeira cai no proximo dia escolhido que ainda nao passou. A sobra dos
+   * centavos vai na ultima parcela, para a soma bater com o contrato — sem
+   * isso, 1.000 em 3 vezes vira 999,99 e o fluxo de caixa fica devendo.
+   */
+  async function parcelarEmVezes() {
+    const n = Math.floor(Number(vezes) || 0)
+    const dia = Math.min(Math.max(Math.floor(Number(diaDoMes) || 1), 1), 31)
+    if (n < 1) {
+      alert('Informe em quantas vezes.')
+      return
+    }
+    if (!valorContrato) {
+      alert('Cadastre o valor do contrato antes de parcelar.')
+      return
+    }
+    if (parcelas.length > 0 && !confirm('Isto substitui as parcelas atuais. Continuar?')) return
+
+    const centavos = Math.round(valorContrato * 100)
+    const base = Math.floor(centavos / n)
+    const sobra = centavos - base * n
+
+    const hoje = new Date()
+    // Se o dia do mes ja passou, a primeira parcela cai no mes que vem.
+    const primeiroMes = hoje.getDate() <= dia ? hoje.getMonth() : hoje.getMonth() + 1
+
+    const novas = []
+    for (let i = 0; i < n; i++) {
+      const mes = new Date(hoje.getFullYear(), primeiroMes + i, 1)
+      const ultimo = new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate()
+      const quando =
+        mes.getFullYear() +
+        '-' +
+        String(mes.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(Math.min(dia, ultimo)).padStart(2, '0')
+      const valorParcela = (base + (i === n - 1 ? sobra : 0)) / 100
+      novas.push({
+        project_id: projectId,
+        ordem: i + 1,
+        descricao: 'Parcela ' + (i + 1) + '/' + n,
+        gatilho: 'outro',
+        percentual: null,
+        valor: valorParcela,
+        data_prevista: quando,
+      })
+    }
+
+    await supabase.from('project_installments').delete().eq('project_id', projectId)
+    const { error } = await supabase.from('project_installments').insert(novas)
+    if (error) {
+      alert(error.message)
+      return
+    }
+    setVezes('')
     carregar()
   }
 
@@ -648,6 +712,34 @@ export default function ProjectFinanceTab({ projectId }: { projectId: string }) 
           <button onClick={adicionarParcela} className="text-[10px] text-slate-500 hover:text-indigo-600">
             + parcela
           </button>
+          <label className="flex items-center gap-1 text-[10px] text-slate-500">
+            em
+            <input
+              value={vezes}
+              onChange={(e) => setVezes(e.target.value.replace(/\D/g, ''))}
+              placeholder="5"
+              className="w-8 border border-slate-200 rounded px-1 py-0.5 text-[10px] text-center"
+            />
+            x todo dia
+            <input
+              value={diaDoMes}
+              onChange={(e) => setDiaDoMes(e.target.value.replace(/\D/g, ''))}
+              className="w-8 border border-slate-200 rounded px-1 py-0.5 text-[10px] text-center"
+            />
+            <button
+              onClick={parcelarEmVezes}
+              disabled={!vezes || !valorContrato}
+              className="text-[10px] text-indigo-600 hover:underline disabled:text-slate-300"
+              title="Divide o valor do contrato e ja lanca as datas, mes a mes"
+            >
+              parcelar
+            </button>
+            {!!vezes && !!valorContrato && (
+              <span className="text-[10px] text-slate-400">
+                {vezes}x de {reais(valorContrato / (Number(vezes) || 1))}
+              </span>
+            )}
+          </label>
           <label className="flex items-center gap-1 text-[10px] text-slate-500">
             parcelado a partir de
             <input
