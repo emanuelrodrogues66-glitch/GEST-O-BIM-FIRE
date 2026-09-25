@@ -303,6 +303,8 @@ export function statusColor(status: string) {
 export type ProjectClient = {
   id: string
   project_id: string
+  /** Nome da edificacao: o nome que vai no projeto. */
+  nome_obra: string | null
   nome_parceiro: string | null
   cnpj: string | null
   nome_responsavel: string | null
@@ -522,6 +524,9 @@ export const CLIENT_SECOES = ['Projeto', 'Cliente', 'Parceiro', 'Entrega', 'Apro
 
 export const CLIENT_FIELDS: ClientField[] = [
   // --- Projeto ---
+  // A obra vem primeiro: e o nome que vai no projeto e o que a equipe usa para
+  // falar do trabalho. Quem contratou fica na secao Cliente, logo abaixo.
+  { key: 'nome_obra', label: 'Nome da obra', placeholder: 'O nome que vai no projeto', secao: 'Projeto', largura: 'inteira' },
   { key: 'endereco_completo', label: 'Endereço completo do projeto', secao: 'Projeto', largura: 'inteira' },
   { key: 'link_localizacao', label: 'Link de localização', placeholder: 'Cole o link do Google Maps', secao: 'Projeto', tipo: 'url', largura: 'inteira' },
   { key: 'cidade', label: 'Cidade do projeto', secao: 'Projeto' },
@@ -536,7 +541,10 @@ export const CLIENT_FIELDS: ClientField[] = [
   { key: 'nome_pasta', label: 'Nome da pasta', placeholder: 'Define a pasta no Drive', secao: 'Projeto' },
 
   // --- Cliente ---
-  { key: 'nome_responsavel', label: 'Nome do cliente', placeholder: 'Responsável legal pela edificação', secao: 'Cliente' },
+  // Opcional porque em ficha antiga o que estava aqui era a obra, que mudou de
+  // campo; ate alguem escrever o nome de quem contratou, o campo fica vazio e
+  // isso nao pode travar a conclusao do projeto.
+  { key: 'nome_responsavel', label: 'Nome do cliente', placeholder: 'Quem contratou (pessoa ou empresa)', secao: 'Cliente', opcional: true },
   { key: 'contato_responsavel', label: 'Contato do cliente', secao: 'Cliente' },
   { key: 'email_cliente', label: 'E-mail do cliente', secao: 'Cliente' },
   { key: 'cnpj', label: 'CNPJ ou CPF', secao: 'Cliente' },
