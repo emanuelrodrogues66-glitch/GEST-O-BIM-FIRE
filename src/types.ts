@@ -18,6 +18,10 @@ export type Project = {
   renovacao_meses: number | null
   /** Cartão que deu origem a este — a vistoria sabe de qual projeto veio. */
   projeto_origem_id: string | null
+  /** null = ninguem respondeu ainda se o cliente mandou arquivos. */
+  recebeu_arquivos_cliente: boolean | null
+  /** Se a trava dos arquivos do cliente vale para este projeto. */
+  exige_arquivos_cliente: boolean | null
   created_at: string
   updated_at: string
 }

@@ -3,6 +3,7 @@ import { supabase } from './lib/supabase'
 import { useSessao } from './lib/sessao'
 import { useLembrado } from './lib/lembrar'
 import { changeProjectStatus } from './lib/statusSync'
+import { AVISO_TRAVA } from './lib/arquivosCliente'
 import { nomeDoUsuario, type DadosPendencia } from './lib/pendencias'
 import { alertarCorrecao, comemorarConclusao } from './lib/celebracao'
 import type { Project } from './types'
@@ -301,6 +302,10 @@ export default function App() {
       })
 
       if (!result.ok) {
+        if (result.reason === 'arquivos_cliente') {
+          alert(AVISO_TRAVA[result.detalhe])
+          return
+        }
         if (result.reason === 'justificativa_pendencia') {
           // Abre o diálogo e refaz a mudança com a justificativa preenchida.
           setPedirPendencia({ projeto, status })

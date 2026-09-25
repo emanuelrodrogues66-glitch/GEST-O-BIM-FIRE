@@ -198,7 +198,7 @@ export default function ListView({
 
     if (bloqueados.length > 0) {
       alert(
-        `${bloqueados.length} projeto(s) não foram concluídos porque faltam dados do cliente ou anexos obrigatórios: ${bloqueados.join(
+        `${bloqueados.length} projeto(s) não mudaram de status porque falta alguma coisa (dados do cliente, anexos obrigatórios ou os arquivos recebidos do cliente): ${bloqueados.join(
           ', '
         )}. Abra cada um e verifique a aba "Dados do cliente".`
       )

@@ -23,6 +23,7 @@ import TaskSchedule from './TaskSchedule'
 import ActivityHistory from './ActivityHistory'
 import ClientDataForm from './ClientDataForm'
 import FileUpload from './FileUpload'
+import { AVISO_TRAVA, temArquivosDoCliente, travaDosArquivos } from '../lib/arquivosCliente'
 import PlanningForm from './PlanningForm'
 import CorrectionsTab from './CorrectionsTab'
 import PendenciesTab from './PendenciesTab'
@@ -156,6 +157,16 @@ export default function ProjectModal({
   const [atividadeNaoRegistrada, setAtividadeNaoRegistrada] = useState(false)
   const [showMissingClientData, setShowMissingClientData] = useState(false)
 
+  // Arquivos que o cliente mandou: enquanto ninguem responde se vieram, o
+  // projeto nao sai de Pendente. Cartao novo ja nasce dentro da regra.
+  const [temArquivosCliente, setTemArquivosCliente] = useState(false)
+  const exigeArquivos = isNew ? true : !!form.exige_arquivos_cliente
+  const travaArquivos = travaDosArquivos(
+    exigeArquivos,
+    form.recebeu_arquivos_cliente,
+    temArquivosCliente
+  )
+
   // Justificativa exigida ao passar o projeto para Pendente.
   const [motivoPendencia, setMotivoPendencia] = useState<string>(MOTIVOS_PENDENCIA[0])
   const [justificativaPendencia, setJustificativaPendencia] = useState('')
@@ -189,6 +200,16 @@ export default function ProjectModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, isNew, month])
+
+  // Reconfere a cada troca de aba: quem acabou de subir o arquivo na aba dos
+  // dados volta para ca e o aviso tem que ter sumido.
+  useEffect(() => {
+    if (project && !isNew) {
+      temArquivosDoCliente(project.id).then(setTemArquivosCliente)
+    } else {
+      setTemArquivosCliente(false)
+    }
+  }, [project, isNew, activeTab])
 
   async function loadProgress(projectId: string, mes: MonthRef) {
     const { start, end } = monthRange(mes)
@@ -332,6 +353,13 @@ export default function ProjectModal({
       }
     }
 
+    // Sair de Pendente exige a resposta sobre os arquivos do cliente.
+    if (form.status !== 'Pendente' && travaArquivos) {
+      setError(AVISO_TRAVA[travaArquivos])
+      setActiveTab(travaArquivos === 'sem_arquivos' ? 'dados' : 'geral')
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
@@ -347,6 +375,8 @@ export default function ProjectModal({
         data_prazo: form.data_prazo || null,
         data_inicio: form.data_inicio || monthRange(month).start,
         observacoes: form.observacoes || null,
+        recebeu_arquivos_cliente:
+          form.recebeu_arquivos_cliente === undefined ? null : form.recebeu_arquivos_cliente,
       }
 
       let projectId = project?.id
@@ -598,6 +628,60 @@ export default function ProjectModal({
                   </select>
                 </div>
               </div>
+
+              {/* Arquivos do cliente: a resposta que destrava o projeto */}
+              {exigeArquivos && (
+                <div
+                  className={
+                    'border rounded-lg p-3 space-y-2 ' +
+                    (travaArquivos ? 'border-amber-400 bg-amber-50/60' : 'border-emerald-300 bg-emerald-50/40')
+                  }
+                >
+                  <p className="text-xs font-semibold text-slate-700">
+                    O cliente mandou arquivos para comecar?
+                  </p>
+                  <p className="text-[11px] text-slate-500 -mt-1">
+                    O projeto fica em Pendente ate isso ser respondido.
+                  </p>
+                  <div className="flex flex-wrap gap-4 text-xs text-slate-700">
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="radio"
+                        name="recebeu-arquivos-cliente"
+                        checked={form.recebeu_arquivos_cliente === true}
+                        onChange={() => setForm({ ...form, recebeu_arquivos_cliente: true })}
+                      />
+                      Sim, recebemos arquivos
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="radio"
+                        name="recebeu-arquivos-cliente"
+                        checked={form.recebeu_arquivos_cliente === false}
+                        onChange={() => setForm({ ...form, recebeu_arquivos_cliente: false })}
+                      />
+                      Nao recebemos nada
+                    </label>
+                  </div>
+                  {travaArquivos && (
+                    <p className="text-[11px] text-amber-800">{AVISO_TRAVA[travaArquivos]}</p>
+                  )}
+                  {travaArquivos === 'sem_arquivos' && !isNew && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('dados')}
+                      className="text-[11px] font-medium text-amber-900 underline"
+                    >
+                      Ir para os anexos do cartao
+                    </button>
+                  )}
+                  {form.recebeu_arquivos_cliente === false && (
+                    <p className="text-[11px] text-emerald-700">
+                      Sem arquivos do cliente: o projeto pode seguir para as proximas etapas.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Justificativa obrigatória ao deixar o projeto pendente */}
               {entrandoEmPendente && (

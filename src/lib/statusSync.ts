@@ -1,4 +1,6 @@
 import { supabase } from './supabase'
+import { travaDoProjeto } from './arquivosCliente'
+import type { MotivoTrava } from './arquivosCliente'
 import { abrirPendencia, fecharPendencia, pendenciaAberta, type DadosPendencia } from './pendencias'
 import {
   STATUS_TO_LETRA,
@@ -48,6 +50,7 @@ export type ResultadoStatus =
   | { ok: true }
   | { ok: false; reason: 'dados_incompletos' }
   | { ok: false; reason: 'justificativa_pendencia' }
+  | { ok: false; reason: 'arquivos_cliente'; detalhe: MotivoTrava }
 
 /**
  * Troca o status do projeto aplicando as duas regras do negócio:
@@ -65,6 +68,13 @@ export async function changeProjectStatus(
     if (!completo) {
       return { ok: false, reason: 'dados_incompletos' }
     }
+  }
+
+  // Sair de Pendente exige saber se o cliente mandou arquivos e, se mandou,
+  // que eles ja estejam anexados no cartao.
+  if (status !== 'Pendente') {
+    const trava = await travaDoProjeto(projectId)
+    if (trava) return { ok: false, reason: 'arquivos_cliente', detalhe: trava }
   }
 
   const anterior = opcoes?.statusAnterior ?? null
