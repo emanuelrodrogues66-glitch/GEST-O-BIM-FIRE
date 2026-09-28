@@ -666,8 +666,9 @@ export default function ProjectModal({
                 </div>
               </div>
 
-              {/* Projeto aprovado: repasse para a MEF orcar a execucao */}
-              {!isNew && project && form.status === 'Concluído' && (
+              {/* Repasse para a MEF orcar a execucao. Nao espera a conclusao:
+                  muita obra ja quer preco enquanto o projeto tramita. */}
+              {!isNew && project && (
                 <div className="border border-sky-300 bg-sky-50/50 rounded-lg p-3 flex flex-wrap items-center gap-2">
                   <div className="flex-1 min-w-[14rem]">
                     <p className="text-xs font-semibold text-slate-700">Execucao pela MEF</p>
@@ -678,7 +679,7 @@ export default function ProjectModal({
                           ' (' +
                           orcamentoMef.status +
                           ').'
-                        : 'Abre a negociacao no funil da MEF e um orcamento em rascunho com os dados do cliente.'}
+                        : 'Abre a negociacao no funil da MEF e um orcamento em rascunho com os dados do cliente. Pode mandar antes de concluir.'}
                     </p>
                   </div>
                   {!orcamentoMef && (
