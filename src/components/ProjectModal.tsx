@@ -24,6 +24,7 @@ import ActivityHistory from './ActivityHistory'
 import ClientDataForm from './ClientDataForm'
 import FileUpload from './FileUpload'
 import { AVISO_TRAVA, temArquivosDoCliente, travaDosArquivos } from '../lib/arquivosCliente'
+import { enviarParaMef, orcamentoDoProjeto } from '../lib/mefDoProjeto'
 import PlanningForm from './PlanningForm'
 import CorrectionsTab from './CorrectionsTab'
 import PendenciesTab from './PendenciesTab'
@@ -160,6 +161,10 @@ export default function ProjectModal({
   // Arquivos que o cliente mandou: enquanto ninguem responde se vieram, o
   // projeto nao sai de Pendente. Cartao novo ja nasce dentro da regra.
   const [temArquivosCliente, setTemArquivosCliente] = useState(false)
+
+  // Projeto aprovado costuma virar obra: o botao manda para a MEF orcar.
+  const [orcamentoMef, setOrcamentoMef] = useState<{ numero: number; status: string } | null>(null)
+  const [enviandoMef, setEnviandoMef] = useState(false)
   const exigeArquivos = isNew ? true : !!form.exige_arquivos_cliente
   const travaArquivos = travaDosArquivos(
     exigeArquivos,
@@ -200,6 +205,38 @@ export default function ProjectModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, isNew, month])
+
+  useEffect(() => {
+    if (project && !isNew) {
+      orcamentoDoProjeto(project.id).then((o) =>
+        setOrcamentoMef(o ? { numero: o.numero, status: o.status } : null)
+      )
+    } else {
+      setOrcamentoMef(null)
+    }
+  }, [project, isNew])
+
+  async function mandarParaMef() {
+    if (!project) return
+    const seguir = confirm(
+      'Abrir a negociacao no funil MEF — Execucao e criar um orcamento em rascunho para este projeto?'
+    )
+    if (!seguir) return
+    setEnviandoMef(true)
+    try {
+      const r = await enviarParaMef(project, clientData)
+      setOrcamentoMef({ numero: r.numero, status: 'rascunho' })
+      alert(
+        'Pronto. A negociacao entrou em ORCAMENTO SOLICITADO no funil da MEF, e o orcamento no ' +
+          r.numero +
+          ' esta em rascunho esperando os itens.'
+      )
+    } catch (e: any) {
+      alert(e.message || 'Nao foi possivel enviar para a MEF.')
+    } finally {
+      setEnviandoMef(false)
+    }
+  }
 
   // Reconfere a cada troca de aba: quem acabou de subir o arquivo na aba dos
   // dados volta para ca e o aviso tem que ter sumido.
@@ -628,6 +665,34 @@ export default function ProjectModal({
                   </select>
                 </div>
               </div>
+
+              {/* Projeto aprovado: repasse para a MEF orcar a execucao */}
+              {!isNew && project && form.status === 'Concluído' && (
+                <div className="border border-sky-300 bg-sky-50/50 rounded-lg p-3 flex flex-wrap items-center gap-2">
+                  <div className="flex-1 min-w-[14rem]">
+                    <p className="text-xs font-semibold text-slate-700">Execucao pela MEF</p>
+                    <p className="text-[11px] text-slate-500">
+                      {orcamentoMef
+                        ? 'Ja foi para a MEF: orcamento no ' +
+                          orcamentoMef.numero +
+                          ' (' +
+                          orcamentoMef.status +
+                          ').'
+                        : 'Abre a negociacao no funil da MEF e um orcamento em rascunho com os dados do cliente.'}
+                    </p>
+                  </div>
+                  {!orcamentoMef && (
+                    <button
+                      type="button"
+                      onClick={mandarParaMef}
+                      disabled={enviandoMef}
+                      className="px-3 py-1.5 rounded-md bg-sky-600 text-white text-xs hover:bg-sky-700 disabled:bg-slate-300"
+                    >
+                      {enviandoMef ? 'Enviando...' : 'Enviar para a MEF orcar'}
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Arquivos do cliente: a resposta que destrava o projeto */}
               {exigeArquivos && (
