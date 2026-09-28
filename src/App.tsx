@@ -102,8 +102,23 @@ export default function App() {
   // (celular em segundo plano faz isso), voltar tem que ser voltar ao mesmo
   // lugar, e não ao Kanban do começo.
   const [categoria, setCategoria] = useLembrado<string>('categoria', CATEGORIAS[0])
-  const [responsavelFiltro, setResponsavelFiltro] = useState<string>('')
-  const [busca, setBusca] = useState('')
+  // Os filtros ficam guardados junto com a categoria e a visao. Na reuniao a
+  // equipe passa os projetos filtrados; salvar um cartao e cair na lista
+  // inteira de novo fazia perder o lugar toda vez.
+  const [responsavelFiltro, setResponsavelFiltro] = useLembrado<string>('filtro-responsavel', '')
+  const [busca, setBusca] = useLembrado<string>('filtro-busca', '')
+  // Data de entrada do projeto (data_inicio), de/ate.
+  const [entradaDe, setEntradaDe] = useLembrado<string>('filtro-entrada-de', '')
+  const [entradaAte, setEntradaAte] = useLembrado<string>('filtro-entrada-ate', '')
+  const temFiltroDeEntrada = !!entradaDe || !!entradaAte
+  const temAlgumFiltro = !!responsavelFiltro || !!busca || temFiltroDeEntrada
+
+  function limparFiltros() {
+    setResponsavelFiltro('')
+    setBusca('')
+    setEntradaDe('')
+    setEntradaAte('')
+  }
   const [modalProject, setModalProject] = useState<Project | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [isNew, setIsNew] = useState(false)
@@ -182,6 +197,9 @@ export default function App() {
 
   function passaSemCategoria(p: Project): boolean {
     if (responsavelFiltro && p.responsavel !== responsavelFiltro) return false
+    // Data de entrada: comparacao direta do texto ISO, que ja vem ordenado.
+    if (entradaDe && (!p.data_inicio || p.data_inicio < entradaDe)) return false
+    if (entradaAte && (!p.data_inicio || p.data_inicio > entradaAte)) return false
     if (busca) {
       // Procurar por "ELIAS" tem que achar os projetos dele, e não só o
       // projeto que por acaso se chama ELIAS.
@@ -203,19 +221,19 @@ export default function App() {
   const paraPdfDaCategoria = useMemo(
     () => projects.filter(passaNosFiltros),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, categoria, responsavelFiltro, busca, fichas]
+    [projects, categoria, responsavelFiltro, busca, entradaDe, entradaAte, fichas]
   )
   const paraPdfDeTodasCategorias = useMemo(
     () => projects.filter(passaSemCategoria),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, responsavelFiltro, busca, fichas]
+    [projects, responsavelFiltro, busca, entradaDe, entradaAte, fichas]
   )
 
   // Lista e relatórios continuam agrupados por mês.
   const filtered = useMemo(
     () => projectsDoMes.filter(passaNosFiltros),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projectsDoMes, categoria, responsavelFiltro, busca, fichas]
+    [projectsDoMes, categoria, responsavelFiltro, busca, entradaDe, entradaAte, fichas]
   )
 
   /**
@@ -223,9 +241,9 @@ export default function App() {
    * em andamento hoje e precisa aparecer no quadro de trabalho.
    */
   const filteredTodosMeses = useMemo(
-    () => (verTodosMeses ? projects.filter(passaNosFiltros) : filtered),
+    () => (verTodosMeses || temFiltroDeEntrada ? projects.filter(passaNosFiltros) : filtered),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [verTodosMeses, projects, filtered, categoria, responsavelFiltro, busca, fichas]
+    [verTodosMeses, temFiltroDeEntrada, projects, filtered, categoria, responsavelFiltro, busca, entradaDe, entradaAte, fichas]
   )
 
   // O botão "Todos os meses" vale para o quadro e para a lista.
@@ -267,7 +285,9 @@ export default function App() {
 
   function handleSaved() {
     closeModal()
-    fetchProjects()
+    // Silencioso de proposito: a tela de "Carregando..." desmontava a lista e
+    // dava a sensacao de que o filtro tinha sumido.
+    fetchProjects(true)
   }
 
   /**
@@ -512,6 +532,33 @@ export default function App() {
             onChange={(e) => setBusca(e.target.value)}
             className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white flex-1 min-w-[160px] max-w-xs"
           />
+
+          <label className="flex items-center gap-1 text-xs text-slate-500">
+            entrada de
+            <input
+              type="date"
+              value={entradaDe}
+              onChange={(e) => setEntradaDe(e.target.value)}
+              className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white"
+            />
+            ate
+            <input
+              type="date"
+              value={entradaAte}
+              onChange={(e) => setEntradaAte(e.target.value)}
+              className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white"
+            />
+          </label>
+
+          {temAlgumFiltro && (
+            <button
+              onClick={limparFiltros}
+              className="text-xs text-indigo-600 hover:underline"
+              title="Os filtros ficam guardados ate voce limpar"
+            >
+              limpar filtros
+            </button>
+          )}
 
           <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1">
             {(
