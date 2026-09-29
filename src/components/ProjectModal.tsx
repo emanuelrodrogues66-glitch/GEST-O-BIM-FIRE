@@ -461,8 +461,13 @@ export default function ProjectModal({
               const achadoParceiro = await garantirParceiroNoCadastro(ficha)
               if (achadoParceiro) ficha.parceiro_id = achadoParceiro.id
             }
-          } catch {
-            // Cadastro e conveniencia: se falhar, o cartao ainda tem que salvar.
+          } catch (e: any) {
+            // O cartao salva do mesmo jeito, mas em silencio ninguem descobria
+            // que o cliente novo nao tinha entrado na base.
+            alert(
+              'O cartao foi salvo, mas o cadastro de cliente/parceiro nao pode ser criado: ' +
+                (e?.message || 'erro desconhecido')
+            )
           }
           const { error: clientError } = await supabase
             .from('project_clients')

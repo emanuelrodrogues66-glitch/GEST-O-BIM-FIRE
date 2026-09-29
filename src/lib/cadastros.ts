@@ -68,6 +68,37 @@ export function camposDoParceiro(p: Parceiro): Partial<ProjectClient> {
 }
 
 /**
+ * Acha o cadastro pelo nome, ignorando maiuscula e espaco sobrando.
+ *
+ * A unicidade no banco e por lower(btrim(nome)), e nao pela coluna crua. O
+ * upsert do PostgREST precisa de uma restricao na propria coluna, entao ele
+ * falhava calado e o cliente novo nunca entrava na base. Procurar antes e
+ * decidir entre inserir e atualizar resolve sem depender de ON CONFLICT.
+ */
+async function acharPorNome<T extends { id: string; nome: string }>(
+  tabela: 'clientes' | 'parceiros',
+  nome: string
+): Promise<T | null> {
+  const alvo = nome.trim().toLowerCase()
+  const { data, error } = await supabase.from(tabela).select('*')
+  if (error) throw new Error(traduzirErro(error.message, tabela))
+  const lista = (data as T[]) || []
+  return lista.find((r) => (r.nome || '').trim().toLowerCase() === alvo) || null
+}
+
+/** Erro de permissao em linguagem de gente. */
+function traduzirErro(mensagem: string, tabela: 'clientes' | 'parceiros') {
+  if (/row-level security|permission|policy/i.test(mensagem)) {
+    return (
+      'Seu perfil nao tem permissao para mexer no cadastro de ' +
+      (tabela === 'clientes' ? 'clientes' : 'parceiros') +
+      ' (permissao cadastros.editar).'
+    )
+  }
+  return mensagem
+}
+
+/**
  * Grava no cadastro o que está no cartão.
  *
  * Serve para os dois sentidos: cliente novo entra na base, e correção de
@@ -80,25 +111,23 @@ export async function salvarClienteDoCartao(
   const nome = (ficha.nome_responsavel || '').trim()
   if (!nome) return null
 
-  const { data, error } = await supabase
-    .from('clientes')
-    .upsert(
-      {
-        nome,
-        cnpj: ficha.cnpj?.trim() || null,
-        contato: ficha.contato_responsavel?.trim() || null,
-        email: ficha.email_cliente?.trim() || null,
-        endereco: ficha.endereco_completo?.trim() || null,
-        cidade: ficha.cidade?.trim() || null,
-        estado: ficha.estado?.trim() || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'nome' }
-    )
-    .select('*')
-    .single()
+  const campos = {
+    nome,
+    cnpj: ficha.cnpj?.trim() || null,
+    contato: ficha.contato_responsavel?.trim() || null,
+    email: ficha.email_cliente?.trim() || null,
+    endereco: ficha.endereco_completo?.trim() || null,
+    cidade: ficha.cidade?.trim() || null,
+    estado: ficha.estado?.trim() || null,
+    updated_at: new Date().toISOString(),
+  }
 
-  if (error) throw new Error(error.message)
+  const existente = await acharPorNome<Cliente>('clientes', nome)
+  const { data, error } = existente
+    ? await supabase.from('clientes').update(campos).eq('id', existente.id).select('*').single()
+    : await supabase.from('clientes').insert(campos).select('*').single()
+
+  if (error) throw new Error(traduzirErro(error.message, 'clientes'))
   return data as Cliente
 }
 
@@ -108,22 +137,20 @@ export async function salvarParceiroDoCartao(
   const nome = (ficha.nome_parceiro || '').trim()
   if (!nome || nome.toLowerCase() === 'sem parceiro') return null
 
-  const { data, error } = await supabase
-    .from('parceiros')
-    .upsert(
-      {
-        nome,
-        contato: ficha.contato_parceiro?.trim() || null,
-        email: ficha.email_parceiro?.trim() || null,
-        endereco: ficha.endereco_parceiro?.trim() || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'nome' }
-    )
-    .select('*')
-    .single()
+  const campos = {
+    nome,
+    contato: ficha.contato_parceiro?.trim() || null,
+    email: ficha.email_parceiro?.trim() || null,
+    endereco: ficha.endereco_parceiro?.trim() || null,
+    updated_at: new Date().toISOString(),
+  }
 
-  if (error) throw new Error(error.message)
+  const existente = await acharPorNome<Parceiro>('parceiros', nome)
+  const { data, error } = existente
+    ? await supabase.from('parceiros').update(campos).eq('id', existente.id).select('*').single()
+    : await supabase.from('parceiros').insert(campos).select('*').single()
+
+  if (error) throw new Error(traduzirErro(error.message, 'parceiros'))
   return data as Parceiro
 }
 
@@ -199,10 +226,7 @@ export async function garantirClienteNoCadastro(
 ): Promise<Cliente | null> {
   const nome = (ficha.nome_responsavel || '').trim()
   if (!nome) return null
-  const { data } = await supabase.from('clientes').select('*')
-  const achado = ((data as Cliente[]) || []).find(
-    (c) => (c.nome || '').trim().toLowerCase() === nome.toLowerCase()
-  )
+  const achado = await acharPorNome<Cliente>('clientes', nome)
   return achado || (await salvarClienteDoCartao(ficha))
 }
 
@@ -211,9 +235,6 @@ export async function garantirParceiroNoCadastro(
 ): Promise<Parceiro | null> {
   const nome = (ficha.nome_parceiro || '').trim()
   if (!nome || nome.toLowerCase() === 'sem parceiro') return null
-  const { data } = await supabase.from('parceiros').select('*')
-  const achado = ((data as Parceiro[]) || []).find(
-    (p) => (p.nome || '').trim().toLowerCase() === nome.toLowerCase()
-  )
+  const achado = await acharPorNome<Parceiro>('parceiros', nome)
   return achado || (await salvarParceiroDoCartao(ficha))
 }
