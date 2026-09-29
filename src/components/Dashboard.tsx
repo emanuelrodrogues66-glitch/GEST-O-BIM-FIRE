@@ -26,6 +26,8 @@ import { addMonths, dateInMonth, monthKey, monthLabel } from '../lib/month'
 import { corDoResponsavel } from '../lib/agenda'
 import type { LancamentoDeHora, SemPontuacao } from '../lib/rateioPontos'
 import { calcularRateio, carregarQuemNaoPontua } from '../lib/rateioPontos'
+import FuncionarioDoMes from './FuncionarioDoMes'
+import { useLembrado } from '../lib/lembrar'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
@@ -143,6 +145,10 @@ export default function Dashboard({
   projects: Project[]
   month: MonthRef
 }) {
+  // Painel ou quadro do funcionario do mes. Fica guardado para quem usa o
+  // quadro na reuniao nao ter que procurar de novo toda vez.
+  const [subAba, setSubAba] = useLembrado<'painel' | 'funcionario'>('dashboard-subaba', 'painel')
+
   // Filtros locais: valem só nesta tela, sem mexer nos filtros do topo do app.
   const [statusSel, setStatusSel] = useState<string[]>([...STATUS_COLUNAS])
   const [mesSel, setMesSel] = useState<MonthRef | null>(month)
@@ -424,6 +430,57 @@ export default function Dashboard({
       projetosPorResponsavel: detalhe,
     }
   }, [todosProjetos, aprovacoes, mesSel, horasPorProjeto, rateioManual, semPontuacao])
+  /**
+   * Pontos de cada pessoa num mes qualquer, pela mesma regra do ranking.
+   *
+   * O quadro do funcionario do mes precisa olhar meses que nao sao o filtrado
+   * aqui em cima, entao a conta vira funcao em vez de memo.
+   */
+  function pontosDoMes(ano: number, mes: number) {
+    const alvo = { year: ano, month: mes }
+    const mapa = new Map<string, number>()
+    for (const p of todosProjetos) {
+      if (normalizeStatus(p.status) !== 'Concluído') continue
+      const aprovacao = aprovacoes[p.id] || p.data_prazo
+      if (!aprovacao || !dateInMonth(aprovacao, alvo)) continue
+      const { fatias } = calcularRateio({
+        pontos: p.pts || 0,
+        responsavelCadastrado: p.responsavel,
+        aprovacao,
+        lancamentos: horasPorProjeto.get(p.id) || [],
+        manual: rateioManual.get(p.id),
+        semPontuacao,
+      })
+      for (const f of fatias) {
+        const nome = (f.colaborador || 'Sem responsável').trim()
+        mapa.set(nome, (mapa.get(nome) || 0) + f.pontos)
+      }
+    }
+    return Array.from(mapa.entries())
+      .map(([responsavel, pontos]) => ({ responsavel, pontos: Math.round(pontos * 100) / 100 }))
+      .sort((a, b) => b.pontos - a.pontos)
+  }
+
+  const abasDoPainel = (
+    <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1 w-fit">
+      {([
+        ['painel', 'Painel'],
+        ['funcionario', 'Funcionário do mês'],
+      ] as ['painel' | 'funcionario', string][]).map(([chave, rotulo]) => (
+        <button
+          key={chave}
+          onClick={() => setSubAba(chave)}
+          className={
+            'px-3 py-1.5 rounded-md text-xs font-medium transition ' +
+            (subAba === chave ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100')
+          }
+        >
+          {rotulo}
+        </button>
+      ))}
+    </div>
+  )
+
   const statusRows = statusDistribution(projects)
 
   const totalPontos = projects.reduce((s, p) => s + (p.pts || 0), 0)
@@ -471,8 +528,18 @@ export default function Dashboard({
   const todosStatus = statusSel.length === STATUS_COLUNAS.length
   const temFiltro = !todosStatus || !mesSel || monthKey(mesSel) !== monthKey(month)
 
+  if (subAba === 'funcionario') {
+    return (
+      <div className="space-y-4">
+        {abasDoPainel}
+        <FuncionarioDoMes pontosDoMes={pontosDoMes} />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
+      {abasDoPainel}
       {/* Filtros exclusivos do Dashboard */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
