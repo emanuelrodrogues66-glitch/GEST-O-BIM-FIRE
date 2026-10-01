@@ -54,6 +54,8 @@ export type Lead = {
   previsao_fechamento: string | null
   data_fechamento: string | null
   retorno_em: string | null
+  /** Ultima mensagem enviada por nos pelo plugin do WhatsApp. */
+  ultimo_contato_em: string | null
   criado_em: string
   /** Endereço da obra: vai para a capa da proposta. */
   endereco_obra: string | null
@@ -359,4 +361,47 @@ export async function definirValorFechado(leadId: string, valor: number | null) 
   const { error } = await supabase.rpc('definir_valor_fechado', { p_lead: leadId, p_valor: valor })
   if (error) throw new Error(error.message.replace(/^.*?:\s*/, ''))
   await registrarAtividade(leadId, 'sistema', `Valor fechado alterado para ${reais(valor)}.`)
+}
+
+/**
+ * Textos prontos para abordar uma negociacao.
+ *
+ * Ficam no CRM, e nao dentro da extensao, para a equipe inteira usar as
+ * mesmas palavras e para mudar um texto nao exigir uma versao nova do plugin.
+ */
+export type ModeloMensagem = {
+  id: string
+  nome: string
+  texto: string
+  ordem: number
+  ativo: boolean
+}
+
+export async function carregarModelos(): Promise<ModeloMensagem[]> {
+  const { data, error } = await supabase
+    .from('crm_modelos_mensagem')
+    .select('*')
+    .order('ordem')
+    .order('nome')
+  if (error) throw new Error(error.message)
+  return (data as ModeloMensagem[]) || []
+}
+
+export async function salvarModelo(m: Partial<ModeloMensagem>) {
+  const campos = {
+    nome: (m.nome || '').trim(),
+    texto: (m.texto || '').trim(),
+    ordem: Number(m.ordem) || 0,
+    ativo: m.ativo !== false,
+    updated_at: new Date().toISOString(),
+  }
+  const { error } = m.id
+    ? await supabase.from('crm_modelos_mensagem').update(campos).eq('id', m.id)
+    : await supabase.from('crm_modelos_mensagem').insert(campos)
+  if (error) throw new Error(error.message)
+}
+
+export async function apagarModelo(id: string) {
+  const { error } = await supabase.from('crm_modelos_mensagem').delete().eq('id', id)
+  if (error) throw new Error(error.message)
 }

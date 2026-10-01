@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Campanha, Contato, ContatoBruto, Resumo, Vinculos } from '../lib/prospeccao'
 import ProspeccaoPainel from './ProspeccaoPainel'
+import ProspeccaoDuplicados from './ProspeccaoDuplicados'
 import { reais } from '../lib/crm'
 import {
   CORES,
@@ -62,7 +63,7 @@ export default function Prospeccao({
   podeEditar: boolean
   aoAbrirNegociacao?: (leadId: string) => void
 }) {
-  const [aba, setAba] = useState<'lista' | 'painel'>('lista')
+  const [aba, setAba] = useState<'lista' | 'painel' | 'duplicados'>('lista')
   const [vendo, setVendo] = useState<Contato | null>(null)
   const [vinculos, setVinculos] = useState<Vinculos>(SEM_VINCULO)
   const [buscandoVinculos, setBuscandoVinculos] = useState(false)
@@ -373,7 +374,10 @@ export default function Prospeccao({
 
   const abas = (
     <div className="flex gap-1">
-      {([['lista', 'Campanhas'], ['painel', 'Painel']] as ['lista' | 'painel', string][]).map(
+      {([['lista', 'Campanhas'], ['painel', 'Painel'], ['duplicados', 'Repetidos']] as [
+        'lista' | 'painel' | 'duplicados',
+        string,
+      ][]).map(
         ([v, rotulo]) => (
           <button
             key={v}
@@ -397,6 +401,15 @@ export default function Prospeccao({
       <div className="space-y-4">
         {abas}
         <ProspeccaoPainel />
+      </div>
+    )
+  }
+
+  if (aba === 'duplicados') {
+    return (
+      <div className="space-y-4">
+        {abas}
+        <ProspeccaoDuplicados podeEditar={podeEditar} />
       </div>
     )
   }

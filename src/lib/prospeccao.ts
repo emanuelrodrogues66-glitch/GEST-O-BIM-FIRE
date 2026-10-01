@@ -586,3 +586,39 @@ export function resumo(contatos: Contato[]) {
     negociacoes: contatos.filter((c) => c.lead_id).length,
   }
 }
+
+/**
+ * Mesmo numero em mais de uma campanha.
+ *
+ * Acontece quando a mesma pessoa aparece em duas listas compradas, ou entra
+ * a mao numa campanha depois de ja ter sido importada noutra. Sem olhar isso,
+ * ela recebe a mesma abordagem duas vezes, de dois estados diferentes.
+ */
+export type Duplicado = {
+  telefone: string
+  campanhas: number
+  detalhe: {
+    contato_id: string
+    campanha_id: string
+    campanha: string
+    situacao: string
+    abordado_em: string | null
+    nome: string | null
+  }[]
+}
+
+export async function carregarDuplicados(): Promise<Duplicado[]> {
+  const { data, error } = await supabase.rpc('prospeccao_duplicados')
+  if (error) throw new Error(error.message)
+  return (data as Duplicado[]) || []
+}
+
+/** Tira o numero das outras campanhas; so mexe em quem ainda esta na fila. */
+export async function resolverDuplicado(telefone: string, manterCampanha: string): Promise<number> {
+  const { data, error } = await supabase.rpc('prospeccao_resolver_duplicado', {
+    p_telefone: telefone,
+    p_manter: manterCampanha,
+  })
+  if (error) throw new Error(error.message)
+  return Number(data) || 0
+}

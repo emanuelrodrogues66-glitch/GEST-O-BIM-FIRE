@@ -210,6 +210,22 @@ export default function CrmLeadModal({
               {' · '}aberto em {dataBR(form.criado_em)}
               {form.responsavel && ` · ${form.responsavel}`}
             </p>
+            {/* Quanto tempo faz que alguem falou com essa pessoa: e a pergunta
+                que decide quem recebe mensagem hoje. */}
+            <p className="text-[11px] mt-0.5">
+              {form.ultimo_contato_em ? (
+                <span
+                  className={
+                    diasSemContato(form.ultimo_contato_em) > 15 ? 'text-amber-700' : 'text-slate-500'
+                  }
+                >
+                  último contato há {diasSemContato(form.ultimo_contato_em)} dia(s) ·{' '}
+                  {dataBR(form.ultimo_contato_em.slice(0, 10))}
+                </span>
+              ) : (
+                <span className="text-slate-400">sem contato registrado pelo WhatsApp</span>
+              )}
+            </p>
           </div>
 
           {podeEditar && (
@@ -637,4 +653,10 @@ function Select({
       </select>
     </label>
   )
+}
+
+/** Dias corridos desde a ultima mensagem enviada para a negociacao. */
+function diasSemContato(iso: string): number {
+  const d = new Date(iso)
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000))
 }

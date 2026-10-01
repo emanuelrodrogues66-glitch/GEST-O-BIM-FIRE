@@ -7,6 +7,7 @@ import { LOGO_BIM_FIRE_JPEG } from '../lib/logoBimFire'
 import Login from './Login'
 import CrmLeadModal from './CrmLeadModal'
 import CadastrosView from './CadastrosView'
+import CrmModelos from './CrmModelos'
 import Fornecedores from './Fornecedores'
 import CrmDashboard from './CrmDashboard'
 import CrmComissoes from './CrmComissoes'
@@ -28,6 +29,7 @@ import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 
 type Aba =
   | 'funil'
+  | 'modelos'
   | 'lista'
   | 'feed'
   | 'painel'
@@ -294,6 +296,7 @@ export default function ComercialPage() {
               ['prospeccao', 'Prospecção'],
               ['fornecedores', 'Fornecedores'],
               ['cadastros', 'Clientes e parceiros'],
+              ['modelos', 'Modelos de mensagem'],
             ] as [Aba, string][]
           ).map(([v, rotulo]) => (
             <button
@@ -332,6 +335,8 @@ export default function ComercialPage() {
           />
         ) : aba === 'fornecedores' ? (
           <Fornecedores podeEditar={pode('comercial.editar')} />
+        ) : aba === 'modelos' ? (
+          <CrmModelos podeEditar={pode('comercial.editar')} />
         ) : aba === 'cadastros' ? (
           <CadastrosView leads={leads} />
         ) : aba === 'comissoes' ? (

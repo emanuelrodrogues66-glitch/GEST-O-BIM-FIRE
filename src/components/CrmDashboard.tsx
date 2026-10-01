@@ -51,6 +51,23 @@ export default function CrmDashboard({
   const ticket = ganhos.length ? valorGanho / ganhos.length : 0
   const comissao = ganhos.reduce((s, l) => s + (l.comissao_valor ?? 0), 0)
 
+  /**
+   * Negociacao aberta que ninguem procura ha mais de 15 dias.
+   *
+   * Negocio nao morre de uma vez: esfria sem ninguem perceber. A conta usa a
+   * data que o plugin do WhatsApp carimba a cada mensagem enviada.
+   */
+  const esquecidos = useMemo(() => {
+    const limite = Date.now() - 15 * 86400000
+    return abertos
+      .filter((l) => !l.ultimo_contato_em || new Date(l.ultimo_contato_em).getTime() < limite)
+      .sort((a, b) => {
+        const ta = a.ultimo_contato_em ? new Date(a.ultimo_contato_em).getTime() : 0
+        const tb = b.ultimo_contato_em ? new Date(b.ultimo_contato_em).getTime() : 0
+        return ta - tb
+      })
+  }, [abertos])
+
   /** Dias entre abrir e fechar — o "quanto demora para vender". */
   const cicloMedio = useMemo(() => {
     const dias = ganhos
@@ -115,6 +132,12 @@ export default function CrmDashboard({
         <Caixa titulo="Perdidos" valor={perdidos.length.toString()} tom="ruim" />
         <Caixa titulo="Conversão" valor={`${conversao.toFixed(0)}%`} rodape={`${decididos} decididos`} />
         <Caixa titulo="Ticket médio" valor={reais(ticket)} />
+        <Caixa
+          titulo="Sem contato +15d"
+          valor={esquecidos.length.toString()}
+          rodape="negociações abertas"
+          tom={esquecidos.length > 0 ? 'ruim' : undefined}
+        />
         {verComissao ? (
           <Caixa titulo="Comissão" valor={reais(comissao)} rodape="sobre os ganhos" />
         ) : (
@@ -181,6 +204,31 @@ export default function CrmDashboard({
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      {esquecidos.length > 0 && (
+        <div className="bg-white border border-amber-200 rounded-xl shadow-sm p-4">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1">Negociações esfriando</h3>
+          <p className="text-[11px] text-slate-500 mb-2">
+            Abertas e sem mensagem nossa há mais de 15 dias. As mais esquecidas primeiro — é esta
+            lista que o plugin do WhatsApp mostra na aba Negociações.
+          </p>
+          <div className="space-y-1">
+            {esquecidos.slice(0, 10).map((l) => (
+              <div key={l.id} className="flex items-center gap-2 text-[11px] border-b border-slate-100 pb-1">
+                <span className="text-slate-700 font-medium flex-1 truncate">
+                  {l.nome_cliente || l.nome}
+                </span>
+                <span className="text-slate-400">{l.responsavel || "sem responsável"}</span>
+                <span className="text-amber-700">
+                  {l.ultimo_contato_em
+                    ? Math.floor((Date.now() - new Date(l.ultimo_contato_em).getTime()) / 86400000) + "d"
+                    : "nunca"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-4">
         <Ranking titulo="Por fonte" linhas={porFonte} />
