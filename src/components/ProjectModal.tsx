@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { syncDailyProgressForStatus } from '../lib/statusSync'
+import { carimbarAprovacaoDeServico, syncDailyProgressForStatus } from '../lib/statusSync'
 import { abrirPendencia, fecharPendencia, nomeDoUsuario, pendenciaAberta } from '../lib/pendencias'
 import { alertarCorrecao, comemorarConclusao } from '../lib/celebracao'
 import { usePerfil } from '../lib/perfil'
@@ -427,6 +427,7 @@ export default function ProjectModal({
         if (error) throw error
 
         if (form.status && form.status !== project.status) {
+          if (form.status === 'Concluído') await carimbarAprovacaoDeServico(project.id)
           await syncDailyProgressForStatus(project.id, form.status)
 
           // Entrou em Pendente: abre o registro com a justificativa informada.

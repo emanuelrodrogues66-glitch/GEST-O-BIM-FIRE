@@ -58,6 +58,39 @@ export type ResultadoStatus =
  * — Pendente exige uma justificativa, que abre o registro de pendência.
  * Sair de Pendente encerra a pendência aberta automaticamente.
  */
+/**
+ * Servicos da carteira nao tem aprovacao separada: concluir E a aprovacao.
+ *
+ * O ranking so conta o ponto do mes em que o projeto foi aprovado. Vistoria,
+ * SPDA e TCAC nao passam por aprovacao no Corpo de Bombeiros como um projeto
+ * passa — ninguem tinha o que escrever naquele campo, e o ponto da renovacao
+ * sumia do ranking sem ninguem perceber. Aqui a data de conclusao vira a data
+ * de aprovacao, e so quando o campo esta vazio: quem preencheu a mao manda.
+ */
+const SERVICOS_SEM_APROVACAO_PROPRIA = ['Vistoria', 'SPDA', 'TCAC']
+
+export async function carimbarAprovacaoDeServico(projectId: string) {
+  const { data: projeto } = await supabase
+    .from('projects')
+    .select('tipo')
+    .eq('id', projectId)
+    .maybeSingle()
+  const tipo = (projeto as { tipo: string | null } | null)?.tipo || ''
+  if (!SERVICOS_SEM_APROVACAO_PROPRIA.includes(tipo)) return
+
+  const { data: ficha } = await supabase
+    .from('project_clients')
+    .select('data_aprovacao')
+    .eq('project_id', projectId)
+    .maybeSingle()
+  if ((ficha as { data_aprovacao: string | null } | null)?.data_aprovacao) return
+
+  const hoje = new Date().toISOString().slice(0, 10)
+  await supabase
+    .from('project_clients')
+    .upsert({ project_id: projectId, data_aprovacao: hoje }, { onConflict: 'project_id' })
+}
+
 export async function changeProjectStatus(
   projectId: string,
   status: string,
@@ -97,6 +130,8 @@ export async function changeProjectStatus(
   if (status !== 'Pendente') {
     await fecharPendencia(projectId)
   }
+
+  if (status === 'Concluído') await carimbarAprovacaoDeServico(projectId)
 
   await syncDailyProgressForStatus(projectId, status)
   return { ok: true }

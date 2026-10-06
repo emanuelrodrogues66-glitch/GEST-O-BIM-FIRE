@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { VencimentoProximo } from '../lib/renovacoes'
 import { carregarVencimentos, descreverVencimento, renovarServico } from '../lib/renovacoes'
+import { suggestedPoints } from '../types'
 import { AVISO_VENCIMENTO_DIAS, diasAte, tipoColor } from '../types'
 import { corDoResponsavel } from '../lib/agenda'
 import type { EtapaTcac } from '../lib/etapasTcac'
@@ -65,7 +66,9 @@ export default function RenovacoesView({
     try {
       const id = await renovarServico(v.projeto)
       await recarregar()
-      if (confirm('Renovação criada. Abrir o cartão novo?')) onProjectClick?.(id)
+      const pontos = suggestedPoints(v.projeto.tipo, v.projeto.m2)
+      const quanto = pontos ? ' Vale ' + pontos + ' ponto(s) para quem concluir.' : ''
+      if (confirm('Renovação criada.' + quanto + ' Abrir o cartão novo?')) onProjectClick?.(id)
     } catch (e: any) {
       alert(e.message || 'Não foi possível renovar.')
     } finally {
