@@ -18,6 +18,7 @@ import {
 import { usePermissoes } from '../lib/permissoes'
 import { supabase } from '../lib/supabase'
 import BuscaCadastro from './BuscaCadastro'
+import LigacoesDoLead from './LigacoesDoLead'
 import CrmProposta from './CrmProposta'
 import { FONTES, FORMAS_PAGAMENTO } from '../lib/crm'
 import { TIPOS_DE_SERVICO, categoriaDoTipo } from '../types'
@@ -510,6 +511,12 @@ export default function CrmLeadModal({
 
           {/* ---------- coluna direita: histórico ---------- */}
           <div className="space-y-3">
+            <LigacoesDoLead
+              leadId={lead.id}
+              telefone={form.contato}
+              nome={form.nome_cliente || form.nome}
+              podeEditar={podeEditar}
+            />
             <div>
               <p className="text-[10px] font-semibold uppercase text-slate-400 mb-1.5">
                 Registrar contato

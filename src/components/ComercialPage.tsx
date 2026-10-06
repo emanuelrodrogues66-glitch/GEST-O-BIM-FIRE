@@ -8,6 +8,7 @@ import Login from './Login'
 import CrmLeadModal from './CrmLeadModal'
 import CadastrosView from './CadastrosView'
 import CrmModelos from './CrmModelos'
+import CrmLigacoes from './CrmLigacoes'
 import Fornecedores from './Fornecedores'
 import CrmDashboard from './CrmDashboard'
 import CrmComissoes from './CrmComissoes'
@@ -29,6 +30,7 @@ import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 
 type Aba =
   | 'funil'
+  | 'ligacoes'
   | 'modelos'
   | 'lista'
   | 'feed'
@@ -296,6 +298,7 @@ export default function ComercialPage() {
               ['prospeccao', 'Prospecção'],
               ['fornecedores', 'Fornecedores'],
               ['cadastros', 'Clientes e parceiros'],
+              ['ligacoes', 'Ligações'],
               ['modelos', 'Modelos de mensagem'],
             ] as [Aba, string][]
           ).map(([v, rotulo]) => (
@@ -335,6 +338,13 @@ export default function ComercialPage() {
           />
         ) : aba === 'fornecedores' ? (
           <Fornecedores podeEditar={pode('comercial.editar')} />
+        ) : aba === 'ligacoes' ? (
+          <CrmLigacoes
+            onAbrirLead={(id) => {
+              const l = leads.find((x) => x.id === id)
+              if (l) setAberto(l)
+            }}
+          />
         ) : aba === 'modelos' ? (
           <CrmModelos podeEditar={pode('comercial.editar')} />
         ) : aba === 'cadastros' ? (
