@@ -19,8 +19,10 @@ export type Ligacao = {
   resultado: string
   duracao_segundos: number
   observacao: string | null
-  proximo_passo: string | null
+  proximo_passo?: string | null
   origem: string
+  /** Campanha de prospeccao de onde o numero veio, quando veio de uma. */
+  campanha?: string | null
 }
 
 export const RESULTADOS: { valor: string; rotulo: string; cor: string }[] = [
@@ -88,11 +90,46 @@ export async function ligacoesDoLead(leadId: string): Promise<Ligacao[]> {
   return (data as Ligacao[]) || []
 }
 
+/** Um contato de campanha na fila de ligacao. */
+export type ContatoParaLigar = {
+  contato_id: string
+  telefone: string
+  nome: string | null
+  empresa: string | null
+  cidade: string | null
+  situacao: string
+  abordado_em: string | null
+  ligacoes: number
+  ultima_ligacao: string | null
+}
+
+/**
+ * Contatos de uma campanha para ligar.
+ *
+ * Quem nao responde no WhatsApp as vezes atende o telefone. A lista ja traz
+ * quantas vezes esse numero ja recebeu ligacao, para nao insistir no mesmo dia.
+ */
+export async function filaParaLigar(
+  campanhaId: string,
+  soNaoLigados = false,
+  limite = 200
+): Promise<ContatoParaLigar[]> {
+  const { data, error } = await supabase.rpc('prospeccao_fila_para_ligar', {
+    p_campanha: campanhaId,
+    p_limite: limite,
+    p_so_nao_ligados: soNaoLigados,
+  })
+  if (error) throw new Error(error.message)
+  return (data as ContatoParaLigar[]) || []
+}
+
 export async function carregarLigacoes(de?: string, ate?: string): Promise<Ligacao[]> {
-  let q = supabase.from('crm_ligacoes').select('*').order('quando', { ascending: false }).limit(2000)
-  if (de) q = q.gte('quando', de + 'T00:00:00')
-  if (ate) q = q.lte('quando', ate + 'T23:59:59')
-  const { data, error } = await q
+  // Pela funcao, e nao pela tabela: assim cada ligacao ja vem com a campanha
+  // de onde o numero saiu, quando ele veio da prospeccao.
+  const { data, error } = await supabase.rpc('crm_ligacoes_com_campanha', {
+    p_de: de || null,
+    p_ate: ate || null,
+  })
   if (error) throw new Error(error.message)
   return (data as Ligacao[]) || []
 }

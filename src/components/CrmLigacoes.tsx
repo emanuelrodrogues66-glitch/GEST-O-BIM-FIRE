@@ -9,6 +9,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { Ligacao, ResumoLigacoes } from '../lib/ligacoes'
+import CrmLigacoesCampanha from './CrmLigacoesCampanha'
 import {
   RESULTADOS,
   carregarLigacoes,
@@ -154,6 +155,8 @@ export default function CrmLigacoes({ onAbrirLead }: { onAbrirLead?: (id: string
         </select>
       </div>
 
+      <CrmLigacoesCampanha aoRegistrar={carregar} />
+
       {carregando ? (
         <p className="text-sm text-slate-400 text-center py-20">Carregando ligações...</p>
       ) : (
@@ -224,6 +227,7 @@ export default function CrmLigacoes({ onAbrirLead }: { onAbrirLead?: (id: string
                     <th className="px-2 py-1">Resultado</th>
                     <th className="px-2 py-1">Duração</th>
                     <th className="px-2 py-1">Observação</th>
+                    <th className="px-2 py-1">Campanha</th>
                     <th className="px-2 py-1">Origem</th>
                   </tr>
                 </thead>
@@ -255,6 +259,7 @@ export default function CrmLigacoes({ onAbrirLead }: { onAbrirLead?: (id: string
                       <td className="px-2 py-1.5 text-slate-600 max-w-[22rem] truncate" title={l.observacao || ''}>
                         {l.observacao || '—'}
                       </td>
+                      <td className="px-2 py-1.5 text-slate-500">{l.campanha || '—'}</td>
                       <td className="px-2 py-1.5 text-slate-400">{l.origem}</td>
                     </tr>
                   ))}
