@@ -19,6 +19,7 @@ import { usePermissoes } from '../lib/permissoes'
 import { supabase } from '../lib/supabase'
 import BuscaCadastro from './BuscaCadastro'
 import LigacoesDoLead from './LigacoesDoLead'
+import { diasDesde } from '../lib/meuDia'
 import CrmProposta from './CrmProposta'
 import { FONTES, FORMAS_PAGAMENTO } from '../lib/crm'
 import { TIPOS_DE_SERVICO, categoriaDoTipo } from '../types'
@@ -69,6 +70,8 @@ export default function CrmLeadModal({
   const [form, setForm] = useState<Lead>(lead)
   const fontesDisponiveis = comAFonteAtual(form.fonte)
   const [atividades, setAtividades] = useState<AtividadeLead[]>([])
+  // Quando a negociacao entrou na etapa atual, lido do proprio historico.
+  const [diasNaEtapa, setDiasNaEtapa] = useState<number | null>(null)
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
   const [texto, setTexto] = useState('')
   const [tipoAtividade, setTipoAtividade] = useState('nota')
@@ -97,7 +100,11 @@ export default function CrmLeadModal({
   const etapaAtual = etapas.find((e) => e.id === form.stage_id)
 
   useEffect(() => {
-    carregarAtividades(lead.id).then(setAtividades)
+    carregarAtividades(lead.id).then((as) => {
+      setAtividades(as)
+      const ultima = as.find((a) => a.tipo === 'etapa')
+      setDiasNaEtapa(diasDesde(ultima ? ultima.quando : lead.criado_em))
+    })
     if (!lead.project_id) sugerirProjetos(lead.id).then(setSugestoes)
   }, [lead.id, lead.project_id])
 
@@ -511,6 +518,13 @@ export default function CrmLeadModal({
 
           {/* ---------- coluna direita: histórico ---------- */}
           <div className="space-y-3">
+            {/* Ha quanto tempo parada: o funil mente quando ninguem olha isso. */}
+            {diasNaEtapa !== null && (
+              <p className={'text-[11px] ' + (diasNaEtapa > 14 ? 'text-rose-600' : 'text-slate-500')}>
+                {diasNaEtapa} dia(s) nesta etapa
+              </p>
+            )}
+
             <LigacoesDoLead
               leadId={lead.id}
               telefone={form.contato}

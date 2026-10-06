@@ -15,6 +15,7 @@ import {
 import type { Etapa, Lead } from '../lib/crm'
 import { reais } from '../lib/crm'
 import { corDoResponsavel } from '../lib/agenda'
+import CrmMetas from './CrmMetas'
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
@@ -35,10 +36,13 @@ export default function CrmDashboard({
   leads,
   etapas,
   verComissao,
+  podeEditarMetas,
 }: {
   leads: Lead[]
   etapas: Etapa[]
   verComissao: boolean
+  /** Quem pode definir a meta do mes de cada pessoa. */
+  podeEditarMetas?: boolean
 }) {
   const ganhos = useMemo(() => leads.filter((l) => l.estado === 'ganho'), [leads])
   const perdidos = useMemo(() => leads.filter((l) => l.estado === 'perdido'), [leads])
@@ -204,6 +208,8 @@ export default function CrmDashboard({
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      <CrmMetas leads={leads} podeEditar={!!podeEditarMetas} />
 
       {esquecidos.length > 0 && (
         <div className="bg-white border border-amber-200 rounded-xl shadow-sm p-4">

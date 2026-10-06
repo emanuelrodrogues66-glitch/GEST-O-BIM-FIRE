@@ -9,6 +9,7 @@ import CrmLeadModal from './CrmLeadModal'
 import CadastrosView from './CadastrosView'
 import CrmModelos from './CrmModelos'
 import CrmLigacoes from './CrmLigacoes'
+import CrmMeuDia from './CrmMeuDia'
 import Fornecedores from './Fornecedores'
 import CrmDashboard from './CrmDashboard'
 import CrmComissoes from './CrmComissoes'
@@ -29,6 +30,7 @@ import {
 import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 
 type Aba =
+  | 'meudia'
   | 'funil'
   | 'ligacoes'
   | 'modelos'
@@ -290,6 +292,7 @@ export default function ComercialPage() {
         <div className="max-w-[1600px] mx-auto px-4 flex gap-1">
           {(
             [
+              ['meudia', 'Meu dia'],
               ['funil', 'Funil'],
               ['lista', 'Lista'],
               ['feed', 'Feed'],
@@ -338,6 +341,14 @@ export default function ComercialPage() {
           />
         ) : aba === 'fornecedores' ? (
           <Fornecedores podeEditar={pode('comercial.editar')} />
+        ) : aba === 'meudia' ? (
+          <CrmMeuDia
+            leads={leads}
+            onAbrirLead={(id) => {
+              const l = leads.find((x) => x.id === id)
+              if (l) setAberto(l)
+            }}
+          />
         ) : aba === 'ligacoes' ? (
           <CrmLigacoes
             onAbrirLead={(id) => {
@@ -485,7 +496,12 @@ export default function ComercialPage() {
             )}
 
             {aba === 'painel' ? (
-              <CrmDashboard leads={filtrados} etapas={etapas} verComissao={pode('comercial.comissao')} />
+              <CrmDashboard
+                leads={filtrados}
+                etapas={etapas}
+                verComissao={pode('comercial.comissao')}
+                podeEditarMetas={pode('comercial.editar')}
+              />
             ) : aba === 'funil' ? (
               <div className="flex gap-3 overflow-x-auto pb-4">
                 {doFunil.map((etapa) => {
