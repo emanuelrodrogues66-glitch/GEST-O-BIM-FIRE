@@ -518,6 +518,26 @@ export default function CrmLeadModal({
 
           {/* ---------- coluna direita: histórico ---------- */}
           <div className="space-y-3">
+            {/* Falar agora: abrir a conversa ou discar, sem copiar numero a mao. */}
+            {form.contato && (
+              <div className="flex gap-2">
+                <a
+                  href={'https://wa.me/55' + String(form.contato).replace(/\D/g, '').replace(/^55/, '')}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1 rounded-md bg-emerald-600 text-white text-[11px] hover:bg-emerald-700"
+                >
+                  WhatsApp
+                </a>
+                <a
+                  href={'tel:+55' + String(form.contato).replace(/\D/g, '').replace(/^55/, '')}
+                  className="px-2.5 py-1 rounded-md border border-slate-300 text-slate-700 text-[11px] hover:bg-slate-50"
+                >
+                  Ligar
+                </a>
+              </div>
+            )}
+
             {/* Ha quanto tempo parada: o funil mente quando ninguem olha isso. */}
             {diasNaEtapa !== null && (
               <p className={'text-[11px] ' + (diasNaEtapa > 14 ? 'text-rose-600' : 'text-slate-500')}>

@@ -10,6 +10,7 @@ import CadastrosView from './CadastrosView'
 import CrmModelos from './CrmModelos'
 import CrmLigacoes from './CrmLigacoes'
 import CrmMeuDia from './CrmMeuDia'
+import CrmDuplicadas from './CrmDuplicadas'
 import Fornecedores from './Fornecedores'
 import CrmDashboard from './CrmDashboard'
 import CrmComissoes from './CrmComissoes'
@@ -31,6 +32,7 @@ import { carimboDeHoje, exportarParaExcel } from '../lib/exportarExcel'
 
 type Aba =
   | 'meudia'
+  | 'duplicadas'
   | 'funil'
   | 'ligacoes'
   | 'modelos'
@@ -302,6 +304,7 @@ export default function ComercialPage() {
               ['fornecedores', 'Fornecedores'],
               ['cadastros', 'Clientes e parceiros'],
               ['ligacoes', 'Ligações'],
+              ['duplicadas', 'Repetidas'],
               ['modelos', 'Modelos de mensagem'],
             ] as [Aba, string][]
           ).map(([v, rotulo]) => (
@@ -344,6 +347,13 @@ export default function ComercialPage() {
         ) : aba === 'meudia' ? (
           <CrmMeuDia
             leads={leads}
+            onAbrirLead={(id) => {
+              const l = leads.find((x) => x.id === id)
+              if (l) setAberto(l)
+            }}
+          />
+        ) : aba === 'duplicadas' ? (
+          <CrmDuplicadas
             onAbrirLead={(id) => {
               const l = leads.find((x) => x.id === id)
               if (l) setAberto(l)

@@ -216,9 +216,30 @@ export async function criarLead(lead: Partial<Lead>): Promise<Lead> {
  * negócio ficou parado em "orçamento enviado", que é a pergunta que o funil
  * existe para responder.
  */
+/** Etapas em que a bola esta com o cliente: aqui nasce o retorno agendado. */
+const ETAPAS_QUE_PEDEM_RETORNO = /or[çc]amento enviado|proposta enviada|em negocia[çc][ãa]o/i
+
+/** Daqui a N dias, em formato de data. */
+function daquiA(dias: number) {
+  const d = new Date()
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().slice(0, 10)
+}
+
 export async function moverEtapa(lead: Lead, etapa: Etapa, etapaAntiga?: Etapa) {
+  // Perder sem dizer por que e perder duas vezes: perde-se o negocio e a
+  // informacao que evitaria o proximo. O cartao ja perguntava; arrastar no
+  // quadro nao perguntava nada.
+  if (etapa.tipo === 'perdido' && !(lead.motivo_perda || '').trim()) {
+    throw new Error('Diga o motivo da perda antes de mover para perdido. Abra o cartão e escolha o motivo.')
+  }
+  // Mandou proposta? Entao tem data para cobrar resposta. Sem isso o negocio
+  // fica esperando o cliente lembrar da gente, o que raramente acontece.
+  const agendarRetorno = ETAPAS_QUE_PEDEM_RETORNO.test(etapa.nome || '') && !lead.retorno_em
+
   await salvarLead(lead.id, {
     stage_id: etapa.id,
+    ...(agendarRetorno ? { retorno_em: daquiA(7) } : {}),
     estado: etapa.tipo === 'aberta' ? 'aberta' : etapa.tipo,
     ...(etapa.tipo === 'ganho' && !lead.data_fechamento
       ? { data_fechamento: new Date().toISOString().slice(0, 10) }

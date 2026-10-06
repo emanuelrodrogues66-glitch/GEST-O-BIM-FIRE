@@ -42,6 +42,26 @@ export default function LigacoesDoLead({
   const [observacao, setObservacao] = useState('')
   const [proximo, setProximo] = useState('')
 
+  /** Daqui a N dias, no formato do campo de data. */
+  function daquiA(dias: number) {
+    const d = new Date()
+    d.setDate(d.getDate() + dias)
+    return d.toISOString().slice(0, 10)
+  }
+
+  /**
+   * Nao atendeu ja sai com a proxima tentativa marcada.
+   *
+   * Quem nao atende hoje so volta a ser lembrado se ficar agendado; sem isso o
+   * contato some ate alguem lembrar por acaso.
+   */
+  function escolherResultado(valor: string) {
+    setResultado(valor)
+    if (!proximo && valor !== 'atendeu' && valor !== 'sem_interesse' && valor !== 'numero_errado') {
+      setProximo(daquiA(3))
+    }
+  }
+
   async function carregar() {
     try {
       setLista(await ligacoesDoLead(leadId))
@@ -112,7 +132,7 @@ export default function LigacoesDoLead({
               Resultado
               <select
                 value={resultado}
-                onChange={(e) => setResultado(e.target.value)}
+                onChange={(e) => escolherResultado(e.target.value)}
                 className="w-full border border-slate-200 rounded px-2 py-1 text-xs bg-white"
               >
                 {RESULTADOS.map((r) => (
