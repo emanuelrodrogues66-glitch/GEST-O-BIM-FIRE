@@ -22,6 +22,7 @@ import AvisoAtrasadas from './components/AvisoAtrasadas'
 import AvisoAprovacoes from './components/AvisoAprovacoes'
 import TeamCostsView from './components/TeamCostsView'
 import FinanceReportView from './components/FinanceReportView'
+import ProducaoPorHoraView from './components/ProducaoPorHoraView'
 import FluxoCaixaView from './components/FluxoCaixaView'
 import PermissionsView from './components/PermissionsView'
 import RenovacoesView from './components/RenovacoesView'
@@ -50,6 +51,7 @@ type ViewMode =
   | 'atividades'
   | 'custos'
   | 'financeiro'
+  | 'produtividade'
   | 'fluxo'
   | 'permissoes'
   | 'renovacoes'
@@ -70,6 +72,7 @@ const PERMISSAO_DA_VISAO: Partial<Record<ViewMode, string>> = {
   cadastros: 'cadastros.ver',
   relatorio: 'relatorios.ver',
   financeiro: 'fin.relatorio.ver',
+  produtividade: 'fin.relatorio.ver',
   fluxo: 'fin.contrato.ver',
   custos: 'fin.salarios.ver',
   permissoes: 'permissoes.gerenciar',
@@ -587,6 +590,9 @@ export default function App() {
                 ...(pode('fin.relatorio.ver')
                   ? ([['financeiro', 'Financeiro']] as [ViewMode, string][])
                   : []),
+                ...(pode('fin.relatorio.ver')
+                  ? ([['produtividade', 'Produção por hora']] as [ViewMode, string][])
+                  : []),
                 ...(pode('fin.contrato.ver')
                   ? ([['fluxo', 'Fluxo de caixa']] as [ViewMode, string][])
                   : []),
@@ -705,6 +711,8 @@ export default function App() {
           <FluxoCaixaView onProjectClick={openEditById} />
         ) : viewMode === 'financeiro' ? (
           <FinanceReportView onProjectClick={openEditById} />
+        ) : viewMode === 'produtividade' ? (
+          <ProducaoPorHoraView />
         ) : viewMode === 'custos' ? (
           <TeamCostsView />
         ) : viewMode === 'atividades' ? (
