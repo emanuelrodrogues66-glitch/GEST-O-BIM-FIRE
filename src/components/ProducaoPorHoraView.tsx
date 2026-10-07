@@ -227,7 +227,7 @@ export default function ProducaoPorHoraView() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
                     <XAxis dataKey="nome" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(v: number) => reais(v)} />
+                    <Tooltip />
                     <Bar dataKey="gera" name="gera por hora" fill="#4f46e5" radius={[3, 3, 0, 0]} />
                     <Bar dataKey="custa" name="custa por hora" fill="#fda4af" radius={[3, 3, 0, 0]} />
                   </BarChart>
