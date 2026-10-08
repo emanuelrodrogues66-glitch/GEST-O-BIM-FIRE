@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import type { TarefaDaAgenda } from '../lib/agenda'
 import { corDoResponsavel } from '../lib/agenda'
 import { HUMORES } from './MoodView'
+import HumorDosColegas from './HumorDosColegas'
 import { ROTULO_TIPO, hojeLocal } from '../lib/ponto'
 import type { TipoBatida } from '../lib/ponto'
 
@@ -19,11 +20,14 @@ export default function PontoDoDia({
   colaborador,
   tipo,
   hora,
+  pin,
   onFechar,
 }: {
   colaborador: string
   tipo: TipoBatida
   hora: string
+  /** O mesmo PIN da batida: é ele que autoriza responder sobre os colegas. */
+  pin?: string
   onFechar: () => void
 }) {
   const hoje = hojeLocal()
@@ -151,6 +155,9 @@ export default function PontoDoDia({
               {HUMORES.find((h) => h.valor === humor)?.rotulo}
             </p>
           )}
+
+          {/* ---------- como voce ve os colegas ---------- */}
+          {pin && <HumorDosColegas colaborador={colaborador} pin={pin} />}
 
           {/* ---------- tarefas ---------- */}
           {carregando ? (

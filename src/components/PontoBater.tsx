@@ -35,6 +35,7 @@ export default function PontoBater() {
   const [membros, setMembros] = useState<Membro[]>([])
   const [colaborador, setColaborador] = useState('')
   const [pin, setPin] = useState('')
+  const [pinDoPainel, setPinDoPainel] = useState('')
   const [agora, setAgora] = useState(new Date())
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -131,6 +132,9 @@ export default function PontoBater() {
       const r = await baterPonto({ colaborador, pin })
       const marcada = { tipo: r.tipo, hora: horaDoMomento(r.momento) }
       setSucesso(marcada)
+      // O PIN segue para o painel: e ele que autoriza responder sobre os
+      // colegas. Sai da tela do relogio na mesma hora.
+      setPinDoPainel(pin)
       setMostrarDia(marcada)
       setPin('')
       await recarregarDia()
@@ -321,7 +325,11 @@ export default function PontoBater() {
           colaborador={colaborador}
           tipo={mostrarDia.tipo}
           hora={mostrarDia.hora}
-          onFechar={() => setMostrarDia(null)}
+          pin={pinDoPainel}
+          onFechar={() => {
+            setMostrarDia(null)
+            setPinDoPainel('')
+          }}
         />
       )}
     </div>

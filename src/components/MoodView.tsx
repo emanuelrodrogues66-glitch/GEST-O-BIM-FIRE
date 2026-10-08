@@ -12,6 +12,8 @@ import {
   YAxis,
 } from 'recharts'
 import { supabase } from '../lib/supabase'
+import type { LinhaPercepcao } from '../lib/humorColegas'
+import { percepcaoDaEquipe } from '../lib/humorColegas'
 import { usePerfil } from '../lib/perfil'
 
 /** Escala de humor. A nota existe para permitir média; o emoji é a interface. */
@@ -71,6 +73,71 @@ function emojiDaMedia(media: number | null): string {
  * da tela: cada pessoa marca o próprio humor no seu cartão, e qualquer um
  * pode corrigir o do colega se ele pedir.
  */
+/**
+ * Como a equipe se ve x como e vista.
+ *
+ * A media propria sozinha mente: quem esta mal costuma marcar normal. A
+ * coluna dos colegas existe para mostrar a diferenca, que e onde mora a
+ * informacao util.
+ */
+function Percepcao() {
+  const [linhas, setLinhas] = useState<LinhaPercepcao[]>([])
+  const [carregando, setCarregando] = useState(true)
+
+  useEffect(() => {
+    percepcaoDaEquipe()
+      .then(setLinhas)
+      .catch(() => setLinhas([]))
+      .finally(() => setCarregando(false))
+  }, [])
+
+  if (carregando) return null
+  const comVotos = linhas.filter((l) => Number(l.votos_recebidos) > 0)
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+      <h3 className="text-sm font-semibold text-slate-800">Como se vê × como é visto</h3>
+      <p className="text-[11px] text-slate-500 mb-2">
+        A segunda coluna vem do que os colegas respondem ao bater o ponto. Ninguém vê quem
+        respondeu o quê. O que interessa é a diferença: quem se diz bem e é visto mal costuma ser
+        quem mais precisa de uma conversa.
+      </p>
+      {comVotos.length === 0 ? (
+        <p className="text-[11px] text-slate-400">
+          Ainda não há respostas de colegas. Elas aparecem conforme a equipe bate o ponto.
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {comVotos.map((l) => (
+            <div key={l.colaborador} className="flex flex-wrap items-center gap-2 text-[11px] border-b border-slate-100 pb-1">
+              <span className="flex-1 font-medium text-slate-700">{l.colaborador}</span>
+              <span className="text-slate-500">
+                ele(a) diz: {l.media_propria ?? '—'}
+              </span>
+              <span className="text-slate-700">
+                colegas veem: {l.media_colegas ?? '—'}
+              </span>
+              <span className="text-slate-400">{l.votos_recebidos} resposta(s)</span>
+              {l.diferenca !== null && Math.abs(Number(l.diferenca)) >= 0.8 && (
+                <span
+                  className={
+                    'px-1.5 py-0.5 rounded-full ' +
+                    (Number(l.diferenca) < 0
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-emerald-100 text-emerald-700')
+                  }
+                >
+                  {Number(l.diferenca) < 0 ? 'visto pior do que diz estar' : 'visto melhor do que diz'}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MoodView() {
   const { ehAdmin } = usePerfil()
   const [membros, setMembros] = useState<Membro[]>([])
@@ -242,6 +309,8 @@ export default function MoodView() {
 
   return (
     <div className="space-y-4">
+      <Percepcao />
+
       {/* ---------- Check-in do dia ---------- */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
         <div className="flex flex-wrap items-center gap-3 mb-4">
