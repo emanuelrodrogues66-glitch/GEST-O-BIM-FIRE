@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase'
 import type { LinhaPercepcao } from '../lib/humorColegas'
 import { percepcaoDaEquipe } from '../lib/humorColegas'
 import { usePerfil } from '../lib/perfil'
+import { usePermissoes } from '../lib/permissoes'
 
 /** Escala de humor. A nota existe para permitir média; o emoji é a interface. */
 export const HUMORES = [
@@ -140,6 +141,11 @@ function Percepcao() {
 
 export default function MoodView() {
   const { ehAdmin } = usePerfil()
+  // Os graficos deixaram de ser so do ADM: agora dependem de uma permissao
+  // propria, que pode ser dada a quem o escritorio quiser — a projetista, por
+  // exemplo. O dono passa por cima de qualquer configuracao.
+  const { pode } = usePermissoes()
+  const veRelatorio = ehAdmin || pode('humor.relatorio')
   const [membros, setMembros] = useState<Membro[]>([])
   const [checkins, setCheckins] = useState<Checkin[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -309,7 +315,7 @@ export default function MoodView() {
 
   return (
     <div className="space-y-4">
-      <Percepcao />
+      {veRelatorio && <Percepcao />}
 
       {/* ---------- Check-in do dia ---------- */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
@@ -406,8 +412,8 @@ export default function MoodView() {
         </div>
       </div>
 
-      {/* ---------- Relatório (ADM) ---------- */}
-      {ehAdmin ? (
+      {/* ---------- Relatório (quem tem permissão) ---------- */}
+      {veRelatorio ? (
         <>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1">

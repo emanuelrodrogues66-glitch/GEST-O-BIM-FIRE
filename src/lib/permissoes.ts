@@ -156,8 +156,16 @@ export const PERMISSOES: Permissao[] = [
   {
     codigo: 'humor.ver',
     rotulo: 'Ver humor da equipe',
-    descricao: 'O painel de humor e o histórico.',
+    descricao: 'A tela do humor e o próprio check-in.',
     grupo: 'Visão geral',
+  },
+  {
+    codigo: 'humor.relatorio',
+    rotulo: 'Ver os gráficos do humor',
+    descricao:
+      'Média da equipe, distribuição, média por pessoa e como cada um é visto pelos colegas.',
+    grupo: 'Visão geral',
+    sensivel: true,
   },
 
   // -------------------------------------------------------------- comercial
