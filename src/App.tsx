@@ -156,6 +156,9 @@ export default function App() {
     const meta = session.user.user_metadata as any
     setNome(meta?.nome || session.user.email?.split('@')[0] || '')
     fetchProjects()
+    // Registra a abertura do sistema. A funcao ignora repeticao dentro da
+    // mesma hora, entao recarregar a pagina nao infla a contagem.
+    supabase.rpc('registrar_acesso', { p_dispositivo: navigator.userAgent }).then(() => {})
 
     const channel = supabase
       .channel('projects-changes')

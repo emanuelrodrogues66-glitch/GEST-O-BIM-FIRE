@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import AcessosView from './AcessosView'
 import type { Excecao, PerfilDeAcesso } from '../lib/permissoes'
 import {
   GRUPOS,
@@ -26,7 +27,7 @@ type Usuario = { user_id: string; email: string; nome: string | null; papel: str
  */
 export default function PermissionsView() {
   const { pode, carregando: carregandoPerm } = usePermissoes()
-  const [aba, setAba] = useState<'perfis' | 'pessoas'>('perfis')
+  const [aba, setAba] = useState<'perfis' | 'pessoas' | 'acessos'>('perfis')
 
   const [perfis, setPerfis] = useState<PerfilDeAcesso[]>([])
   const [doPerfil, setDoPerfil] = useState<Map<string, Set<string>>>(new Map())
@@ -77,6 +78,7 @@ export default function PermissionsView() {
           [
             ['perfis', 'Perfis e o que cada um pode'],
             ['pessoas', 'Pessoas e exceções'],
+            ['acessos', 'Acessos ao sistema'],
           ] as const
         ).map(([v, rotulo]) => (
           <button
@@ -103,6 +105,8 @@ export default function PermissionsView() {
           onMudou={carregar}
         />
       )}
+
+      {aba === 'acessos' && <AcessosView />}
 
       <p className="text-[10px] text-slate-400">
         A restrição vale no banco de dados, não só na tela: quem não tem a permissão não consegue
