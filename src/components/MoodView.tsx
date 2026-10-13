@@ -16,6 +16,7 @@ import type { LinhaPercepcao } from '../lib/humorColegas'
 import { percepcaoDaEquipe } from '../lib/humorColegas'
 import { usePerfil } from '../lib/perfil'
 import { usePermissoes } from '../lib/permissoes'
+import HumorDosColegas from './HumorDosColegas'
 
 /** Escala de humor. A nota existe para permitir média; o emoji é a interface. */
 export const HUMORES = [
@@ -113,10 +114,12 @@ function Percepcao() {
             <div key={l.colaborador} className="flex flex-wrap items-center gap-2 text-[11px] border-b border-slate-100 pb-1">
               <span className="flex-1 font-medium text-slate-700">{l.colaborador}</span>
               <span className="text-slate-500">
-                ele(a) diz: {l.media_propria ?? '—'}
+                ele(a) diz: <span className="text-base align-middle">{emojiDaMedia(l.media_propria)}</span>{' '}
+                {l.media_propria ?? '—'}
               </span>
               <span className="text-slate-700">
-                colegas veem: {l.media_colegas ?? '—'}
+                colegas veem: <span className="text-base align-middle">{emojiDaMedia(l.media_colegas)}</span>{' '}
+                {l.media_colegas ?? '—'}
               </span>
               <span className="text-slate-400">{l.votos_recebidos} resposta(s)</span>
               {l.diferenca !== null && Math.abs(Number(l.diferenca)) >= 0.8 && (
@@ -135,6 +138,85 @@ function Percepcao() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Responder sobre os colegas sem passar pelo relogio de ponto.
+ *
+ * Quem bate ponto ja responde na hora da batida. Esta porta existe para quem
+ * esqueceu, para quem entrou pelo computador e para o dia em que a pessoa quer
+ * revisar o que marcou. O PIN e o mesmo do cartao ponto: e ele que diz quem
+ * esta respondendo, ja que o escritorio divide o login.
+ */
+function VotarPelaTela({ membros }: { membros: Membro[] }) {
+  const [quem, setQuem] = useState(() => localStorage.getItem('humor:quem') || '')
+  const [pin, setPin] = useState('')
+  const [entrou, setEntrou] = useState(false)
+
+  if (entrou && quem && pin) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-800">Respondendo como {quem}</h3>
+          <button
+            onClick={() => {
+              setEntrou(false)
+              setPin('')
+            }}
+            className="ml-auto text-[11px] text-slate-500 hover:text-slate-700"
+          >
+            sair
+          </button>
+        </div>
+        <HumorDosColegas colaborador={quem} pin={pin} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
+      <h3 className="text-sm font-semibold text-slate-800">Como você acha que seus colegas estão?</h3>
+      <p className="text-[11px] text-slate-500 mb-2">
+        O mesmo que aparece ao bater o ponto. Entre com seu nome e o PIN do cartão ponto — é assim
+        que o sistema sabe quem está respondendo. Ninguém vê quem respondeu o quê.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={quem}
+          onChange={(e) => setQuem(e.target.value)}
+          className="text-xs border border-slate-200 rounded-lg px-2 py-1.5"
+        >
+          <option value="">Quem é você?</option>
+          {membros
+            .filter((x) => x.ativo)
+            .map((x) => (
+              <option key={x.id} value={x.nome}>
+                {x.nome}
+              </option>
+            ))}
+        </select>
+        <input
+          type="password"
+          inputMode="numeric"
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+          placeholder="PIN"
+          className="w-24 text-xs border border-slate-200 rounded-lg px-2 py-1.5"
+        />
+        <button
+          onClick={() => {
+            if (!quem) return alert('Escolha o seu nome.')
+            if (pin.length < 4) return alert('Digite o seu PIN do cartão ponto.')
+            localStorage.setItem('humor:quem', quem)
+            setEntrou(true)
+          }}
+          className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs hover:bg-indigo-700"
+        >
+          responder
+        </button>
+      </div>
     </div>
   )
 }
@@ -261,6 +343,19 @@ export default function MoodView() {
     return checkins.reduce((s, c) => s + c.nota, 0) / checkins.length
   }, [checkins])
 
+  /**
+   * Media do dia escolhido, separada da media do periodo.
+   *
+   * A media de 30 dias amortece tudo: um dia ruim da equipe inteira some no
+   * meio dos outros 29. Quem quer agir hoje precisa do numero de hoje.
+   */
+  const mediaDoDia = useMemo(() => {
+    const doDia = checkins.filter((c) => c.data === dia)
+    if (doDia.length === 0) return null
+    return doDia.reduce((s, c) => s + c.nota, 0) / doDia.length
+  }, [checkins, dia])
+  const respostasDoDia = checkins.filter((c) => c.data === dia).length
+
   /** Média da equipe por dia, para a linha de tendência. */
   const tendencia = useMemo(() => {
     const mapa = new Map<string, number[]>()
@@ -315,6 +410,8 @@ export default function MoodView() {
 
   return (
     <div className="space-y-4">
+      <VotarPelaTela membros={membros} />
+
       {veRelatorio && <Percepcao />}
 
       {/* ---------- Check-in do dia ---------- */}
@@ -440,6 +537,20 @@ export default function MoodView() {
                 {mediaGeral !== null ? mediaGeral.toFixed(2) : '—'}
                 <span className="text-xs font-normal text-slate-400"> / 5</span>
               </p>
+              <p className="text-[10px] text-slate-400">no período</p>
+
+              {/* O numero de hoje, que e o que permite agir hoje. */}
+              <div className="border-t border-slate-100 mt-2 pt-2">
+                <p className="text-[11px] text-slate-400 uppercase tracking-wide">Média do dia</p>
+                <p className="text-sm font-semibold text-slate-700">
+                  <span className="text-xl align-middle">{emojiDaMedia(mediaDoDia)}</span>{' '}
+                  {mediaDoDia !== null ? mediaDoDia.toFixed(2) : '—'}
+                  <span className="text-xs font-normal text-slate-400"> / 5</span>
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  {formatarData(dia)} · {respostasDoDia} resposta(s)
+                </p>
+              </div>
             </div>
 
             <div className="md:col-span-2 bg-white border border-slate-200 rounded-xl shadow-sm p-4">
