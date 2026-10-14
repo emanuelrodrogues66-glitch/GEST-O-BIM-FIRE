@@ -215,3 +215,61 @@ body {
 *::-webkit-scrollbar-thumb:hover {
   background-color: #A8A29E;
 }
+
+/*
+Tema do Brasil: outubro de 2026.
+
+A escala "indigo" e a cor da marca do app (ver o bloco acima), entao
+trocar essa escala aqui pinta os 240 usos espalhados pelas telas de uma
+vez. O amarelo da bandeira nao entra como cor de acao: amarelo em botao
+e texto perde contraste. Ele aparece na faixa do topo, no acento e no
+fundo levemente creme.
+
+Quem liga e desliga e o componente BandeiraBrasil, pela classe no html.
+*/
+html.tema-brasil {
+  --color-indigo-50: #E9F8EF;
+  --color-indigo-100: #CFF0DD;
+  --color-indigo-200: #9FE0BC;
+  --color-indigo-300: #5FC894;
+  --color-indigo-400: #1FAD68;
+  --color-indigo-500: #089C4C;
+  --color-indigo-600: #009739;
+  --color-indigo-700: #007A2F;
+  --color-indigo-800: #005F24;
+  --color-indigo-900: #00401A;
+
+  --color-cobre-50: #FFFBEB;
+  --color-cobre-100: #FDF3C8;
+  --color-cobre-300: #F2CE2B;
+  --color-cobre-500: #C79A00;
+  --color-cobre-600: #A88100;
+  --color-cobre-700: #806200;
+
+  --color-carvao-800: #0A4A28;
+  --color-carvao-900: #053B1F;
+}
+
+html.tema-brasil body {
+  background-color: #FBFAF0;
+}
+
+/* Faixa verde-amarela embaixo da barra do topo. */
+html.tema-brasil header {
+  box-shadow: inset 0 -3px 0 0 #FEDD00;
+}
+
+/* O pano tremendo: o balanco do tecido inteiro. */
+@keyframes bandeira-tremula {
+  0%, 100% { transform: skewY(0deg) scaleY(1); }
+  25% { transform: skewY(-1.8deg) scaleY(0.97); }
+  50% { transform: skewY(0.9deg) scaleY(1.02); }
+  75% { transform: skewY(1.8deg) scaleY(0.97); }
+}
+.bandeira-tremula {
+  animation: bandeira-tremula 3.2s ease-in-out infinite;
+  transform-origin: left center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bandeira-tremula { animation: none; }
+}

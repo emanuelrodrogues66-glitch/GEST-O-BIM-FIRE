@@ -8,6 +8,7 @@ import { nomeDoUsuario, type DadosPendencia } from './lib/pendencias'
 import { alertarCorrecao, comemorarConclusao } from './lib/celebracao'
 import type { Project } from './types'
 import { CATEGORIAS } from './types'
+import BandeiraBrasil from './components/BandeiraBrasil'
 import Login from './components/Login'
 import NovaSenha from './components/NovaSenha'
 import Board from './components/Board'
@@ -389,6 +390,7 @@ export default function App() {
             alt="BIM Fire"
             className="w-9 h-9 rounded-lg object-cover shrink-0"
           />
+          <BandeiraBrasil />
           <div className="min-w-0">
             <h1 className="text-sm font-semibold text-white leading-tight">
               Gestão de Projetos
