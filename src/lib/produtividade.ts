@@ -14,15 +14,23 @@ export type ProducaoPorHora = {
   colaborador: string
   horas: number
   horas_estimadas: number
+  /** Horas trabalhadas pelo cartao ponto — o denominador de quem vende. */
+  horas_ponto: number
   lancamentos: number
   projetos_tocados: number
   projetos_equivalentes: number
   pontos: number
   m2: number
   valor: number
+  /** Vendas fechadas no periodo, pelo funil. */
+  vendas: number
+  vendas_fechadas: number
   pontos_por_hora: number | null
   m2_por_hora: number | null
   valor_por_hora: number | null
+  vendas_por_hora: number | null
+  /** Projetos + vendas, sobre a hora trabalhada. */
+  gera_por_hora: number | null
   custo_hora: number | null
   margem_por_hora: number | null
 }
@@ -41,6 +49,9 @@ export async function producaoPorHora(
   return ((data as ProducaoPorHora[]) || []).map((r) => ({
     ...r,
     horas: Number(r.horas) || 0,
+    horas_ponto: Number(r.horas_ponto) || 0,
+    vendas: Number(r.vendas) || 0,
+    vendas_fechadas: Number(r.vendas_fechadas) || 0,
     horas_estimadas: Number(r.horas_estimadas) || 0,
     pontos: Number(r.pontos) || 0,
     m2: Number(r.m2) || 0,
@@ -49,6 +60,8 @@ export async function producaoPorHora(
     pontos_por_hora: r.pontos_por_hora === null ? null : Number(r.pontos_por_hora),
     m2_por_hora: r.m2_por_hora === null ? null : Number(r.m2_por_hora),
     valor_por_hora: r.valor_por_hora === null ? null : Number(r.valor_por_hora),
+    vendas_por_hora: r.vendas_por_hora === null ? null : Number(r.vendas_por_hora),
+    gera_por_hora: r.gera_por_hora === null ? null : Number(r.gera_por_hora),
     custo_hora: r.custo_hora === null ? null : Number(r.custo_hora),
     margem_por_hora: r.margem_por_hora === null ? null : Number(r.margem_por_hora),
   }))

@@ -63,16 +63,18 @@ export default function ProducaoPorHoraView() {
 
   const totalHoras = lista.reduce((s, r) => s + r.horas, 0)
   const totalValor = lista.reduce((s, r) => s + r.valor, 0)
+  const totalVendas = lista.reduce((s, r) => s + r.vendas, 0)
   const mediaValorHora = totalHoras ? totalValor / totalHoras : 0
   const estimadas = lista.reduce((s, r) => s + r.horas_estimadas, 0)
 
   const grafico = useMemo(
     () =>
       lista
-        .filter((r) => r.horas > 0)
+        .filter((r) => r.horas > 0 || r.horas_ponto > 0)
         .map((r) => ({
           nome: r.colaborador,
-          gera: Number(r.valor_por_hora || 0),
+          projetos: Number(r.valor_por_hora || 0),
+          vendas: Number(r.vendas_por_hora || 0),
           custa: Number(r.custo_hora || 0),
         })),
     [lista]
@@ -140,6 +142,11 @@ export default function ProducaoPorHoraView() {
               valor={reais(totalValor)}
               rodape="contratos de projetos concluídos"
             />
+            <Caixa
+              titulo="Vendas fechadas"
+              valor={reais(totalVendas)}
+              rodape="negócios ganhos no período"
+            />
             <Caixa titulo="Média da equipe" valor={reais(mediaValorHora) + '/h'} />
             <Caixa
               titulo="Horas estimadas"
@@ -166,6 +173,8 @@ export default function ProducaoPorHoraView() {
                   <th className="px-2 py-1 text-right">Pontos</th>
                   <th className="px-2 py-1 text-right">m²</th>
                   <th className="px-2 py-1 text-right">Valor entregue</th>
+                  <th className="px-2 py-1 text-right">Vendas</th>
+                  <th className="px-2 py-1 text-right">Vendas por hora</th>
                   <th className="px-2 py-1 text-right">Gera por hora</th>
                   <th className="px-2 py-1 text-right">Custa por hora</th>
                   <th className="px-2 py-1 text-right">Sobra por hora</th>
@@ -186,8 +195,17 @@ export default function ProducaoPorHoraView() {
                       {r.m2 ? r.m2.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—'}
                     </td>
                     <td className="px-2 py-1.5 text-right text-slate-700">{reais(r.valor)}</td>
+                    <td className="px-2 py-1.5 text-right text-emerald-700">
+                      {r.vendas ? reais(r.vendas) : '—'}
+                      {r.vendas_fechadas > 0 && (
+                        <span className="text-slate-400"> ({r.vendas_fechadas})</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right text-emerald-700">
+                      {r.vendas ? reais(r.vendas_por_hora) : '—'}
+                    </td>
                     <td className="px-2 py-1.5 text-right font-semibold text-slate-800">
-                      {reais(r.valor_por_hora)}
+                      {reais(r.gera_por_hora)}
                     </td>
                     <td className="px-2 py-1.5 text-right text-slate-500">
                       {r.custo_hora === null ? 'sem custo' : reais(r.custo_hora)}
@@ -218,6 +236,14 @@ export default function ProducaoPorHoraView() {
             )}
           </div>
 
+          <p className="text-[11px] text-slate-500">
+            Quem vende quase não aparece no cronograma: o dinheiro dessa pessoa está no funil, não
+            nas horas de projeto. Por isso a coluna de vendas usa as horas do cartão ponto, e
+            &quot;gera por hora&quot; soma os dois papéis. As duas receitas não se somam como
+            faturamento da empresa — o mesmo contrato aparece no vendedor que fechou e em quem
+            executou. São leituras do mesmo dinheiro por papel diferente.
+          </p>
+
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3">
               <h3 className="text-sm font-semibold text-slate-800 mb-2">O que gera e o que custa, por hora</h3>
@@ -228,7 +254,8 @@ export default function ProducaoPorHoraView() {
                     <XAxis dataKey="nome" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 10 }} />
                     <Tooltip />
-                    <Bar dataKey="gera" name="gera por hora" fill="#4f46e5" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="projetos" name="projetos por hora" stackId="gera" fill="#4f46e5" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="vendas" name="vendas por hora" stackId="gera" fill="#22c55e" radius={[3, 3, 0, 0]} />
                     <Bar dataKey="custa" name="custa por hora" fill="#fda4af" radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
