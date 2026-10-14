@@ -66,6 +66,7 @@ export default function ProducaoPorHoraView() {
   const totalVendas = lista.reduce((s, r) => s + r.vendas, 0)
   const mediaValorHora = totalHoras ? totalValor / totalHoras : 0
   const estimadas = lista.reduce((s, r) => s + r.horas_estimadas, 0)
+  const faltamPonto = lista.filter((r) => r.dias_uteis > 0 && r.dias_com_ponto < r.dias_uteis)
 
   const grafico = useMemo(
     () =>
@@ -155,6 +156,24 @@ export default function ProducaoPorHoraView() {
             />
           </div>
 
+          {faltamPonto.length > 0 && (
+            <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-2">
+              <p className="font-medium">
+                Falta ponto no periodo — o valor por hora usa a jornada prevista nos dias sem
+                marcacao.
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {faltamPonto.map((r) => (
+                  <li key={r.colaborador}>
+                    {r.colaborador}: ha ponto em {r.dias_com_ponto} de {r.dias_uteis} dias uteis do
+                    periodo — as outras {horasLegiveis(r.horas_previstas)} entram pela jornada
+                    cadastrada.
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {estimadas > 0 && !soReais && (
             <p className="text-[11px] text-amber-700">
               Parte das horas veio do lançamento retroativo da planilha, que é estimativa. Marque a
@@ -169,6 +188,7 @@ export default function ProducaoPorHoraView() {
                 <tr className="text-left">
                   <th className="px-2 py-1">Pessoa</th>
                   <th className="px-2 py-1 text-right">Horas</th>
+                      <th className="px-2 py-1 text-right">Base p/ hora</th>
                   <th className="px-2 py-1 text-right">Projetos</th>
                   <th className="px-2 py-1 text-right">Pontos</th>
                   <th className="px-2 py-1 text-right">m²</th>
@@ -186,6 +206,18 @@ export default function ProducaoPorHoraView() {
                   <tr key={r.colaborador} className="border-t border-slate-100">
                     <td className="px-2 py-1.5 font-medium text-slate-700">{r.colaborador}</td>
                     <td className="px-2 py-1.5 text-right text-slate-600">{horasLegiveis(r.horas)}</td>
+                        <td
+                          className="px-2 py-1.5 text-right text-slate-500"
+                          title="ponto do periodo mais a jornada prevista nos dias uteis sem marcacao"
+                        >
+                          {horasLegiveis(r.horas_base)}
+                          {r.dias_uteis > 0 && (
+                            <span className="text-slate-300">
+                              {' '}
+                              ({r.dias_com_ponto}/{r.dias_uteis}d)
+                            </span>
+                          )}
+                        </td>
                     <td className="px-2 py-1.5 text-right text-slate-500">
                       {r.projetos_equivalentes.toFixed(1)}
                       <span className="text-slate-300"> / {r.projetos_tocados}</span>
@@ -238,7 +270,7 @@ export default function ProducaoPorHoraView() {
 
           <p className="text-[11px] text-slate-500">
             Quem vende quase não aparece no cronograma: o dinheiro dessa pessoa está no funil, não
-            nas horas de projeto. Por isso a coluna de vendas usa as horas do cartão ponto, e
+            nas horas de projeto. Por isso a coluna de vendas usa as horas do cartão ponto — completadas pela jornada prevista nos dias úteis sem marcação — e
             &quot;gera por hora&quot; soma os dois papéis. As duas receitas não se somam como
             faturamento da empresa — o mesmo contrato aparece no vendedor que fechou e em quem
             executou. São leituras do mesmo dinheiro por papel diferente.

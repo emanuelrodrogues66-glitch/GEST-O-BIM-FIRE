@@ -16,6 +16,12 @@ export type ProducaoPorHora = {
   horas_estimadas: number
   /** Horas trabalhadas pelo cartao ponto — o denominador de quem vende. */
   horas_ponto: number
+  /** Jornada prevista nos dias uteis sem marcacao de ponto. */
+  horas_previstas: number
+  /** Ponto + jornada prevista: o denominador de quem vende. */
+  horas_base: number
+  dias_uteis: number
+  dias_com_ponto: number
   lancamentos: number
   projetos_tocados: number
   projetos_equivalentes: number
@@ -50,6 +56,10 @@ export async function producaoPorHora(
     ...r,
     horas: Number(r.horas) || 0,
     horas_ponto: Number(r.horas_ponto) || 0,
+    horas_previstas: Number(r.horas_previstas) || 0,
+    horas_base: Number(r.horas_base) || 0,
+    dias_uteis: Number(r.dias_uteis) || 0,
+    dias_com_ponto: Number(r.dias_com_ponto) || 0,
     vendas: Number(r.vendas) || 0,
     vendas_fechadas: Number(r.vendas_fechadas) || 0,
     horas_estimadas: Number(r.horas_estimadas) || 0,
