@@ -61,6 +61,8 @@ export type Lead = {
   endereco_obra: string | null
   origem: 'app' | 'rd' | 'planilha'
   origem_id: string | null
+  /** Negociacao de origem, quando esta nasceu do botao Duplicar. */
+  copia_de: string | null
   project_id: string | null
   tipo_venda: 'novo' | 'recompra' | 'memorial' | null
   /** Verdadeiro quando alguém escolheu o tipo à mão, e o sistema não recalcula. */
@@ -326,6 +328,68 @@ export async function recalcularComissoes(): Promise<number> {
  * o cartão da gestão ficaria órfão. Nesse caso é preciso desligar do projeto
  * antes, o que obriga a pessoa a pensar duas vezes.
  */
+/**
+ * Duplica uma negociacao.
+ *
+ * O caso de todo dia e o mesmo cliente pedindo um segundo serviço, ou a
+ * mesma obra orçada em duas configurações. Redigitar nome, telefone,
+ * endereço e responsável custa tempo e erra um dígito.
+ *
+ * A cópia leva o cadastro e deixa para trás tudo que pertence ao negócio
+ * antigo: etapa, valor fechado, comissão, número do orçamento, projeto
+ * gerado, motivo de perda e o histórico de contatos. Ela nasce aberta na
+ * primeira etapa do funil, porque é um negócio novo — herdar a etapa faria
+ * uma cópia nascer em "proposta enviada" sem proposta nenhuma.
+ *
+ * O vínculo com a original fica guardado em copia_de: é o que permite ao
+ * relatório de duplicadas não acusar como engano uma cópia feita de
+ * propósito.
+ */
+export async function duplicarLead(
+  lead: Lead,
+  etapas: Etapa[],
+  nomeNovo?: string
+): Promise<Lead> {
+  const primeira = etapas
+    .filter((e) => e.funnel_id === lead.funnel_id && e.tipo === 'aberta')
+    .sort((a, b) => a.ordem - b.ordem)[0]
+
+  const nome = (nomeNovo || '').trim() || lead.nome + ' (cópia)'
+
+  const copia = await criarLead({
+    nome,
+    funnel_id: lead.funnel_id,
+    stage_id: primeira?.id ?? null,
+    estado: 'aberta',
+    tipo_cliente: lead.tipo_cliente,
+    cliente_id: lead.cliente_id,
+    parceiro_id: lead.parceiro_id,
+    nome_cliente: lead.nome_cliente,
+    nome_parceiro: lead.nome_parceiro,
+    contato: lead.contato,
+    email: lead.email,
+    cidade: lead.cidade,
+    endereco_obra: lead.endereco_obra,
+    nome_projeto: lead.nome_projeto,
+    area_m2: lead.area_m2,
+    valor: lead.valor,
+    responsavel: lead.responsavel,
+    fonte: lead.fonte,
+    observacoes: lead.observacoes,
+    forma_pagamento: lead.forma_pagamento,
+    entrada: lead.entrada,
+    parcelas: lead.parcelas,
+    tipo_venda: lead.tipo_venda,
+    tipo_venda_manual: lead.tipo_venda_manual,
+    copia_de: lead.id,
+    origem: 'app',
+  })
+
+  await registrarAtividade(copia.id, 'sistema', 'Duplicada a partir de "' + lead.nome + '".')
+  await registrarAtividade(lead.id, 'sistema', 'Duplicada em "' + copia.nome + '".')
+  return copia
+}
+
 export async function excluirLeads(ids: string[]): Promise<number> {
   const { data, error } = await supabase.rpc('excluir_leads', { p_ids: ids })
   if (error) throw new Error(error.message.replace(/^.*?:\s*/, ''))

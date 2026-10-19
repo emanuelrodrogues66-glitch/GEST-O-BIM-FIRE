@@ -7,6 +7,7 @@ import {
   converterEmProjeto,
   dataBR,
   ajustarComissao,
+  duplicarLead,
   excluirLeads,
   ligarAoProjeto,
   moverEtapa,
@@ -68,6 +69,30 @@ export default function CrmLeadModal({
   const veComissao = pode('comercial.comissao')
 
   const [form, setForm] = useState<Lead>(lead)
+  const [duplicando, setDuplicando] = useState(false)
+
+  /**
+   * Duplicar pergunta o nome antes de criar.
+   *
+   * Duas negociações com o mesmo nome no quadro é o começo de ligar para o
+   * cliente falando do orçamento errado, entao o nome sai daqui ja
+   * diferente — e quem duplicou escolhe qual e a diferença.
+   */
+  async function duplicar() {
+    const nome = window.prompt('Nome da nova negociação:', form.nome + ' (cópia)')
+    if (nome === null) return
+    setDuplicando(true)
+    try {
+      const copia = await duplicarLead(form, etapas, nome)
+      onMudou()
+      alert('Negociação duplicada: ' + copia.nome + '.\n\nEla entrou aberta na primeira etapa do funil, com os dados do cliente e sem o histórico da original.')
+      onFechar()
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setDuplicando(false)
+    }
+  }
   const fontesDisponiveis = comAFonteAtual(form.fonte)
   const [atividades, setAtividades] = useState<AtividadeLead[]>([])
   // Quando a negociacao entrou na etapa atual, lido do proprio historico.
@@ -611,6 +636,16 @@ export default function CrmLeadModal({
         </div>
 
         <div className="px-5 py-3 border-t border-slate-200 flex items-center gap-3 text-[11px] text-slate-500">
+          {podeEditar && (
+            <button
+              onClick={duplicar}
+              disabled={duplicando}
+              className="text-indigo-700 hover:underline disabled:opacity-40"
+              title="Cria uma negociação nova com os dados deste cliente, aberta na primeira etapa"
+            >
+              {duplicando ? 'Duplicando...' : 'Duplicar'}
+            </button>
+          )}
           <span>
             Proposto <strong className="text-slate-700">{reais(form.valor)}</strong>
           </span>
