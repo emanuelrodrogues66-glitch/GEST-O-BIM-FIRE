@@ -51,13 +51,30 @@ export async function carregarRecorrencias(): Promise<TaskRecurrence[]> {
   return (data as TaskRecurrence[]) || []
 }
 
+/**
+ * Todas as tarefas, paginadas.
+ *
+ * O PostgREST devolve no maximo 1000 linhas e nao avisa quando corta. Como
+ * a busca vem ordenada por prazo, o corte comia justamente o futuro: passou
+ * de 1454 tarefas e o calendario parou de mostrar qualquer coisa depois de
+ * 09/11, sem erro nenhum na tela. Entao se busca de mil em mil ate acabar.
+ */
 export async function carregarTarefas(): Promise<TarefaDaAgenda[]> {
-  const { data, error } = await supabase
-    .from('project_tasks')
-    .select('*, projects(nome, numero), task_categories(nome, cor)')
-    .order('data_prazo', { ascending: true })
-  if (error) throw error
-  return (data as TarefaDaAgenda[]) || []
+  const PAGINA = 1000
+  const todas: TarefaDaAgenda[] = []
+  for (let de = 0; ; de += PAGINA) {
+    const { data, error } = await supabase
+      .from('project_tasks')
+      .select('*, projects(nome, numero), task_categories(nome, cor)')
+      .order('data_prazo', { ascending: true })
+      .order('id', { ascending: true })
+      .range(de, de + PAGINA - 1)
+    if (error) throw error
+    const lote = (data as TarefaDaAgenda[]) || []
+    todas.push(...lote)
+    if (lote.length < PAGINA) break
+  }
+  return todas
 }
 
 /**
