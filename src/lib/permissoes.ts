@@ -250,6 +250,34 @@ export const PERMISSOES: Permissao[] = [
     sensivel: true,
   },
 
+  // ---------------------------------------------------------- SENAPPEN
+  {
+    codigo: 'senappen.ver',
+    rotulo: 'Ver o checklist SENAPPEN',
+    descricao: 'Abrir os blocos, a agenda e o andamento da revisão.',
+    grupo: 'SENAPPEN',
+  },
+  {
+    codigo: 'senappen.editar',
+    rotulo: 'Marcar itens e cronometrar',
+    descricao: 'Marcar item como feito, iniciar e parar o cronômetro no bloco.',
+    grupo: 'SENAPPEN',
+  },
+  {
+    codigo: 'senappen.revisar',
+    rotulo: 'Aprovar e pedir correção',
+    descricao:
+      'Revisar o que os outros fizeram. Ninguém aprova o próprio item, nem com esta permissão.',
+    grupo: 'SENAPPEN',
+  },
+  {
+    codigo: 'senappen.administrar',
+    rotulo: 'Manter blocos e checklists',
+    descricao: 'Criar e excluir bloco, editar os modelos de checklist e restaurar backup.',
+    grupo: 'SENAPPEN',
+    sensivel: true,
+  },
+
   // ---------------------------------------------------------- administração
   {
     codigo: 'equipe.editar',

@@ -5,6 +5,7 @@ import App from './App.tsx'
 import PontoPage from './components/PontoPage.tsx'
 import ComercialPage from './components/ComercialPage.tsx'
 import MefPage from './components/MefPage.tsx'
+import SenappenPage from './components/SenappenPage.tsx'
 import FormularioParceiro from './components/FormularioParceiro.tsx'
 
 // O cartão ponto mora em /ponto, endereço próprio: dá para abrir numa aba
@@ -31,7 +32,9 @@ document.title = ehFormulario
       ? 'Cartão Ponto — BIM Fire'
       : rota === '/mef'
         ? 'MEF Instalações'
-        : 'Gestão de Projetos — BIM Fire'
+        : rota === '/senappen'
+          ? 'Checklist SENAPPEN — BIM Fire'
+          : 'Gestão de Projetos — BIM Fire'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -41,6 +44,8 @@ createRoot(document.getElementById('root')!).render(
       <PontoPage />
     ) : rota === '/comercial' ? (
       <ComercialPage />
+    ) : rota === '/senappen' ? (
+      <SenappenPage />
     ) : rota === '/mef' ? (
       <MefPage />
 

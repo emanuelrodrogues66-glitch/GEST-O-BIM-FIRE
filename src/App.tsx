@@ -647,6 +647,17 @@ export default function App() {
                 MEF <span className="text-[9px] text-slate-400">↗</span>
               </a>
             )}
+            {pode('senappen.ver') && (
+              <a
+                href="/senappen"
+                target="_blank"
+                rel="noopener"
+                className="text-xs font-medium px-3 py-1.5 rounded-md transition text-slate-500 hover:bg-slate-100 hover:text-slate-700 flex items-center gap-1"
+                title="Checklist SENAPPEN — abre em uma nova página"
+              >
+                SENAPPEN <span className="text-[9px] text-slate-400">↗</span>
+              </a>
+            )}
             <a
               href="/ponto"
               target="_blank"
