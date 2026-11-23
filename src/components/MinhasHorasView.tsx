@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { supabase, carregarTabelaCompleta } from '../lib/supabase'
 import { hojeLocal, minutosLegiveis } from '../lib/ponto'
 
@@ -46,6 +47,17 @@ type Dia = {
   lancados: Lancado[]
 }
 
+type PontoLinha = { hora: number; categoria: string; ativo_seg: number; ocioso_seg: number }
+
+/** Mesmas cores e ordem do painel do monitor. */
+const CATEGORIAS = [
+  { id: 'trabalho', rotulo: 'Trabalho', cor: '#2a78d6' },
+  { id: 'navegador', rotulo: 'Navegador', cor: '#eb6834' },
+  { id: 'comunicacao', rotulo: 'Comunicação', cor: '#1baf7a' },
+  { id: 'outros', rotulo: 'Outros', cor: '#eda100' },
+  { id: 'ocioso', rotulo: 'Ocioso', cor: '#c9c8c1' },
+] as const
+
 type Tarefa = { id: string; nome: string; codigo: string | null; status: string | null; minha: boolean; parent_id: string | null }
 type ProjetoBusca = { id: string; numero: number; nome: string; status: string | null }
 type Membro = { nome: string; ativo: boolean }
@@ -77,6 +89,7 @@ export default function MinhasHorasView() {
   const [pinOk, setPinOk] = useState('') // PIN confirmado da sessão desta tela (só em memória)
   const [dia, setDia] = useState(hojeLocal())
   const [dados, setDados] = useState<Dia | null>(null)
+  const [linha, setLinha] = useState<PontoLinha[]>([])
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState('')
   const [admin, setAdmin] = useState(false)
@@ -94,12 +107,13 @@ export default function MinhasHorasView() {
   async function carregar(pinUsado = pinOk, diaUsado = dia) {
     setErro('')
     setCarregando(true)
-    const { data, error } = await supabase.rpc('mon_minhas_horas', {
-      p_colaborador: colaborador,
-      p_pin: pinUsado,
-      p_dia: diaUsado,
-    })
+    const args = { p_colaborador: colaborador, p_pin: pinUsado, p_dia: diaUsado }
+    const [{ data, error }, tl] = await Promise.all([
+      supabase.rpc('mon_minhas_horas', args),
+      supabase.rpc('mon_minha_linha_do_tempo', args),
+    ])
     setCarregando(false)
+    setLinha(tl.error ? [] : ((tl.data as PontoLinha[]) || []))
     if (error) {
       setErro(mensagemDeErro(error))
       if (/PIN/i.test(error.message)) {
@@ -123,6 +137,7 @@ export default function MinhasHorasView() {
   function sair() {
     setPinOk('')
     setDados(null)
+    setLinha([])
     setAberto(null)
   }
 
@@ -254,6 +269,8 @@ export default function MinhasHorasView() {
             <Indicador rotulo="Falta lançar" valor={fmtHoras(faltaH)} destaque={faltaH >= 0.25} />
           </div>
 
+          {!dados.sem_monitor && <GraficosDoDia linha={linha} />}
+
           {dados.sem_monitor && (
             <p className="text-sm text-slate-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               O monitor ainda não está instalado no seu computador, então não há tempo medido. Os lançamentos do dia
@@ -343,6 +360,98 @@ export default function MinhasHorasView() {
           </p>
         </>
       )}
+    </div>
+  )
+}
+
+function GraficosDoDia({ linha }: { linha: PontoLinha[] }) {
+  const { totais, porHora } = useMemo(() => {
+    const totais: Record<string, number> = { trabalho: 0, navegador: 0, comunicacao: 0, outros: 0, ocioso: 0 }
+    const horas = new Map<number, Record<string, number>>()
+    for (const l of linha) {
+      const h = horas.get(l.hora) || { trabalho: 0, navegador: 0, comunicacao: 0, outros: 0, ocioso: 0 }
+      const cat = l.categoria in totais ? l.categoria : 'outros'
+      h[cat] += Number(l.ativo_seg) / 60
+      h.ocioso += Number(l.ocioso_seg) / 60
+      totais[cat] += Number(l.ativo_seg)
+      totais.ocioso += Number(l.ocioso_seg)
+      horas.set(l.hora, h)
+    }
+    const usadas = [...horas.keys()]
+    const de = usadas.length ? Math.min(7, ...usadas) : 7
+    const ate = usadas.length ? Math.max(19, ...usadas) : 19
+    const porHora = []
+    for (let h = de; h <= ate; h++) {
+      const v = horas.get(h) || {}
+      porHora.push({
+        hora: `${h}h`,
+        ...Object.fromEntries(CATEGORIAS.map((c) => [c.id, Math.round(Math.min(60, (v as any)[c.id] || 0) * 10) / 10])),
+      })
+    }
+    return { totais, porHora }
+  }, [linha])
+
+  const soma = Object.values(totais).reduce((a, b) => a + b, 0)
+  if (!soma) return null
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-4">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+        {CATEGORIAS.map((c) => (
+          <span key={c.id} className="flex items-center gap-1.5">
+            <i className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: c.cor }} />
+            {c.rotulo}
+            <b className="tabular-nums text-slate-700">{fmtHoras(totais[c.id] / 3600)}</b>
+          </span>
+        ))}
+      </div>
+
+      {/* Distribuição do dia */}
+      <div className="flex h-3.5 gap-0.5" title="Distribuição do dia">
+        {CATEGORIAS.filter((c) => totais[c.id] > 0).map((c, i, arr) => (
+          <span
+            key={c.id}
+            style={{ flex: totais[c.id], background: c.cor }}
+            className={`${i === 0 ? 'rounded-l' : ''} ${i === arr.length - 1 ? 'rounded-r' : ''}`}
+            title={`${c.rotulo}: ${fmtHoras(totais[c.id] / 3600)} (${Math.round((totais[c.id] / soma) * 100)}%)`}
+          />
+        ))}
+      </div>
+
+      {/* Hora a hora */}
+      <div className="h-56">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={porHora} margin={{ top: 4, right: 4, left: -18, bottom: 0 }} barCategoryGap="22%">
+            <CartesianGrid vertical={false} stroke="#e2e8f0" />
+            <XAxis dataKey="hora" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} />
+            <YAxis
+              domain={[0, 60]}
+              ticks={[0, 15, 30, 45, 60]}
+              tick={{ fontSize: 11, fill: '#64748b' }}
+              tickLine={false}
+              axisLine={false}
+              unit="min"
+            />
+            <Tooltip
+              cursor={{ fill: 'rgba(148,163,184,0.12)' }}
+              formatter={(v: any, nome: any) => [`${Math.round(Number(v))} min`, CATEGORIAS.find((c) => c.id === nome)?.rotulo || nome]}
+              contentStyle={{ fontSize: 12, borderRadius: 8 }}
+            />
+            {CATEGORIAS.map((c, i) => (
+              <Bar
+                key={c.id}
+                dataKey={c.id}
+                stackId="a"
+                fill={c.cor}
+                stroke="#fff"
+                strokeWidth={1}
+                radius={i === CATEGORIAS.length - 1 ? [4, 4, 0, 0] : 0}
+                isAnimationActive={false}
+              />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }
