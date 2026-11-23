@@ -35,6 +35,7 @@ import AgendaView from './components/AgendaView'
 import FeedView from './components/FeedView'
 import MoodView from './components/MoodView'
 import ActivitiesReport from './components/ActivitiesReport'
+import MinhasHorasView from './components/MinhasHorasView'
 import PendencyDialog from './components/PendencyDialog'
 import CelebrationSettings from './components/CelebrationSettings'
 import type { MonthRef } from './lib/month'
@@ -50,6 +51,7 @@ type ViewMode =
   | 'feed'
   | 'humor'
   | 'atividades'
+  | 'horas'
   | 'custos'
   | 'financeiro'
   | 'produtividade'
@@ -585,6 +587,7 @@ export default function App() {
                 ['feed', 'Feed'],
                 ...(pode('humor.ver') ? ([['humor', 'Humor da equipe']] as [ViewMode, string][]) : []),
                 ['atividades', 'Atividades'],
+                ['horas', 'Minhas horas'],
                 ['renovacoes', 'Renovações'],
                 ...(pode('cadastros.ver')
                   ? ([['cadastros', 'Clientes e parceiros']] as [ViewMode, string][])
@@ -733,6 +736,8 @@ export default function App() {
           <TeamCostsView />
         ) : viewMode === 'atividades' ? (
           <ActivitiesReport />
+        ) : viewMode === 'horas' ? (
+          <MinhasHorasView />
         ) : (
           <ReportsView onProjectClick={openEditById} />
         )}
